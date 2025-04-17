@@ -1,0 +1,10 @@
+{
+    "github.copilot.chat.commitMessageGeneration.instructions": [
+        {
+            "text":"Use conventional commit message format."
+        },
+        {
+            "text":"Can use fix, feat, docs, style, refactor, perf, test, build, ci, and chore as types."
+        }
+    ]
+}
