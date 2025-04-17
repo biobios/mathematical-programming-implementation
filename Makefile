@@ -5,7 +5,7 @@ PROJECTS:=$(patsubst src/%, %, $(filter-out src/lib, $(wildcard src/*)))
 TARGETS:=$(addprefix bin/, $(PROJECTS))
 
 export ROOT_DIR=$(shell pwd)
-export LIB_NAME=mphlib
+export LIB_NAME=mpilib
 
 all: $(TARGETS)
 
