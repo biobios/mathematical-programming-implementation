@@ -4,8 +4,6 @@ OBJS=$(patsubst %.cpp,$(ROOT_DIR)/temp/$(PROJECT_NAME)/%.o,$(SRCS))
 TARGET=$(ROOT_DIR)/bin/$(PROJECT_NAME)
 DEPEND_DATA=$(wildcard $(ROOT_DIR)/data/$(PROJECT_NAME)/*)
 
-CXXFLAGS=-I$(ROOT_DIR)/src/lib -I$(ROOT_DIR)/src/$(PROJECT_NAME) -L$(ROOT_DIR)/bin -l$(LIB_NAME)
-
 build: $(TARGET)
 
 run: build $(patsubst $(ROOT_DIR)/src/$(PROJECT_NAME)/%,$(ROOT_DIR)/debug/$(PROJECT_NAME)/%,$(SRCS))
