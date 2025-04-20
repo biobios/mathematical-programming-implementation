@@ -167,9 +167,21 @@ namespace mpi
                 }
             }
         }
+
+        /**
+         * @brief 値から1x1行列に変換するコンストラクタ
+         * @param value 値
+         */
         constexpr Matrix(ValueType value) noexcept requires matrix_is_1x1
         : data{{{value}}} {}
 
+        /**
+         * @brief 行列の要素にアクセスするための関数
+         * @param row 行インデックス
+         * @param col 列インデックス
+         * @return 行列の要素への参照
+         * @exception std::out_of_range インデックスが範囲外の場合
+         */
         constexpr ValueType &at(std::size_t row, std::size_t col) &
         {
             if (row >= Rows || col >= Cols)
@@ -177,6 +189,14 @@ namespace mpi
 
             return data[row][col];
         }
+
+        /**
+         * @brief 行列の要素にアクセスするための関数
+         * @param row 行インデックス
+         * @param col 列インデックス
+         * @return 行列の要素へのconst参照
+         * @exception std::out_of_range インデックスが範囲外の場合
+         */
         constexpr const ValueType &at(std::size_t row, std::size_t col) const &
         {
             if (row >= Rows || col >= Cols)
@@ -184,6 +204,14 @@ namespace mpi
             
             return data[row][col];
         }
+
+        /**
+         * @brief 行列の要素にアクセスするための関数
+         * @param row 行インデックス
+         * @param col 列インデックス
+         * @return 行列の要素のコピー
+         * @exception std::out_of_range インデックスが範囲外の場合
+         */
         constexpr ValueType at(std::size_t row, std::size_t col) const &&
         {
             if (row >= Rows || col >= Cols)
@@ -381,6 +409,10 @@ namespace mpi
             return *this;
         }
 
+        /**
+         * @brief 1x1行列を値に変換する演算子オーバーロード
+         * @return 行列の要素
+         */
         constexpr operator ValueType() const noexcept
             requires matrix_is_1x1
         {
