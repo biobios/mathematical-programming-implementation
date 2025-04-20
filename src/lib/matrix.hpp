@@ -9,6 +9,24 @@ namespace mpi
     class Matrix;
 
     /**
+     * @brief 単位行列を生成する関数
+     * @tparam Order 行列のサイズ
+     * @tparam ValueType 行列の要素の型
+     * @return 単位行列
+     */
+    template <std::size_t Order, typename ValueType = double>
+        requires (Order > 0)
+    constexpr Matrix<Order, Order, ValueType> IdentityMatrix() noexcept
+    {
+        Matrix<Order, Order, ValueType> result;
+        for (std::size_t i = 0; i < Order; ++i)
+        {
+            result.at(i, i) = 1;
+        }
+        return result;
+    }
+
+    /**
      * @brief 行列積を計算する演算子オーバーロード
      * @tparam LhsRows 行列Aの行数
      * @tparam LhsCols_RhsRows 行列Aの列数、行列Bの行数
@@ -106,15 +124,24 @@ namespace mpi
     }
 
     /**
-     * @brief 行列の基本クラス
+     * @brief 行列クラス
      * @tparam Rows 行列の行数
      * @tparam Cols 行列の列数
      * @tparam ValueType 行列の要素の型
      */
-    template <std::size_t Rows, std::size_t Cols, typename ValueType>
-    class MatrixBase
+    template <std::size_t Rows, std::size_t Cols, typename ValueType = double>
+    class Matrix
     {
+    private:
+        static_assert(Rows > 0 && Cols > 0, "Rows and Cols must be greater than 0");
+        
+        static constexpr bool matrix_is_1x1 = (Rows == 1 && Cols == 1);
+        static constexpr bool matrix_is_square = (Rows == Cols);
+
     public:
+        constexpr Matrix(ValueType value) noexcept requires matrix_is_1x1
+        : data{{{value}}} {}
+
         constexpr ValueType &at(std::size_t row, std::size_t col) &
         {
             return data[row][col];
@@ -127,6 +154,11 @@ namespace mpi
         {
             return data[row][col];
         }
+        constexpr operator ValueType() const noexcept
+            requires matrix_is_1x1
+        {
+            return data[0][0];
+        }
 
         template <std::size_t LhsRows, std::size_t LhsCols_RhsRows, std::size_t RhsCols, typename ValueType_>
         friend Matrix<LhsRows, RhsCols, ValueType_> operator*(const Matrix<LhsRows, LhsCols_RhsRows, ValueType_> &lhs, const Matrix<LhsCols_RhsRows, RhsCols, ValueType_> &rhs);
@@ -138,41 +170,6 @@ namespace mpi
         friend Matrix<Rows_, Cols_, ValueType_> operator*(ValueType_ scalar, const Matrix<Rows_, Cols_, ValueType_> &matrix);
 
     private:
-        std::array<std::array<ValueType, Cols>, Rows> data;
-    };
-
-    /**
-     * @brief 行列クラス
-     * @tparam Rows 行列の行数
-     * @tparam Cols 行列の列数
-     * @tparam ValueType 行列の要素の型
-     */
-    template <std::size_t Rows, std::size_t Cols, typename ValueType = double>
-    class Matrix : public MatrixBase<Rows, Cols, ValueType>
-    {
-    public:
-    private:
-    };
-
-    /**
-     * @brief 1x1行列クラス
-     * @tparam ValueType 行列の要素の型
-     */
-    template <typename ValueType>
-    class Matrix<1, 1, ValueType> : public MatrixBase<1, 1, ValueType>
-    {
-    public:
-        constexpr Matrix() = default;
-        constexpr Matrix(ValueType value)
-        {
-            this->at(0, 0) = value;
-        }
-
-        constexpr operator ValueType() const
-        {
-            return this->at(0, 0);
-        }
-
-    private:
+        std::array<std::array<ValueType, Cols>, Rows> data = {};
     };
 }
