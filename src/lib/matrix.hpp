@@ -191,6 +191,126 @@ namespace mpi
             
             return data[row][col];
         }
+
+        /**
+         * @brief 行列の行を入れ替える関数
+         * @param row1 行インデックス1
+         * @param row2 行インデックス2
+         * @return 自身の参照
+         * @exception std::out_of_range インデックスが範囲外の場合
+         */
+        constexpr Matrix& switch_row(std::size_t row1, std::size_t row2) &
+        {
+            if (row1 >= Rows || row2 >= Rows)
+                exception::throw_exception<std::out_of_range>("Index out of range");
+
+            std::swap(data[row1], data[row2]);
+
+            return *this;
+        }
+
+        /**
+         * @brief 行列の列を入れ替える関数
+         * @param col1 列インデックス1
+         * @param col2 列インデックス2
+         * @return 自身の参照
+         * @exception std::out_of_range インデックスが範囲外の場合
+         */
+        constexpr Matrix& switch_col(std::size_t col1, std::size_t col2) &
+        {
+            if (col1 >= Cols || col2 >= Cols)
+                exception::throw_exception<std::out_of_range>("Index out of range");
+
+            for (std::size_t i = 0; i < Rows; ++i)
+            {
+                std::swap(data[i][col1], data[i][col2]);
+            }
+
+            return *this;
+        }
+
+        /**
+         * @brief 行列の行をスカラー倍する関数
+         * @param row 行インデックス
+         * @param factor スカラー値
+         * @return 自身の参照
+         * @exception std::out_of_range インデックスが範囲外の場合
+         */
+        constexpr Matrix& multiply_row(std::size_t row, ValueType factor) &
+        {
+            if (row >= Rows)
+                exception::throw_exception<std::out_of_range>("Index out of range");
+
+            for (std::size_t j = 0; j < Cols; ++j)
+            {
+                data[row][j] *= factor;
+            }
+
+            return *this;
+        }
+
+        /**
+         * @brief 行列の列をスカラー倍する関数
+         * @param col 列インデックス
+         * @param factor スカラー値
+         * @return 自身の参照
+         * @exception std::out_of_range インデックスが範囲外の場合
+         */
+        constexpr Matrix& multiply_col(std::size_t col, ValueType factor) &
+        {
+            if (col >= Cols)
+                exception::throw_exception<std::out_of_range>("Index out of range");
+
+            for (std::size_t i = 0; i < Rows; ++i)
+            {
+                data[i][col] *= factor;
+            }
+
+            return *this;
+        }
+
+        /**
+         * @brief 行列の行を別の行に加算する関数
+         * @param source_row 加算元行インデックス
+         * @param target_row 加算先行インデックス
+         * @param factor この値が掛けられた値が加算される
+         * @return 自身の参照
+         * @exception std::out_of_range インデックスが範囲外の場合
+         */
+        constexpr Matrix& add_row(std::size_t source_row, std::size_t target_row, ValueType factor) &
+        {
+            if (source_row >= Rows || target_row >= Rows)
+                exception::throw_exception<std::out_of_range>("Index out of range");
+
+            for (std::size_t j = 0; j < Cols; ++j)
+            {
+                data[target_row][j] += factor * data[source_row][j];
+            }
+
+            return *this;
+        }
+
+        /**
+         * @brief 行列の列を別の列に加算する関数
+         * @param source_col 加算元列インデックス
+         * @param target_col 加算先列インデックス
+         * @param factor この値が掛けられた値が加算される
+         * @return 自身の参照
+         * @exception std::out_of_range インデックスが範囲外の場合
+         */
+        constexpr Matrix& add_col(std::size_t source_col, std::size_t target_col, ValueType factor) &
+        {
+            if (source_col >= Cols || target_col >= Cols)
+                exception::throw_exception<std::out_of_range>("Index out of range");
+
+            for (std::size_t i = 0; i < Rows; ++i)
+            {
+                data[i][target_col] += factor * data[i][source_col];
+            }
+
+            return *this;
+        }
+
         constexpr operator ValueType() const noexcept
             requires matrix_is_1x1
         {
