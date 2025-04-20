@@ -2,6 +2,8 @@
 #include <cstdint>
 #include <array>
 
+#include "exception_helpter.hpp"
+
 namespace mpi
 {
 
@@ -144,14 +146,23 @@ namespace mpi
 
         constexpr ValueType &at(std::size_t row, std::size_t col) &
         {
+            if (row >= Rows || col >= Cols)
+                exception::throw_exception<std::out_of_range>("Index out of range");
+
             return data[row][col];
         }
         constexpr const ValueType &at(std::size_t row, std::size_t col) const &
         {
+            if (row >= Rows || col >= Cols)
+                exception::throw_exception<std::out_of_range>("Index out of range");
+            
             return data[row][col];
         }
         constexpr ValueType at(std::size_t row, std::size_t col) const &&
         {
+            if (row >= Rows || col >= Cols)
+                exception::throw_exception<std::out_of_range>("Index out of range");
+            
             return data[row][col];
         }
         constexpr operator ValueType() const noexcept
