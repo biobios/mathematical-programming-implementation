@@ -141,6 +141,32 @@ namespace mpi
         static constexpr bool matrix_is_square = (Rows == Cols);
 
     public:
+        
+        /**
+         * @brief デフォルトコンストラクタ
+         * @note 行列の要素はデフォルト値で初期化される
+         */
+        constexpr Matrix() noexcept : data{} {}
+
+        /**
+         * @brief 初期化リストを使用して行列を初期化するコンストラクタ
+         * @param init_data 初期化リスト
+         * @note 初期化子リストのサイズが行列のサイズと一致しない場合、足りない部分はデフォルト値で初期化され、はみ出た部分は無視される
+         */
+        constexpr Matrix(std::initializer_list<std::initializer_list<ValueType>> init_data) noexcept
+        {
+            auto row_it = init_data.begin();
+            auto row_end = init_data.end();
+            for (std::size_t i = 0; row_it != row_end && i < Rows; ++i, ++row_it)
+            {
+                auto elem_it = row_it->begin();
+                auto elem_end = row_it->end();
+                for (std::size_t j = 0; elem_it != elem_end && j < Cols; ++j, ++elem_it)
+                {
+                    data[i][j] = *elem_it;
+                }
+            }
+        }
         constexpr Matrix(ValueType value) noexcept requires matrix_is_1x1
         : data{{{value}}} {}
 
