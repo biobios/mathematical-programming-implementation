@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <array>
 
-#include "exception_helpter.hpp"
+#include "exception_helper.hpp"
 
 namespace mpi
 {

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstdint>
-#include "exception_helpter.hpp"
+#include "exception_helper.hpp"
 #include "matrix.hpp"
 
 namespace mpi
