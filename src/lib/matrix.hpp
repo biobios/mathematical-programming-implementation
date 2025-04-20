@@ -193,6 +193,76 @@ namespace mpi
         }
 
         /**
+         * @brief 行列の転置を計算する関数
+         * @return 転置行列
+         */
+        constexpr Matrix<Cols, Rows, ValueType> transpose() const noexcept
+        {
+            Matrix<Cols, Rows, ValueType> result;
+            for (std::size_t i = 0; i < Rows; ++i)
+            {
+                for (std::size_t j = 0; j < Cols; ++j)
+                {
+                    result.at(j, i) = data[i][j];
+                }
+            }
+            return result;
+        }
+
+        /**
+         * @brief 行列の逆行列を計算する関数
+         * @return 逆行列
+         * @exception std::domain_error 行列が正則でない場合
+         */
+        constexpr Matrix calc_inverse() const
+            requires matrix_is_square
+        {
+            Matrix result = IdentityMatrix<Rows, ValueType>();
+            Matrix copy = *this;
+
+            for (std::size_t i = 0; i < Rows; ++i)
+            {
+                if (copy.at(i, i) == 0)
+                {
+                    bool found = false;
+
+                    for (std::size_t j = i + 1; j < Rows; ++j)
+                    {
+                        if (copy.at(j, i) != 0)
+                        {
+                            result.switch_row(i, j);
+                            copy.switch_row(i, j);
+                            found = true;
+                            break;
+                        }
+                    }
+
+                    if (!found)
+                        exception::throw_exception<std::domain_error>("Matrix is singular");
+                }
+
+                ValueType pivot = copy.at(i, i);
+                if (pivot != 1)
+                {
+                    result.multiply_row(i, 1 / pivot);
+                    copy.multiply_row(i, 1 / pivot);
+                }
+
+                for (std::size_t j = 0; j < Rows; ++j)
+                {
+                    if (j != i)
+                    {
+                        ValueType factor = copy.at(j, i);
+                        result.add_row(i, j, -factor);
+                        copy.add_row(i, j, -factor);
+                    }
+                }                
+            }
+
+            return result;
+        }
+
+        /**
          * @brief 行列の行を入れ替える関数
          * @param row1 行インデックス1
          * @param row2 行インデックス2
