@@ -37,7 +37,7 @@ namespace mpi
      * @return 行列Aと行列Bの積
      */
     template <std::size_t LhsRows, std::size_t LhsCols_RhsRows, std::size_t RhsCols, typename ValueType>
-    Matrix<LhsRows, RhsCols, ValueType> operator*(const Matrix<LhsRows, LhsCols_RhsRows, ValueType> &lhs, const Matrix<LhsCols_RhsRows, RhsCols, ValueType> &rhs)
+    Matrix<LhsRows, RhsCols, ValueType> operator*(const Matrix<LhsRows, LhsCols_RhsRows, ValueType> &lhs, const Matrix<LhsCols_RhsRows, RhsCols, ValueType> &rhs) noexcept
     {
         Matrix<LhsRows, RhsCols, ValueType> result;
         for (std::size_t i = 0; i < LhsRows; ++i)
@@ -64,7 +64,7 @@ namespace mpi
      * @return 行列Aと行列Bの和
      */
     template <std::size_t Rows, std::size_t Cols, typename ValueType>
-    Matrix<Rows, Cols, ValueType> operator+(const Matrix<Rows, Cols, ValueType> &lhs, const Matrix<Rows, Cols, ValueType> &rhs)
+    Matrix<Rows, Cols, ValueType> operator+(const Matrix<Rows, Cols, ValueType> &lhs, const Matrix<Rows, Cols, ValueType> &rhs) noexcept
     {
         Matrix<Rows, Cols, ValueType> result;
         for (std::size_t i = 0; i < Rows; ++i)
@@ -87,7 +87,7 @@ namespace mpi
      * @return 行列Aと行列Bの差
      */
     template <std::size_t Rows, std::size_t Cols, typename ValueType>
-    Matrix<Rows, Cols, ValueType> operator-(const Matrix<Rows, Cols, ValueType> &lhs, const Matrix<Rows, Cols, ValueType> &rhs)
+    Matrix<Rows, Cols, ValueType> operator-(const Matrix<Rows, Cols, ValueType> &lhs, const Matrix<Rows, Cols, ValueType> &rhs) noexcept
     {
         Matrix<Rows, Cols, ValueType> result;
         for (std::size_t i = 0; i < Rows; ++i)
@@ -110,7 +110,7 @@ namespace mpi
      * @return スカラーと行列の積
      */
     template <std::size_t Rows, std::size_t Cols, typename ValueType>
-    Matrix<Rows, Cols, ValueType> operator*(ValueType scalar, const Matrix<Rows, Cols, ValueType> &matrix)
+    Matrix<Rows, Cols, ValueType> operator*(ValueType scalar, const Matrix<Rows, Cols, ValueType> &matrix) noexcept
     {
         Matrix<Rows, Cols, ValueType> result;
         for (std::size_t i = 0; i < Rows; ++i)
@@ -161,13 +161,13 @@ namespace mpi
         }
 
         template <std::size_t LhsRows, std::size_t LhsCols_RhsRows, std::size_t RhsCols, typename ValueType_>
-        friend Matrix<LhsRows, RhsCols, ValueType_> operator*(const Matrix<LhsRows, LhsCols_RhsRows, ValueType_> &lhs, const Matrix<LhsCols_RhsRows, RhsCols, ValueType_> &rhs);
+        friend Matrix<LhsRows, RhsCols, ValueType_> operator*(const Matrix<LhsRows, LhsCols_RhsRows, ValueType_> &lhs, const Matrix<LhsCols_RhsRows, RhsCols, ValueType_> &rhs) noexcept;
         template <std::size_t Rows_, std::size_t Cols_, typename ValueType_>
-        friend Matrix<Rows_, Cols_, ValueType_> operator+(const Matrix<Rows_, Cols_, ValueType_> &lhs, const Matrix<Rows_, Cols_, ValueType_> &rhs);
+        friend Matrix<Rows_, Cols_, ValueType_> operator+(const Matrix<Rows_, Cols_, ValueType_> &lhs, const Matrix<Rows_, Cols_, ValueType_> &rhs) noexcept;
         template <std::size_t Rows_, std::size_t Cols_, typename ValueType_>
-        friend Matrix<Rows_, Cols_, ValueType_> operator-(const Matrix<Rows_, Cols_, ValueType_> &lhs, const Matrix<Rows_, Cols_, ValueType_> &rhs);
+        friend Matrix<Rows_, Cols_, ValueType_> operator-(const Matrix<Rows_, Cols_, ValueType_> &lhs, const Matrix<Rows_, Cols_, ValueType_> &rhs) noexcept;
         template <std::size_t Rows_, std::size_t Cols_, typename ValueType_>
-        friend Matrix<Rows_, Cols_, ValueType_> operator*(ValueType_ scalar, const Matrix<Rows_, Cols_, ValueType_> &matrix);
+        friend Matrix<Rows_, Cols_, ValueType_> operator*(ValueType_ scalar, const Matrix<Rows_, Cols_, ValueType_> &matrix) noexcept;
 
     private:
         std::array<std::array<ValueType, Cols>, Rows> data = {};
