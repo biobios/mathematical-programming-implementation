@@ -6,7 +6,7 @@ TARGETS:=$(addprefix bin/, $(PROJECTS))
 
 export ROOT_DIR=$(shell pwd)
 export LIB_NAME=mpilib
-export CXXFLAGS=-I$(ROOT_DIR)/src/lib -L$(ROOT_DIR)/bin -l$(LIB_NAME) -std=c++20
+export CXXFLAGS=-I$(ROOT_DIR)/src/lib -L$(ROOT_DIR)/bin -l$(LIB_NAME) -std=c++23
 
 all: $(TARGETS)
 
