@@ -134,8 +134,6 @@ namespace mpi
 
                 // (0) 初期実行可能基底解を選ぶ
 
-                bool found_init_feasible = false;
-
                 auto B = create_submatrix_selecting(constraints_coefficients, {}, ranges::fixed_size<num_base_variables>(0)(indices));
                 auto B_inv = B.calc_inverse();
                 auto b_bar = B_inv * b;
