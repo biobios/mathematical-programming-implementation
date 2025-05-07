@@ -185,7 +185,7 @@ namespace mpi
         constexpr ValueType &at(std::size_t row, std::size_t col) &
         {
             if (row >= Rows || col >= Cols)
-                exception::throw_exception<std::out_of_range>("Index out of range");
+                exception::throw_exception<std::out_of_range>("Index out of range : row = " + std::to_string(row) + ", col = " + std::to_string(col));
 
             return data[row][col];
         }
