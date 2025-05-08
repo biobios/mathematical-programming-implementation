@@ -278,42 +278,30 @@ namespace mpi
                 // 補助問題を解く
                 solve_tableau(auxiliary_tableau, auxiliary_variable_indices);
                 
-                // debug
-                std::cout << "auxiliary_tableau" << std::endl;
-                for (std::size_t i = 0; i < NumConstraints + 1; ++i)
-                {
-                    for (std::size_t j = 0; j < NumVariables + NumConstraints + 1; ++j)
-                    {
-                        std::cout << auxiliary_tableau.at(i, j) << " ";
-                    }
-                    std::cout << std::endl;
-                }
-                
                 // 補助問題の最小値が0でなければ、元の問題は実行不可能
                 if ((int64_t)(auxiliary_tableau.at(0, NumVariables + NumConstraints) * 1e8) / (ValueType)(1e8) != 0)
                 {
                     return std::unexpected(LPNoSolutionReason::Infeasible);
                 }
 
+                // 取り除く列のインデックスを作成
                 std::array<std::size_t, NumConstraints> indices_for_exclude;
                 for (std::size_t i = 0; i < NumConstraints; ++i)
                 {
                     indices_for_exclude.at(i) = NumVariables + i;
                 }
+                // 補助問題の列を除外した部分行列を作成
                 auto tableau = create_submatrix_excluding(auxiliary_tableau, {}, indices_for_exclude);
-                std::cout << "test" << std::endl;
                 // 目的関数の係数をコピー
                 for (std::size_t i = 0; i < NumVariables; ++i)
                 {
                     tableau.at(0, i) = objective_function_coefficients.at(i, 0);
                 }
-                std::cout << "test2" << std::endl;
                 std::array<std::size_t, NumVariables> variable_indices;
                 for (std::size_t i = 0; i < NumConstraints; ++i)
                 {
                     variable_indices[NumVariables - NumConstraints + i] = auxiliary_variable_indices[NumVariables + i];
                 }
-                std::cout << "test3" << std::endl;
                 for (std::size_t i = 0, j = 0; i < NumVariables; ++i)
                 {
                     if (auxiliary_variable_indices[i] < NumVariables)
@@ -322,30 +310,20 @@ namespace mpi
                         ++j;
                     }
                 }
-                std::cout << "test4" << std::endl;
-                std::cout << "variable_indices" << std::endl;
-                for (std::size_t i = 0; i < NumVariables; ++i)
-                {
-                    std::cout << variable_indices[i] << " ";
-                }
-                std::cout << std::endl;
                 
                 // 基底変数の相対コスト係数の列を0にする
                 for (std::size_t i = 0; i < NumConstraints; ++i)
                 {
                     tableau.add_row(i + 1, 0, -tableau.at(0, variable_indices[NumVariables - NumConstraints + i]));
                 }
-                std::cout << "test5" << std::endl;
                 
                 // 元の問題を解く
                 solve_tableau(tableau, variable_indices);
-                std::cout << "test6" << std::endl;
                 Matrix<NumVariables, 1, ValueType> result;
                 for (std::size_t i = 0; i < NumConstraints; ++i)
                 {
                     result.at(variable_indices[NumVariables - NumConstraints + i], 0) = tableau.at(i + 1, NumVariables);
                 }
-                std::cout << "test7" << std::endl;
                 
                 return result;
             }
@@ -373,16 +351,6 @@ namespace mpi
                 constexpr std::size_t num_non_base_variables = NumVariables - num_base_variables;
                 while (!is_optimal(tableau))
                 {
-                    std::cout << "tableau" << std::endl;
-                    for (std::size_t i = 0; i < Rows; ++i)
-                    {
-                        for (std::size_t j = 0; j < Cols; ++j)
-                        {
-                            std::cout << tableau.at(i, j) << " ";
-                        }
-                        std::cout << std::endl;
-                    }
-
                     // 交換する非基底変数を選ぶ
                     std::size_t x_k_index = 0;
                     ValueType min = 0;
@@ -418,15 +386,7 @@ namespace mpi
 
                         tableau.add_row(i_index + 1, i, -tableau.at(i, indices[x_k_index]));
                     }
-                    std::cout << "x_k_index: " << x_k_index << std::endl;
-                    std::cout << "i_index: " << i_index << std::endl;
                     std::swap(indices[num_non_base_variables + i_index], indices[x_k_index]);
-                    std::cout << "indices" << std::endl;
-                    for (std::size_t i = 0; i < Cols - 1; ++i)
-                    {
-                        std::cout << indices[i] << " ";
-                    }
-                    std::cin.get();
                 }
             }
         };
