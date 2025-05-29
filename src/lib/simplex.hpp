@@ -224,5 +224,171 @@ namespace mpi
                 }
             }
         };
+        
+        struct SimplexTableau
+        {
+
+            template <std::size_t NumVariables, std::size_t NumConstraints, typename ValueType>
+            constexpr std::expected<Matrix<NumVariables, 1, ValueType>, LPNoSolutionReason> operator()(const Matrix<NumVariables, 1, ValueType> &objective_function_coefficients,
+                                                                                             const Matrix<NumConstraints, NumVariables, ValueType> &constraints_coefficients,
+                                                                                             const Matrix<NumConstraints, 1, ValueType> &constraint_values) const
+            {
+                // 補助問題を解く
+                Matrix<NumConstraints + 1, NumVariables + NumConstraints + 1, ValueType> auxiliary_tableau;
+                // 目的関数の係数を作成（人為変数の係数のみ1）
+                for (std::size_t i = 0; i < NumConstraints; ++i)
+                {
+                    auxiliary_tableau.at(0, NumVariables + i) = 1;
+                }
+                // 制約条件の係数をコピー
+                for (std::size_t i = 0; i < NumConstraints; ++i)
+                {
+                    for (std::size_t j = 0; j < NumVariables; ++j)
+                    {
+                        auxiliary_tableau.at(i + 1, j) = constraints_coefficients.at(i, j);
+                    }
+                    // 制約条件の値をコピー
+                    auxiliary_tableau.at(i + 1, NumVariables + NumConstraints) = constraint_values.at(i, 0);
+                    // 人為変数の係数を追加
+                    if (constraint_values.at(i, 0) < 0)
+                    {
+                        auxiliary_tableau.at(i + 1, NumVariables + i) = -1;
+                    }else
+                    {
+                        auxiliary_tableau.at(i + 1, NumVariables + i) = 1;
+                    }
+                }
+                // インデックス
+                // 0 ~ NumVariables-1まで非基底変数のインデックス
+                // NumVariables ~ NumVariables + NumConstraints - 1まで基底変数のインデックス
+                std::array<std::size_t, NumVariables + NumConstraints> auxiliary_variable_indices;
+                // 人為変数を基底変数に指定
+                // それ以外を非基底変数に指定
+                for (std::size_t i = 0; i < NumVariables + NumConstraints; ++i)
+                {
+                    auxiliary_variable_indices.at(i) = i;
+                }
+
+                // 基底変数の相対コスト係数の列を0にする
+                for (std::size_t i = 0; i < NumConstraints; ++i)
+                {
+                    auxiliary_tableau.add_row(i + 1, 0, -auxiliary_tableau.at(i + 1, NumVariables + i));
+                }
+                
+                // 補助問題を解く
+                solve_tableau(auxiliary_tableau, auxiliary_variable_indices);
+                
+                // 補助問題の最小値が0でなければ、元の問題は実行不可能
+                if ((int64_t)(auxiliary_tableau.at(0, NumVariables + NumConstraints) * 1e8) / (ValueType)(1e8) != 0)
+                {
+                    return std::unexpected(LPNoSolutionReason::Infeasible);
+                }
+
+                // 取り除く列のインデックスを作成
+                std::array<std::size_t, NumConstraints> indices_for_exclude;
+                for (std::size_t i = 0; i < NumConstraints; ++i)
+                {
+                    indices_for_exclude.at(i) = NumVariables + i;
+                }
+                // 補助問題の列を除外した部分行列を作成
+                auto tableau = create_submatrix_excluding(auxiliary_tableau, {}, indices_for_exclude);
+                // 目的関数の係数をコピー
+                for (std::size_t i = 0; i < NumVariables; ++i)
+                {
+                    tableau.at(0, i) = objective_function_coefficients.at(i, 0);
+                }
+                std::array<std::size_t, NumVariables> variable_indices;
+                for (std::size_t i = 0; i < NumConstraints; ++i)
+                {
+                    variable_indices[NumVariables - NumConstraints + i] = auxiliary_variable_indices[NumVariables + i];
+                }
+                for (std::size_t i = 0, j = 0; i < NumVariables; ++i)
+                {
+                    if (auxiliary_variable_indices[i] < NumVariables)
+                    {
+                        variable_indices[j] = auxiliary_variable_indices[i];
+                        ++j;
+                    }
+                }
+                
+                // 基底変数の相対コスト係数の列を0にする
+                for (std::size_t i = 0; i < NumConstraints; ++i)
+                {
+                    tableau.add_row(i + 1, 0, -tableau.at(0, variable_indices[NumVariables - NumConstraints + i]));
+                }
+                
+                // 元の問題を解く
+                solve_tableau(tableau, variable_indices);
+                Matrix<NumVariables, 1, ValueType> result;
+                for (std::size_t i = 0; i < NumConstraints; ++i)
+                {
+                    result.at(variable_indices[NumVariables - NumConstraints + i], 0) = tableau.at(i + 1, NumVariables);
+                }
+                
+                return result;
+            }
+            
+            private:
+            template <std::size_t Rows, std::size_t Cols, typename ValueType>
+            static constexpr bool is_optimal(const Matrix<Rows, Cols, ValueType>& tableau)
+            {
+                for (std::size_t i = 0; i < Cols - 1; ++i)
+                {
+                    if ((int)(tableau.at(0, i) * 1e8) / (ValueType)(1e8) < 0)
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            
+            template <std::size_t Rows, std::size_t Cols, typename ValueType>
+            static constexpr void solve_tableau(Matrix<Rows, Cols, ValueType>& tableau, std::array<std::size_t, Cols - 1>& indices)
+            {
+                constexpr std::size_t NumConstraints = Rows - 1;
+                constexpr std::size_t NumVariables = Cols - 1;
+                constexpr std::size_t num_base_variables = NumConstraints;
+                constexpr std::size_t num_non_base_variables = NumVariables - num_base_variables;
+                while (!is_optimal(tableau))
+                {
+                    // 交換する非基底変数を選ぶ
+                    std::size_t x_k_index = 0;
+                    ValueType min = 0;
+                    for (std::size_t i = 0; i < num_non_base_variables; ++i)
+                    {
+                        auto cost = tableau.at(0, indices[i]);
+                        if (cost < min)
+                        {
+                            min = cost;
+                            x_k_index = i;
+                        }
+                    }
+                    
+                    // 交換する基底変数を選ぶ
+                    std::size_t i_index = 0;
+                    ValueType theta = std::numeric_limits<ValueType>::max();
+                    for (std::size_t i = 0; i < NumConstraints; ++i)
+                    {
+                        auto frac_b_y = tableau.at(i + 1, NumVariables) / tableau.at(i + 1, indices[x_k_index]);
+                        if (frac_b_y > 0 && theta > frac_b_y)
+                        {
+                            theta = frac_b_y;
+                            i_index = i;
+                        }
+                    }
+                    
+                    // ピボット行を割る
+                    tableau.multiply_row(i_index + 1, 1 / tableau.at(i_index + 1, indices[x_k_index]));
+                    // 基底変数と非基底変数を交換する
+                    for(std::size_t i = 0; i < Rows; ++i)
+                    {
+                        if (i == i_index + 1) continue;
+
+                        tableau.add_row(i_index + 1, i, -tableau.at(i, indices[x_k_index]));
+                    }
+                    std::swap(indices[num_non_base_variables + i_index], indices[x_k_index]);
+                }
+            }
+        };
     }
 }
