@@ -9,10 +9,13 @@
 #include <set>
 #include <map>
 
+#include "simple_ga.hpp"
+#include "genetic_algorithm.hpp"
+
 // 乱数生成器はグローバルに定義
 std::mt19937 rng;
 
-double calc_fitness(const std::vector<std::vector<double>>& adjacency_matrix, std::vector<size_t>& path){
+double calc_fitness(const std::vector<std::vector<double>>& adjacency_matrix, const std::vector<size_t>& path){
     double fitness = 0.0;
     for (size_t i = 0; i < path.size() - 1; ++i) {
         fitness += adjacency_matrix[path[i]][path[i + 1]];
@@ -23,7 +26,7 @@ double calc_fitness(const std::vector<std::vector<double>>& adjacency_matrix, st
 }
 
 std::vector<size_t> edge_assembly_crossover(const std::vector<size_t>& parent1, const std::vector<size_t>& parent2, 
-                                            const std::vector<std::vector<double>>& adjacency_matrix) {
+                                            const std::vector<std::vector<double>>& adjacency_matrix, std::mt19937& rng) {
     struct edge {
         size_t from;
         size_t to;
@@ -245,75 +248,89 @@ int main()
     // 集団サイズ
     constexpr size_t population_size = 100;
     // 世代数
-    constexpr size_t generations = 10000;
+    constexpr size_t generations = 200;
     
-    struct Individual {
-        vector<size_t> path;
-        double fitness = 0.0; // 適応度
-    };
+    using Individual = vector<size_t>;
     
     // 集団を初期化
     vector<Individual> population(population_size);
     
     for (size_t i = 0; i < population_size; ++i) {
-        population[i].path.resize(city_positions.size());
-        iota(population[i].path.begin(), population[i].path.end(), 0); // 0からN-1までの整数を初期化
+        population[i].resize(city_positions.size());
+        iota(population[i].begin(), population[i].end(), 0); // 0からN-1までの整数を初期化
         // ランダムにシャッフル
-        shuffle(population[i].path.begin(), population[i].path.end(), rng);
-        
-        // 適応度を計算
-        population[i].fitness = calc_fitness(adjacency_matrix, population[i].path);
+        shuffle(population[i].begin(), population[i].end(), rng);
     }
     
     cout << "Initial population created." << endl;
     
-    // 遺伝的アルゴリズムのメインループ
-    for (size_t generation = 0; generation < generations; ++generation) {
-        // 確率分布を作成
-        vector<double> fitness_distribution(population_size);
-        for (size_t i = 0; i < population_size; ++i) {
-            fitness_distribution[i] = population[i].fitness;
-        }
-        
-        discrete_distribution<size_t> dist(fitness_distribution.begin(), fitness_distribution.end());
-        
-        // 新しい集団を生成
-        vector<Individual> new_population(population_size);
-        for (size_t i = 0; i < population_size; ++i) {
-            // 親を選択
-            size_t parent1_index = dist(rng);
-            size_t parent2_index = dist(rng);
-            
-            // 交叉
-            new_population[i].path = edge_assembly_crossover(population[parent1_index].path, population[parent2_index].path, adjacency_matrix);
-            // 適応度を計算
-            new_population[i].fitness = calc_fitness(adjacency_matrix, new_population[i].path);
-        }
-        
-        // 新しい集団を現在の集団に置き換え
-        population = std::move(new_population);
-        // 最良の個体を見つける
-        auto best_individual = std::min_element(population.begin(), population.end(), [](const Individual& a, const Individual& b) {
-            return a.fitness < b.fitness;
-        });
-        // 最良の個体の適応度を出力
-        if (generation % 100 == 0) {
-            cout << "Generation " << generation << ": Best fitness = " << best_individual->fitness << endl;
-            cout << "Best path: ";
-            for (const auto& city : best_individual->path) {
-                cout << city << " ";
-            }
-            cout << endl;
-        } else if (best_individual->path[0] == best_individual->path[1]) {
-            // print 
-            cout << "Generation " << generation << ": Best fitness = " << best_individual->fitness << endl;
-            cout << "Best path: ";
-            for (const auto& city : best_individual->path) {
-                cout << city << " ";
-            }
-            cout << endl;
-        }
+    vector<Individual> result = mpi::genetic_algorithm::SimpleGA(population, mpi::genetic_algorithm::GenerationsNumEndCondition(generations), 
+                                     [](const vector<Individual>& population, const vector<vector<double>>& adjacency_matrix) {
+                                        vector<double> fitness_values(population.size());
+                                        for (size_t i = 0; i < population.size(); ++i) {
+                                            fitness_values[i] = calc_fitness(adjacency_matrix, population[i]);
+                                        }
+                                        return fitness_values;
+                                     }, edge_assembly_crossover, adjacency_matrix, rng);
+    
+    // 最良の個体を見つける
+    auto best_individual = std::min_element(result.begin(), result.end(), [&](const Individual& a, const Individual& b) {
+        return calc_fitness(adjacency_matrix, a) < calc_fitness(adjacency_matrix, b);
+    });
+    cout << "Best fitness: " << calc_fitness(adjacency_matrix, *best_individual) << endl;
+    cout << "Best path: ";
+    for (const auto& city : *best_individual) {
+        cout << city << " ";
     }
+    cout << endl;
+    
+    // // 遺伝的アルゴリズムのメインループ
+    // for (size_t generation = 0; generation < generations; ++generation) {
+    //     // 確率分布を作成
+    //     vector<double> fitness_distribution(population_size);
+    //     for (size_t i = 0; i < population_size; ++i) {
+    //         fitness_distribution[i] = population[i].fitness;
+    //     }
+        
+    //     discrete_distribution<size_t> dist(fitness_distribution.begin(), fitness_distribution.end());
+        
+    //     // 新しい集団を生成
+    //     vector<Individual> new_population(population_size);
+    //     for (size_t i = 0; i < population_size; ++i) {
+    //         // 親を選択
+    //         size_t parent1_index = dist(rng);
+    //         size_t parent2_index = dist(rng);
+            
+    //         // 交叉
+    //         new_population[i].path = edge_assembly_crossover(population[parent1_index].path, population[parent2_index].path, adjacency_matrix);
+    //         // 適応度を計算
+    //         new_population[i].fitness = calc_fitness(adjacency_matrix, new_population[i].path);
+    //     }
+        
+    //     // 新しい集団を現在の集団に置き換え
+    //     population = std::move(new_population);
+    //     // 最良の個体を見つける
+    //     auto best_individual = std::min_element(population.begin(), population.end(), [](const Individual& a, const Individual& b) {
+    //         return a.fitness < b.fitness;
+    //     });
+    //     // 最良の個体の適応度を出力
+    //     if (generation % 100 == 0) {
+    //         cout << "Generation " << generation << ": Best fitness = " << best_individual->fitness << endl;
+    //         cout << "Best path: ";
+    //         for (const auto& city : best_individual->path) {
+    //             cout << city << " ";
+    //         }
+    //         cout << endl;
+    //     } else if (best_individual->path[0] == best_individual->path[1]) {
+    //         // print 
+    //         cout << "Generation " << generation << ": Best fitness = " << best_individual->fitness << endl;
+    //         cout << "Best path: ";
+    //         for (const auto& city : best_individual->path) {
+    //             cout << city << " ";
+    //         }
+    //         cout << endl;
+    //     }
+    // }
 
     
     return 0;
