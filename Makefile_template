@@ -2,11 +2,11 @@ PROJECT_NAME=$(subst $(ROOT_DIR)/src/,,$(shell pwd))
 SRCS=$(wildcard *.cpp)
 OBJS=$(patsubst %.cpp,$(ROOT_DIR)/temp/$(PROJECT_NAME)/%.o,$(SRCS))
 TARGET=$(ROOT_DIR)/bin/$(PROJECT_NAME)
-DEPEND_DATA=$(wildcard $(ROOT_DIR)/data/$(PROJECT_NAME)/*)
+DEPEND_DATA=$(patsubst $(ROOT_DIR)/data/$(PROJECT_NAME)/%,$(ROOT_DIR)/debug/$(PROJECT_NAME)/%,$(wildcard $(ROOT_DIR)/data/$(PROJECT_NAME)/*))
 
 build: $(TARGET)
 
-run: build $(patsubst $(ROOT_DIR)/src/$(PROJECT_NAME)/%,$(ROOT_DIR)/debug/$(PROJECT_NAME)/%,$(SRCS))
+run: build $(patsubst $(ROOT_DIR)/src/$(PROJECT_NAME)/%,$(ROOT_DIR)/debug/$(PROJECT_NAME)/%,$(SRCS)) $(DEPEND_DATA)
 	@mkdir -p $(ROOT_DIR)/debug/$(PROJECT_NAME)
 	@(cd $(ROOT_DIR)/debug/$(PROJECT_NAME) && $(ROOT_DIR)/bin/$(PROJECT_NAME))
 
@@ -23,5 +23,9 @@ $(OBJS): $(ROOT_DIR)/temp/$(PROJECT_NAME)/%.o: %.cpp
 
 $(ROOT_DIR)/bin/lib$(LIB_NAME).a:
 	@$(MAKE) -C $(ROOT_DIR) bin/lib$(LIB_NAME).a
+
+$(DEPEND_DATA): $(ROOT_DIR)/debug/$(PROJECT_NAME)/%: $(ROOT_DIR)/data/$(PROJECT_NAME)/%
+	@mkdir -p $(dir $@)
+	@cp $< $@
 
 .PHONY: build run $(ROOT_DIR)/bin/lib$(LIB_NAME).a
