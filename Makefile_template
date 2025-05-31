@@ -10,10 +10,6 @@ run: build $(patsubst $(ROOT_DIR)/src/$(PROJECT_NAME)/%,$(ROOT_DIR)/debug/$(PROJ
 	@mkdir -p $(ROOT_DIR)/debug/$(PROJECT_NAME)
 	@(cd $(ROOT_DIR)/debug/$(PROJECT_NAME) && $(ROOT_DIR)/bin/$(PROJECT_NAME))
 
-$(patsubst $(ROOT_DIR)/data/$(PROJECT_NAME)/%,$(ROOT_DIR)/debug/$(PROJECT_NAME)/%,$(DEPEND_DATA)): $(ROOT_DIR)/debug/$(PROJECT_NAME)/%: $(ROOT_DIR)/data/$(PROJECT_NAME)/%
-	@mkdir -p $(dir $@)
-	@cp $< $@
-
 $(TARGET): $(OBJS) $(ROOT_DIR)/bin/lib$(LIB_NAME).a
 	@$(CXX) -o $@ $(OBJS) $(CXXFLAGS)
 
