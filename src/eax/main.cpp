@@ -10,19 +10,15 @@
 #include <map>
 
 #include "simple_ga.hpp"
-#include "genetic_algorithm.hpp"
 
-// 乱数生成器はグローバルに定義
-std::mt19937 rng;
-
-double calc_fitness(const std::vector<std::vector<double>>& adjacency_matrix, const std::vector<size_t>& path){
-    double fitness = 0.0;
+double calc_fitness(const std::vector<size_t>& path, const std::vector<std::vector<double>>& adjacency_matrix){
+    double distance = 0.0;
     for (size_t i = 0; i < path.size() - 1; ++i) {
-        fitness += adjacency_matrix[path[i]][path[i + 1]];
+        distance += adjacency_matrix[path[i]][path[i + 1]];
     }
     // 最後の都市から最初の都市への距離を加算
-    fitness += adjacency_matrix[path.back()][path.front()];
-    return 1 / fitness;
+    distance += adjacency_matrix[path.back()][path.front()];
+    return 1 / distance;
 }
 
 std::vector<size_t> edge_assembly_crossover(const std::vector<size_t>& parent1, const std::vector<size_t>& parent2, 
@@ -30,35 +26,36 @@ std::vector<size_t> edge_assembly_crossover(const std::vector<size_t>& parent1, 
     struct edge {
         size_t from;
         size_t to;
-        bool is_parent1;
+        // setに格納するための比較演算子
         bool operator<(const edge& other) const {
-            return std::tie(from, to, is_parent1) < std::tie(other.from, other.to, other.is_parent1);
+            return std::tie(from, to) < std::tie(other.from, other.to);
         }
     };
     
     using namespace std;
 
-    vector<set<edge>> AB_cycles;
+    // parent2のエッジのみを含むABサイクルの配列
+    vector<set<edge>> AB_cycles_only_from_parent2;
     
+    // parent1の始点をキー、終点を値とする隣接リスト
     map<size_t, size_t> adjacency_list_parent1_from;
-    map<size_t, size_t> adjacency_list_parent2_from;
-    map<size_t, size_t> adjacency_list_parent1_to;
+    // parent2の終点をキー、始点を値とする隣接リスト
     map<size_t, size_t> adjacency_list_parent2_to;
 
     
+    // parent1とparent2のエッジを隣接リストに変換
     for (size_t i = 0; i < parent1.size(); ++i) {
         size_t next_i = (i + 1) % parent1.size();
         
-        // 隣接リストに追加
         adjacency_list_parent1_from[parent1[i]] = parent1[next_i];
-        adjacency_list_parent1_to[parent1[next_i]] = parent1[i];
-        adjacency_list_parent2_from[parent2[i]] = parent2[next_i];
         adjacency_list_parent2_to[parent2[next_i]] = parent2[i];
     }
-    // 子供用にコピーしておく
+
+    // 子供用に隣接リストをコピーしておく
     map<size_t, size_t> child_adjacency_list_from = adjacency_list_parent1_from;
     
-    // すべてのmapの要素数は同じであるので、一つ確かめるだけでよい
+    // ABサイクルに分割する
+    // すべてのmapの要素数は同じであるので、一つが空であるか確かめるだけでよい
     while (!adjacency_list_parent1_from.empty()) {
         set<edge> cycle;
         size_t current_city = adjacency_list_parent1_from.begin()->first;
@@ -67,49 +64,51 @@ std::vector<size_t> edge_assembly_crossover(const std::vector<size_t>& parent1, 
             // リストから現在のエッジを削除
             auto current_edge = *adjacency_list_parent1_from.find(current_city);
             adjacency_list_parent1_from.erase(current_edge.first);
-            adjacency_list_parent1_to.erase(current_edge.second);
-            
-            cycle.insert({current_edge.first, current_edge.second, true});
             
             // 対応するエッジを親2から探す
             auto corresponding_edge = *adjacency_list_parent2_to.find(current_edge.second);
             // 親2のエッジを削除
-            adjacency_list_parent2_from.erase(corresponding_edge.second);
             adjacency_list_parent2_to.erase(corresponding_edge.first);
             
-            cycle.insert({corresponding_edge.second, corresponding_edge.first, false});
+            cycle.insert({corresponding_edge.second, corresponding_edge.first});
 
             current_city = corresponding_edge.second;
         }
         
-        // サイズが２以下のサイクルは無視
+        // サイズが２以下のサイクルは無視(無効ABサイクル)
         if (cycle.size() > 2)
-            AB_cycles.push_back(move(cycle));
+            AB_cycles_only_from_parent2.push_back(move(cycle));
     }
-    // 1個以上N-1個以下のABサイクルをランダムに選択して、E-setを作成
-    // もしAB_cyclesが１個なら、parent1かparent2をランダムに返す
-    if (AB_cycles.size() < 2) {
+
+    // もしAB_cyclesが１個なら、parent1かparent2をランダムに返す 
+    if (AB_cycles_only_from_parent2.size() < 2) {
         return (rng() % 2 == 0) ? parent1 : parent2;
     }
+
+    // 1個以上N-1個以下のABサイクルをランダムに選択して、E-setを作成
     set<edge> E_set;
-    vector<size_t> AB_cycle_indices(AB_cycles.size());
+
+    vector<size_t> AB_cycle_indices(AB_cycles_only_from_parent2.size());
     std::iota(AB_cycle_indices.begin(), AB_cycle_indices.end(), 0); // 0からN-1までの整数を初期化
-    std::shuffle(AB_cycle_indices.begin(), AB_cycle_indices.end(), rng);
-    std::uniform_int_distribution<size_t> dist(1, AB_cycles.size() - 1);
+    std::shuffle(AB_cycle_indices.begin(), AB_cycle_indices.end(), rng); // ランダムにシャッフル
+
+    // 使用するABサイクルの数をランダムに決定(1以上N-1以下)
+    std::uniform_int_distribution<size_t> dist(1, AB_cycles_only_from_parent2.size() - 1);
     size_t num_cycles = dist(rng);
+
     for (size_t i = 0; i < num_cycles; ++i) {
-        E_set.merge(AB_cycles[AB_cycle_indices[i]]);
+        E_set.merge(AB_cycles_only_from_parent2[AB_cycle_indices[i]]);
     }
     
-    // parent1の隣接リストをコピーして、E-setを適用
+    // parent1の隣接リストをコピーしたchild_adjacency_list_fromに、E-setを適用
     vector<size_t> child_path(parent1.size());
-    for (const auto [start, end, is_parent1] : E_set) {
-        if (is_parent1) continue;
+    for (const auto e : E_set) {
         // parent2のエッジで上書き
-        child_adjacency_list_from[start] = end;
+        child_adjacency_list_from[e.from] = e.to;
     }
     
     // 緩和個体が作成できたので、修正操作を行う
+    // 隣接リストから部分巡回路の配列に変換
     vector<set<edge>> partial_cycles;
     while (!child_adjacency_list_from.empty()) {
         set<edge> cycle;
@@ -119,7 +118,7 @@ std::vector<size_t> edge_assembly_crossover(const std::vector<size_t>& parent1, 
             auto next_city = child_adjacency_list_from[current_city];
             // リストから現在のエッジを削除
             child_adjacency_list_from.erase(current_city);
-            cycle.insert({current_city, next_city, true});
+            cycle.insert({current_city, next_city});
             current_city = next_city;
         }
 
@@ -143,7 +142,7 @@ std::vector<size_t> edge_assembly_crossover(const std::vector<size_t>& parent1, 
         // 最小の部分巡回路と接続する部分巡回路を見つける
         edge e1;
         edge e2;
-        double min_weight = std::numeric_limits<double>::max();
+        double min_cost = std::numeric_limits<double>::max();
         size_t min_cost_index = 0;
 
         set<edge>& min_cycle = partial_cycles[min_cycle_index];
@@ -155,8 +154,8 @@ std::vector<size_t> edge_assembly_crossover(const std::vector<size_t>& parent1, 
                     double cost = - adjacency_matrix[edge1.from][edge1.to] - adjacency_matrix[edge2.from][edge2.to]
                                   + adjacency_matrix[edge1.from][edge2.to] + adjacency_matrix[edge2.from][edge1.to];
                     
-                    if (cost < min_weight) {
-                        min_weight = cost;
+                    if (cost < min_cost) {
+                        min_cost = cost;
                         e1 = edge1;
                         e2 = edge2;
                         min_cost_index = i;
@@ -168,8 +167,8 @@ std::vector<size_t> edge_assembly_crossover(const std::vector<size_t>& parent1, 
         // e1とe2をそれぞれ削除して、接続する辺をpartial_cycles[min_cycle_index]に追加
         partial_cycles[min_cycle_index].erase(e1);
         partial_cycles[min_cost_index].erase(e2);
-        partial_cycles[min_cycle_index].insert({e1.from, e2.to, true});
-        partial_cycles[min_cycle_index].insert({e2.from, e1.to, true});
+        partial_cycles[min_cycle_index].insert({e1.from, e2.to});
+        partial_cycles[min_cycle_index].insert({e2.from, e1.to});
         // partial_cycles[min_cost_index]をmin_cycle_indexにマージ
         partial_cycles[min_cycle_index].merge(partial_cycles[min_cost_index]);
 
@@ -187,7 +186,7 @@ std::vector<size_t> edge_assembly_crossover(const std::vector<size_t>& parent1, 
     for (const auto& e : final_cycle) {
         final_adjacency_list[e.from] = e.to;
     }
-    // そして、child_pathに変換
+    // そして、child_path(パス表現)に変換
     size_t current_city = final_adjacency_list.front();
     for (size_t i = 0; i < child_path.size(); ++i) {
         child_path[i] = current_city;
@@ -249,6 +248,8 @@ int main()
     constexpr size_t population_size = 100;
     // 世代数
     constexpr size_t generations = 200;
+    // 乱数生成器
+    mt19937 rng;
     
     using Individual = vector<size_t>;
     
@@ -264,20 +265,46 @@ int main()
     
     cout << "Initial population created." << endl;
     
-    vector<Individual> result = mpi::genetic_algorithm::SimpleGA(population, mpi::genetic_algorithm::GenerationsNumEndCondition(generations), 
-                                     [](const vector<Individual>& population, const vector<vector<double>>& adjacency_matrix) {
-                                        vector<double> fitness_values(population.size());
-                                        for (size_t i = 0; i < population.size(); ++i) {
-                                            fitness_values[i] = calc_fitness(adjacency_matrix, population[i]);
-                                        }
-                                        return fitness_values;
-                                     }, edge_assembly_crossover, adjacency_matrix, rng);
+    // 終了判定関数
+    // 世代数に達するか、最良の適応度が0.0025以上になったら終了
+    struct {
+        size_t generation = 0;
+        size_t max_generations = generations;
+        double max_fitness = 0.0025;
+        
+        bool operator()(const vector<Individual>& population, const vector<double>& fitness_values, const vector<vector<double>>& adjacency_matrix) {
+            // 最良の個体を見つける
+            auto best_fitness_ptr = std::max_element(fitness_values.begin(), fitness_values.end());
+            size_t best_index = std::distance(fitness_values.begin(), best_fitness_ptr);
+            
+            // 100世代ごとに最良の個体を出力
+            // 最後の世代では必ず出力
+            if (generation % 100 == 0 || *best_fitness_ptr >= max_fitness ) {
+                cout << "Generation " << generation << ": Best fitness = " << *best_fitness_ptr << endl;
+                cout << "Best path: ";
+                for (const auto& city : population[best_index]) {
+                    cout << city << " ";
+                }
+                cout << endl;
+            }
+            
+            // 世代数を増やす
+            ++generation;
+            // 終了条件を満たすかどうかを判定
+            return generation > max_generations || *best_fitness_ptr >= max_fitness;
+        }
+    } end_condition;
     
+    // 世代交代モデルSimpleGAを使用して、遺伝的アルゴリズムを実行
+    vector<Individual> result = mpi::genetic_algorithm::SimpleGA(population, end_condition, calc_fitness, edge_assembly_crossover, adjacency_matrix, rng);
+
     // 最良の個体を見つける
-    auto best_individual = std::min_element(result.begin(), result.end(), [&](const Individual& a, const Individual& b) {
-        return calc_fitness(adjacency_matrix, a) < calc_fitness(adjacency_matrix, b);
+    auto best_individual = std::max_element(result.begin(), result.end(), [&](const Individual& a, const Individual& b) {
+        return calc_fitness(a, adjacency_matrix) < calc_fitness(b, adjacency_matrix);
     });
-    cout << "Best fitness: " << calc_fitness(adjacency_matrix, *best_individual) << endl;
+    
+    // 最良の個体の適応度を出力
+    cout << "Best fitness: " << calc_fitness(*best_individual, adjacency_matrix) << endl;
     cout << "Best path: ";
     for (const auto& city : *best_individual) {
         cout << city << " ";
