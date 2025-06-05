@@ -25,7 +25,7 @@ namespace mpi
                 requires(requires(std::vector<Individual> population, EndCondition end_condition, FitnessFunc fitness_func, CrossOverFunc cross_over, Environment env, RandomGen rng, MutationFunc mutate, std::vector<double> fitness_values) {
                     { end_condition(population, fitness_values, env) } -> std::convertible_to<bool>;
                     { fitness_func(population[0], env) } -> std::convertible_to<double>;
-                    { cross_over(population[0], population[1], env, rng) } -> std::convertible_to<Individual>;
+                    { cross_over(population[0], population[1], 1, env, rng) } -> std::convertible_to<std::vector<Individual>>;
                     mutate(population[0], env, rng);
                 })
             constexpr std::vector<Individual> operator()(std::vector<Individual> population, EndCondition end_condition, FitnessFunc fitness_func, CrossOverFunc cross_over, Environment env, RandomGen rng, MutationFunc mutate = {}) const
@@ -51,7 +51,7 @@ namespace mpi
                         size_t parent2_index = dist(rng);
                         
                         // 交叉
-                        Individual child = cross_over(population[parent1_index], population[parent2_index], env, rng);
+                        Individual child = cross_over(population[parent1_index], population[parent2_index], 1, env, rng)[0];
                         
                         // 突然変異
                         mutate(child, env, rng);
