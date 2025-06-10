@@ -345,25 +345,39 @@ int main()
         double max_fitness = 0.0025;
         
         bool operator()(const vector<Individual>& population, const vector<double>& fitness_values, const vector<vector<double>>& adjacency_matrix) {
-            // 最良の個体を見つける
-            auto best_fitness_ptr = std::max_element(fitness_values.begin(), fitness_values.end());
-            size_t best_index = std::distance(fitness_values.begin(), best_fitness_ptr);
+            // // 最良の個体を見つける
+            // auto best_fitness_ptr = std::max_element(fitness_values.begin(), fitness_values.end());
+            // size_t best_index = std::distance(fitness_values.begin(), best_fitness_ptr);
             
-            // 100世代ごとに最良の個体を出力
-            // 最後の世代では必ず出力
-            if (generation % 100 == 0 || *best_fitness_ptr >= max_fitness ) {
-                cout << "Generation " << generation << ": Best fitness = " << *best_fitness_ptr << endl;
-                cout << "Best path: ";
-                for (const auto& city : population[best_index]) {
-                    cout << city << " ";
-                }
-                cout << endl;
+            // // 100世代ごとに最良の個体を出力
+            // // 最後の世代では必ず出力
+            // if (generation % 100 == 0 || *best_fitness_ptr >= max_fitness ) {
+            //     cout << "Generation " << generation << ": Best fitness = " << *best_fitness_ptr << endl;
+            //     cout << "Best path: ";
+            //     for (const auto& city : population[best_index]) {
+            //         cout << city << " ";
+            //     }
+            //     cout << endl;
+            // }
+            
+            double ave_fitness = 0.0;
+            double max_fitness = 0.0;
+            double min_fitness = std::numeric_limits<double>::max();
+            for (const auto& fitness : fitness_values) {
+                ave_fitness += fitness;
+                max_fitness = std::max(max_fitness, fitness);
+                min_fitness = std::min(min_fitness, fitness);
             }
+            ave_fitness /= fitness_values.size();
+
+            std::cout << "Generation " << generation << ": Average fitness = " << ave_fitness
+                      << ", Max fitness = " << max_fitness
+                      << ", Min fitness = " << min_fitness << std::endl;
             
             // 世代数を増やす
             ++generation;
             // 終了条件を満たすかどうかを判定
-            return generation > max_generations || *best_fitness_ptr >= max_fitness;
+            return generation > max_generations;
         }
     } end_condition;
     // // 世代交代モデルSimpleGAを使用して、遺伝的アルゴリズムを実行
