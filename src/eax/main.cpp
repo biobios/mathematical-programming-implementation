@@ -231,6 +231,15 @@ std::vector<std::vector<size_t>> edge_assembly_crossover(const std::vector<size_
     return children;
 }
 
+constexpr double calc_distance(const std::tuple<double, double>& city1, const std::tuple<double, double>& city2) {
+    double xd = std::get<0>(city1) - std::get<0>(city2);
+    double yd = std::get<1>(city1) - std::get<1>(city2);
+    double rij = std::sqrt((xd * xd + yd * yd) / 10.0);
+    double tij = int(rij + 0.5);
+    if (tij < rij) return tij + 1.0;
+    else return tij;
+}
+
 int main()
 {
     using namespace std;
@@ -302,8 +311,8 @@ int main()
             
             auto [id_i, x_i, y_i] = city_positions[i];
             auto [id_j, x_j, y_j] = city_positions[j];
-            // ユークリッド距離を計算
-            double distance = sqrt((x_i - x_j) * (x_i - x_j) + (y_i - y_j) * (y_i - y_j));
+            
+            double distance = calc_distance(make_tuple(x_i, y_i), make_tuple(x_j, y_j));
             
             adjacency_matrix[i][j] = distance;
             adjacency_matrix[j][i] = distance;
@@ -324,14 +333,48 @@ int main()
     // 集団を初期化
     vector<Individual> population(population_size);
     
-    for (size_t i = 0; i < population_size; ++i) {
-        population[i].resize(city_positions.size());
-        iota(population[i].begin(), population[i].end(), 0); // 0からN-1までの整数を初期化
-        // ランダムにシャッフル
-        shuffle(population[i].begin(), population[i].end(), rng);
-        // 2opt法を適用
-        apply_2opt(population[i], adjacency_matrix);
-        cout << "Individual " << i << " initialized." << endl;
+    string cache_file_name = "initial_population_cache.txt";
+    // キャッシュファイルが存在する場合は、そこから初期集団を読み込む
+    ifstream cache_file(cache_file_name);
+    if (cache_file.is_open()) {
+        cout << "Loading initial population from cache file: " << cache_file_name << endl;
+        for (size_t i = 0; i < population_size; ++i) {
+            population[i].resize(city_positions.size());
+            for (size_t j = 0; j < city_positions.size(); ++j) {
+                cache_file >> population[i][j];
+            }
+            // 2opt法を適用
+            apply_2opt(population[i], adjacency_matrix);
+            cout << "Individual " << i << " loaded from cache." << endl;
+        }
+        cache_file.close();
+    }else {
+        for (size_t i = 0; i < population_size; ++i) {
+            population[i].resize(city_positions.size());
+            iota(population[i].begin(), population[i].end(), 0); // 0からN-1までの整数を初期化
+            // ランダムにシャッフル
+            shuffle(population[i].begin(), population[i].end(), rng);
+            // 2opt法を適用
+            apply_2opt(population[i], adjacency_matrix);
+            cout << "Individual " << i << " initialized." << endl;
+        }
+        
+        // 初期集団をキャッシュファイルに保存
+        ofstream cache_file(cache_file_name);
+        if (!cache_file.is_open()) {
+            cerr << "Error: Could not open cache file '" << cache_file_name << "' for writing." << endl;
+            return 1;
+        }
+        cout << "Saving initial population to cache file: " << cache_file_name << endl;
+        for (const auto& individual : population) {
+            for (const auto& city : individual) {
+                cache_file << city << " ";
+            }
+            cache_file << endl; // 各個体の終わりに改行を追加
+        }
+        cache_file.close();
+        cout << "Initial population saved to cache file." << endl;
+        
     }
     
     
@@ -373,7 +416,16 @@ int main()
             std::cout << "Generation " << generation << ": Average fitness = " << ave_fitness
                       << ", Max fitness = " << max_fitness
                       << ", Min fitness = " << min_fitness << std::endl;
-            
+            // 最良の個体を出力
+            auto best_fitness_ptr = std::max_element(fitness_values.begin(), fitness_values.end());
+            size_t best_index = std::distance(fitness_values.begin(), best_fitness_ptr);
+            cout << "Best fitness: " << *best_fitness_ptr << endl;
+            cout << "Best path length: " << 1 / *best_fitness_ptr << endl;
+            cout << "Best path: ";
+            for (const auto& city : population[best_index]) {
+                cout << city << " ";
+            }
+            cout << endl;
             // 世代数を増やす
             ++generation;
             // 終了条件を満たすかどうかを判定
