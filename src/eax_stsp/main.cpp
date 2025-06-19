@@ -9,6 +9,7 @@
 #include <set>
 #include <map>
 #include <array>
+#include <chrono>
 
 #include "elitist_recombination.hpp"
 
@@ -437,176 +438,146 @@ int main()
     
     cout << "Number of cities: " << city_positions.size() << endl;
     
+    // 試行回数
+    constexpr size_t trials = 30;
     // 集団サイズ
     constexpr size_t population_size = 250;
     // 世代数
     constexpr size_t generations = 300;
-    // 乱数生成器
+    // 乱数生成器(グローバル)
     mt19937 rng;
     
     using Individual = vector<size_t>;
     
-    // 集団を初期化
-    vector<Individual> population(population_size);
+    // 1試行にかかった時間
+    vector<double> trial_times(trials, 0.0);
+    // 各試行のベストの経路長
+    vector<double> best_path_lengths(trials, 0.0);
+    // 各試行のベストに到達した最初の世代
+    vector<size_t> generation_of_best(trials, 0);
     
-    string cache_file_name = "initial_population_cache.txt";
-    // キャッシュファイルが存在する場合は、そこから初期集団を読み込む
-    ifstream cache_file(cache_file_name);
-    if (cache_file.is_open()) {
-        cout << "Loading initial population from cache file: " << cache_file_name << endl;
-        for (size_t i = 0; i < population_size; ++i) {
-            population[i].resize(city_positions.size());
-            for (size_t j = 0; j < city_positions.size(); ++j) {
-                cache_file >> population[i][j];
-            }
-            // 2opt法を適用
-            apply_2opt(population[i], adjacency_matrix);
-            cout << "Individual " << i << " loaded from cache." << endl;
-        }
-        cache_file.close();
-    }else {
-        for (size_t i = 0; i < population_size; ++i) {
-            population[i].resize(city_positions.size());
-            iota(population[i].begin(), population[i].end(), 0); // 0からN-1までの整数を初期化
-            // ランダムにシャッフル
-            shuffle(population[i].begin(), population[i].end(), rng);
-            // 2opt法を適用
-            apply_2opt(population[i], adjacency_matrix);
-            cout << "Individual " << i << " initialized." << endl;
-        }
+    for (size_t trial = 0; trial < trials; ++trial) {
+        cout << "Trial " << trial + 1 << " of " << trials << endl;
+        // 乱数生成器(ローカル)
+        // グローバルで初期化
+        mt19937::result_type seed = rng();
+        mt19937 local_rng(seed);
+
+        // 集団を初期化
+        vector<Individual> population(population_size);
         
-        // 初期集団をキャッシュファイルに保存
-        ofstream cache_file(cache_file_name);
-        if (!cache_file.is_open()) {
-            cerr << "Error: Could not open cache file '" << cache_file_name << "' for writing." << endl;
-            return 1;
-        }
-        cout << "Saving initial population to cache file: " << cache_file_name << endl;
-        for (const auto& individual : population) {
-            for (const auto& city : individual) {
-                cache_file << city << " ";
+        string cache_file_name = "initial_population_cache_" + to_string(seed) + "_for_" + file_name;
+        // キャッシュファイルが存在する場合は、そこから初期集団を読み込む
+        ifstream cache_file(cache_file_name);
+        if (cache_file.is_open()) {
+            cout << "Loading initial population from cache file: " << cache_file_name << endl;
+            for (size_t i = 0; i < population_size; ++i) {
+                population[i].resize(city_positions.size());
+                for (size_t j = 0; j < city_positions.size(); ++j) {
+                    cache_file >> population[i][j];
+                }
+                // 2opt法を適用
+                apply_2opt(population[i], adjacency_matrix);
             }
-            cache_file << endl; // 各個体の終わりに改行を追加
+            cout << "Initial population loaded from cache." << endl;
+            cache_file.close();
+        }else {
+            for (size_t i = 0; i < population_size; ++i) {
+                population[i].resize(city_positions.size());
+                iota(population[i].begin(), population[i].end(), 0); // 0からN-1までの整数を初期化
+                // ランダムにシャッフル
+                shuffle(population[i].begin(), population[i].end(), local_rng);
+                // 2opt法を適用
+                apply_2opt(population[i], adjacency_matrix);
+                cout << "Individual " << i << " initialized." << endl;
+            }
+            
+            // 初期集団をキャッシュファイルに保存
+            ofstream cache_file(cache_file_name);
+            if (!cache_file.is_open()) {
+                cerr << "Error: Could not open cache file '" << cache_file_name << "' for writing." << endl;
+                return 1;
+            }
+            cout << "Saving initial population to cache file: " << cache_file_name << endl;
+            for (const auto& individual : population) {
+                for (const auto& city : individual) {
+                    cache_file << city << " ";
+                }
+                cache_file << endl; // 各個体の終わりに改行を追加
+            }
+            cache_file.close();
+            cout << "Initial population saved to cache file." << endl;
+            
         }
-        cache_file.close();
-        cout << "Initial population saved to cache file." << endl;
+
+        cout << "Initial population created." << endl;
+
+        // 終了判定関数
+        // 世代数に達するか、収束するまで実行
+        struct {
+            size_t generation = 0;
+            size_t max_generations = generations;
+            
+            double best_fitness = 0.0;
+            size_t generation_of_reached_best = 0;
+            
+            bool operator()(const vector<Individual>& population, const vector<double>& fitness_values, const vector<vector<double>>& adjacency_matrix) {
+                
+                double ave_fitness = 0.0;
+                double max_fitness = 0.0;
+                double min_fitness = std::numeric_limits<double>::max();
+                for (const auto& fitness : fitness_values) {
+                    ave_fitness += fitness;
+                    max_fitness = std::max(max_fitness, fitness);
+                    min_fitness = std::min(min_fitness, fitness);
+                }
+                ave_fitness /= fitness_values.size();
+                
+                if (max_fitness > best_fitness) {
+                    best_fitness = max_fitness;
+                    generation_of_reached_best = generation;
+                }
+                
+                // 世代数を増やす
+                ++generation;
+                // 終了条件を満たすかどうかを判定
+                return generation > max_generations || max_fitness == min_fitness;
+            }
+        } end_condition;
         
+        // 計測開始
+        auto start_time = chrono::high_resolution_clock::now();
+
+        // 世代交代モデル ElitistRecombinationを使用して、遺伝的アルゴリズムを実行
+        vector<Individual> result = mpi::genetic_algorithm::ElitistRecombination<10>(population, end_condition, calc_fitness, edge_assembly_crossover, adjacency_matrix, local_rng);
+        
+        auto end_time = chrono::high_resolution_clock::now();
+        trial_times[trial] = chrono::duration<double>(end_time - start_time).count();
+        
+        best_path_lengths[trial] = 1.0 / end_condition.best_fitness;
+        generation_of_best[trial] = end_condition.generation_of_reached_best;
     }
     
-    
-    cout << "Initial population created." << endl;
-    
-    // 終了判定関数
-    // 世代数に達するか、最良の適応度が0.0025以上になったら終了
-    struct {
-        size_t generation = 0;
-        size_t max_generations = generations;
-        double max_fitness = 0.0025;
-        
-        bool operator()(const vector<Individual>& population, const vector<double>& fitness_values, const vector<vector<double>>& adjacency_matrix) {
-            // // 最良の個体を見つける
-            // auto best_fitness_ptr = std::max_element(fitness_values.begin(), fitness_values.end());
-            // size_t best_index = std::distance(fitness_values.begin(), best_fitness_ptr);
-            
-            // // 100世代ごとに最良の個体を出力
-            // // 最後の世代では必ず出力
-            // if (generation % 100 == 0 || *best_fitness_ptr >= max_fitness ) {
-            //     cout << "Generation " << generation << ": Best fitness = " << *best_fitness_ptr << endl;
-            //     cout << "Best path: ";
-            //     for (const auto& city : population[best_index]) {
-            //         cout << city << " ";
-            //     }
-            //     cout << endl;
-            // }
-            
-            double ave_fitness = 0.0;
-            double max_fitness = 0.0;
-            double min_fitness = std::numeric_limits<double>::max();
-            for (const auto& fitness : fitness_values) {
-                ave_fitness += fitness;
-                max_fitness = std::max(max_fitness, fitness);
-                min_fitness = std::min(min_fitness, fitness);
-            }
-            ave_fitness /= fitness_values.size();
+    // 全試行中のベストとその解に到達した試行の数を出力する
+    double best_path_length = *min_element(best_path_lengths.begin(), best_path_lengths.end());
+    size_t best_path_reached_count = count_if(best_path_lengths.begin(), best_path_lengths.end(),
+                                        [best_path_length](double length) { return length == best_path_length; });
+    cout << "Best path length: " << best_path_length << endl;
+    cout << "Number of trials that reached the best path: " << best_path_reached_count << endl;
 
-            std::cout << "Generation " << generation << ": Average fitness = " << ave_fitness
-                      << ", Max fitness = " << max_fitness
-                      << ", Min fitness = " << min_fitness << std::endl;
-            
-            // 世代数を増やす
-            ++generation;
-            // 終了条件を満たすかどうかを判定
-            return generation > max_generations;
-        }
-    } end_condition;
-    // // 世代交代モデルSimpleGAを使用して、遺伝的アルゴリズムを実行
-    // vector<Individual> result = mpi::genetic_algorithm::SimpleGA(population, end_condition, calc_fitness, edge_assembly_crossover, adjacency_matrix, rng);
-    
-    // 世代交代モデル ElitistRecombinationを使用して、遺伝的アルゴリズムを実行
-    vector<Individual> result = mpi::genetic_algorithm::ElitistRecombination<10>(population, end_condition, calc_fitness, edge_assembly_crossover, adjacency_matrix, rng);
+    // ベストの平均を出力
+    double average_best_path_length = accumulate(best_path_lengths.begin(), best_path_lengths.end(), 0.0) / trials;
+    cout << "Average best path length: " << average_best_path_length << endl;
 
-    // 最良の個体を見つける
-    auto best_individual = std::max_element(result.begin(), result.end(), [&](const Individual& a, const Individual& b) {
-        return calc_fitness(a, adjacency_matrix) < calc_fitness(b, adjacency_matrix);
-    });
-    
-    // 最良の個体の適応度を出力
-    cout << "Best fitness: " << calc_fitness(*best_individual, adjacency_matrix) << endl;
-    cout << "Best path length: " << 1 / calc_fitness(*best_individual, adjacency_matrix) << endl;
-    cout << "Best path: ";
-    for (const auto& city : *best_individual) {
-        cout << city << " ";
+    // ベストに到達した最初の世代の平均を出力
+    double average_generation_of_best = accumulate(generation_of_best.begin(), generation_of_best.end(), 0.0) / trials;
+    cout << "Average generation of best path: " << average_generation_of_best << endl;
+
+    // 各試行の経過時間を出力
+    cout << "Trial times (seconds): ";
+    for (const auto& time : trial_times) {
+        cout << time << " ";
     }
     cout << endl;
-    
-    // // 遺伝的アルゴリズムのメインループ
-    // for (size_t generation = 0; generation < generations; ++generation) {
-    //     // 確率分布を作成
-    //     vector<double> fitness_distribution(population_size);
-    //     for (size_t i = 0; i < population_size; ++i) {
-    //         fitness_distribution[i] = population[i].fitness;
-    //     }
-        
-    //     discrete_distribution<size_t> dist(fitness_distribution.begin(), fitness_distribution.end());
-        
-    //     // 新しい集団を生成
-    //     vector<Individual> new_population(population_size);
-    //     for (size_t i = 0; i < population_size; ++i) {
-    //         // 親を選択
-    //         size_t parent1_index = dist(rng);
-    //         size_t parent2_index = dist(rng);
-            
-    //         // 交叉
-    //         new_population[i].path = edge_assembly_crossover(population[parent1_index].path, population[parent2_index].path, adjacency_matrix);
-    //         // 適応度を計算
-    //         new_population[i].fitness = calc_fitness(adjacency_matrix, new_population[i].path);
-    //     }
-        
-    //     // 新しい集団を現在の集団に置き換え
-    //     population = std::move(new_population);
-    //     // 最良の個体を見つける
-    //     auto best_individual = std::min_element(population.begin(), population.end(), [](const Individual& a, const Individual& b) {
-    //         return a.fitness < b.fitness;
-    //     });
-    //     // 最良の個体の適応度を出力
-    //     if (generation % 100 == 0) {
-    //         cout << "Generation " << generation << ": Best fitness = " << best_individual->fitness << endl;
-    //         cout << "Best path: ";
-    //         for (const auto& city : best_individual->path) {
-    //             cout << city << " ";
-    //         }
-    //         cout << endl;
-    //     } else if (best_individual->path[0] == best_individual->path[1]) {
-    //         // print 
-    //         cout << "Generation " << generation << ": Best fitness = " << best_individual->fitness << endl;
-    //         cout << "Best path: ";
-    //         for (const auto& city : best_individual->path) {
-    //             cout << city << " ";
-    //         }
-    //         cout << endl;
-    //     }
-    // }
-
-    
     return 0;
 }

@@ -26,7 +26,7 @@ namespace mpi
                     { fitness_func(population[0], env) } -> std::convertible_to<double>;
                     { cross_over(population[0], population[1], 1, env, rng) } -> std::convertible_to<std::vector<Individual>>;
                 })
-            constexpr std::vector<Individual> operator()(std::vector<Individual> population, EndCondition end_condition, FitnessFunc fitness_func, CrossOverFunc cross_over, Environment env, RandomGen rng) const
+            constexpr std::vector<Individual> operator()(std::vector<Individual> population, EndCondition&& end_condition, FitnessFunc fitness_func, CrossOverFunc cross_over, Environment env, RandomGen rng) const
             {
                 auto calc_all_fitness = [&fitness_func](const std::vector<Individual>& pop, const Environment& env) {
                     std::vector<double> fitness_values(pop.size());
