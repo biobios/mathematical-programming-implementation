@@ -10,6 +10,9 @@
 #include <map>
 #include <array>
 #include <chrono>
+#include <unordered_set>
+#include <unordered_map>
+#include <list>
 
 #include "elitist_recombination.hpp"
 
@@ -51,29 +54,41 @@ void apply_2opt(std::vector<size_t>& path, const std::vector<std::vector<double>
     }
 }
 
+struct edge {
+    size_t v1;
+    size_t v2;
+    edge(size_t v1, size_t v2) {
+        if (v1 < v2) {
+            this->v1 = v1;
+            this->v2 = v2;
+        } else {
+            this->v1 = v2;
+            this->v2 = v1;
+        }
+    }
+    edge() : v1(0), v2(0) {}
+    // setに格納するための比較演算子
+    bool operator<(const edge& other) const {
+        return std::tie(v1, v2) < std::tie(other.v1, other.v2);
+    }
+    
+    bool operator==(const edge& other) const {
+        return v1 == other.v1 && v2 == other.v2;
+    }
+};
+
+template <>
+struct std::hash<edge> {
+    size_t operator()(const edge& e) const {
+        return std::hash<size_t>()(e.v1) ^ (std::hash<size_t>()(e.v2) << 1);
+    }
+};
+
 std::vector<std::vector<size_t>> edge_assembly_crossover(const std::vector<size_t>& parent1, const std::vector<size_t>& parent2, size_t children_size,
                                             const std::vector<std::vector<double>>& adjacency_matrix, std::mt19937& rng) {
     
     using namespace std;
     
-    struct edge {
-        size_t v1;
-        size_t v2;
-        edge(size_t v1, size_t v2) {
-            if (v1 < v2) {
-                this->v1 = v1;
-                this->v2 = v2;
-            } else {
-                this->v1 = v2;
-                this->v2 = v1;
-            }
-        }
-        edge() : v1(0), v2(0) {}
-        // setに格納するための比較演算子
-        bool operator<(const edge& other) const {
-            return std::tie(v1, v2) < std::tie(other.v1, other.v2);
-        }
-    };
     
     using edge_with_parent = pair<edge, bool>; // from_parent1 : bool
     
@@ -102,113 +117,117 @@ std::vector<std::vector<size_t>> edge_assembly_crossover(const std::vector<size_
         parent1_edges.insert(edge(parent1[i], parent1[next_i]));
     }
     
+    vector<vector<edge_with_parent>> AB_cycles;
+    
+    vector<array<size_t, 2>> adjacency_list_parent1_copied = adjacency_list_parent1;
+    vector<array<size_t, 2>> adjacency_list_parent2_copied = adjacency_list_parent2;
+    size_t rest_edge_count = n;
+    vector<size_t> prob(n, 1);
+    do {
+
+        size_t current_city = discrete_distribution<size_t>(prob.begin(), prob.end())(rng);
+        vector<size_t> visited_parent1;
+        vector<size_t> visited_parent2;
+        visited_parent2.push_back(current_city);
+        do {
+            if (visited_parent1.size() < visited_parent2.size()) {
+                size_t selected_index = uniform_int_distribution<size_t>(0, 1)(rng);
+                if (adjacency_list_parent1_copied[current_city][selected_index] == n) {
+                    selected_index = 1 - selected_index; // 反転
+                }
+
+                size_t prev_city = current_city;
+                current_city = adjacency_list_parent1_copied[current_city][selected_index];
+                visited_parent1.push_back(current_city);
+                adjacency_list_parent1_copied[prev_city][selected_index] = n;
+                if (adjacency_list_parent1_copied[current_city][0] == prev_city) {
+                    adjacency_list_parent1_copied[current_city][0] = n;
+                } else {
+                    adjacency_list_parent1_copied[current_city][1] = n;
+                }
+                
+                rest_edge_count -= 1;
+                if (adjacency_list_parent1_copied[current_city][0] == n && adjacency_list_parent1_copied[current_city][1] == n) {
+                    prob[current_city] = 0; // この都市はもう訪問しない
+                }
+
+                if (adjacency_list_parent1_copied[prev_city][0] == n && adjacency_list_parent1_copied[prev_city][1] == n) {
+                    prob[prev_city] = 0; // 前の都市も訪問しない
+                }
+
+                size_t found_loop_index = visited_parent1.size();
+                for (size_t i = 0; i < visited_parent1.size() - 1; ++i) {
+                    if (visited_parent1[i] == current_city) {
+                        found_loop_index = i;
+                        break;
+                    }
+                }
+
+                if (found_loop_index == visited_parent1.size()) {
+                    continue;
+                }
+
+                vector<edge_with_parent> AB_cycle;
+                AB_cycle.reserve((visited_parent1.size() - found_loop_index) * 2);
+                for (size_t i = found_loop_index + 1; i < visited_parent1.size(); ++i) {
+                    AB_cycle.push_back({{visited_parent1[i - 1], visited_parent2[i]}, false});
+                    AB_cycle.push_back({{visited_parent2[i], visited_parent1[i]}, true});
+                }
+                visited_parent1.resize(found_loop_index + 1);
+                visited_parent2.resize(found_loop_index + 1);
+                if (AB_cycle.size() > 2)
+                    AB_cycles.push_back(move(AB_cycle));
+            }else {
+                size_t selected_index = uniform_int_distribution<size_t>(0, 1)(rng);
+                if (adjacency_list_parent2_copied[current_city][selected_index] == n) {
+                    selected_index = 1 - selected_index; // 反転
+                }
+
+                size_t prev_city = current_city;
+                current_city = adjacency_list_parent2_copied[current_city][selected_index];
+                visited_parent2.push_back(current_city);
+                adjacency_list_parent2_copied[prev_city][selected_index] = n;
+                if (adjacency_list_parent2_copied[current_city][0] == prev_city) {
+                    adjacency_list_parent2_copied[current_city][0] = n;
+                } else {
+                    adjacency_list_parent2_copied[current_city][1] = n;
+                }
+
+                size_t found_loop_index = visited_parent2.size();
+                for (size_t i = 0; i < visited_parent2.size() - 1; ++i) {
+                    if (visited_parent2[i] == current_city) {
+                        found_loop_index = i;
+                        break;
+                    }
+                }
+                if (found_loop_index == visited_parent2.size()) {
+                    continue;
+                }
+                vector<edge_with_parent> AB_cycle;
+                AB_cycle.reserve((visited_parent2.size() - found_loop_index) * 2);
+                for (size_t i = found_loop_index + 1; i < visited_parent2.size(); ++i) {
+                    AB_cycle.push_back({{visited_parent2[i - 1], visited_parent1[i - 1]}, true});
+                    AB_cycle.push_back({{visited_parent1[i - 1], visited_parent2[i]}, false});
+                }
+                visited_parent1.resize(found_loop_index);
+                visited_parent2.resize(found_loop_index + 1);
+                if (AB_cycle.size() > 2)
+                    AB_cycles.push_back(move(AB_cycle));
+            }
+        }while (!visited_parent1.empty());
+    }while (rest_edge_count > 0);
+    
     vector<vector<size_t>> children(children_size);
     for (size_t child_index = 0; child_index < children_size; ++child_index) {
-        vector<set<edge_with_parent>> AB_cycles;
         
-        vector<array<size_t, 2>> adjacency_list_parent1_copied = adjacency_list_parent1;
-        vector<array<size_t, 2>> adjacency_list_parent2_copied = adjacency_list_parent2;
-        do {
-            vector<size_t> prob;
-            for (size_t i = 0; i < n; ++i) {
-                if (adjacency_list_parent1_copied[i][0] != n || adjacency_list_parent1_copied[i][1] != n) {
-                    prob.push_back(1);
-                }else{
-                    prob.push_back(0);
-                }
-            }
-            
-
-            size_t current_city = discrete_distribution<size_t>(prob.begin(), prob.end())(rng);
-            vector<size_t> visited_parent1;
-            vector<size_t> visited_parent2;
-            visited_parent2.push_back(current_city);
-            do {
-                if (visited_parent1.size() < visited_parent2.size()) {
-                    size_t selected_index = uniform_int_distribution<size_t>(0, 1)(rng);
-                    if (adjacency_list_parent1_copied[current_city][selected_index] == n) {
-                        selected_index = 1 - selected_index; // 反転
-                    }
-
-                    size_t prev_city = current_city;
-                    current_city = adjacency_list_parent1_copied[current_city][selected_index];
-                    visited_parent1.push_back(current_city);
-                    adjacency_list_parent1_copied[prev_city][selected_index] = n;
-                    if (adjacency_list_parent1_copied[current_city][0] == prev_city) {
-                        adjacency_list_parent1_copied[current_city][0] = n;
-                    } else {
-                        adjacency_list_parent1_copied[current_city][1] = n;
-                    }
-
-                    size_t found_loop_index = visited_parent1.size();
-                    for (size_t i = 0; i < visited_parent1.size() - 1; ++i) {
-                        if (visited_parent1[i] == current_city) {
-                            found_loop_index = i;
-                            break;
-                        }
-                    }
-                    
-
-                    if (found_loop_index == visited_parent1.size()) {
-                        continue;
-                    }
-
-                    set<edge_with_parent> AB_cycle;
-                    for (size_t i = found_loop_index + 1; i < visited_parent1.size(); ++i) {
-                        AB_cycle.insert({{visited_parent1[i - 1], visited_parent2[i]}, false});
-                        AB_cycle.insert({{visited_parent2[i], visited_parent1[i]}, true});
-                    }
-                    visited_parent1.resize(found_loop_index + 1);
-                    visited_parent2.resize(found_loop_index + 1);
-                    AB_cycles.push_back(move(AB_cycle));
-                }else {
-                    size_t selected_index = uniform_int_distribution<size_t>(0, 1)(rng);
-                    if (adjacency_list_parent2_copied[current_city][selected_index] == n) {
-                        selected_index = 1 - selected_index; // 反転
-                    }
-
-                    size_t prev_city = current_city;
-                    current_city = adjacency_list_parent2_copied[current_city][selected_index];
-                    visited_parent2.push_back(current_city);
-                    adjacency_list_parent2_copied[prev_city][selected_index] = n;
-                    if (adjacency_list_parent2_copied[current_city][0] == prev_city) {
-                        adjacency_list_parent2_copied[current_city][0] = n;
-                    } else {
-                        adjacency_list_parent2_copied[current_city][1] = n;
-                    }
-
-                    size_t found_loop_index = visited_parent2.size();
-                    for (size_t i = 0; i < visited_parent2.size() - 1; ++i) {
-                        if (visited_parent2[i] == current_city) {
-                            found_loop_index = i;
-                            break;
-                        }
-                    }
-                    if (found_loop_index == visited_parent2.size()) {
-                        continue;
-                    }
-                    set<edge_with_parent> AB_cycle;
-                    for (size_t i = found_loop_index + 1; i < visited_parent2.size(); ++i) {
-                        AB_cycle.insert({{visited_parent2[i - 1], visited_parent1[i - 1]}, true});
-                        AB_cycle.insert({{visited_parent1[i - 1], visited_parent2[i]}, false});
-                    }
-                    visited_parent1.resize(found_loop_index);
-                    visited_parent2.resize(found_loop_index + 1);
-                    AB_cycles.push_back(move(AB_cycle));
-                }
-            }while (!visited_parent1.empty());
-            
-        }while (has_any_edge(adjacency_list_parent1_copied));
-        
-
-        // sizeが2以下のABサイクルを除外
-        for (auto it = AB_cycles.begin(); it != AB_cycles.end();) {
-            if (it->size() <= 2) {
-                it = AB_cycles.erase(it);
-            } else {
-                ++it;
-            }
-        }
+        // // sizeが2以下のABサイクルを除外
+        // for (auto it = AB_cycles.begin(); it != AB_cycles.end();) {
+        //     if (it->size() <= 2) {
+        //         it = AB_cycles.erase(it);
+        //     } else {
+        //         ++it;
+        //     }
+        // }
         
 
         // ABサイクルが1個以下なら、parent1かparent2をランダムに返す
@@ -222,44 +241,38 @@ std::vector<std::vector<size_t>> edge_assembly_crossover(const std::vector<size_
             continue;
         }
         
-        
-        
         // ABサイクルをランダムに選択して、E-setを作成
-        set<edge_with_parent> E_set;
+        // set<edge_with_parent> E_set;
         vector<size_t> AB_cycle_indices(AB_cycles.size());
         std::iota(AB_cycle_indices.begin(), AB_cycle_indices.end(), 0); // 0からN-1までの整数を初期化
         std::shuffle(AB_cycle_indices.begin(), AB_cycle_indices.end(), rng); // ランダムにシャッフル
         // 使用するABサイクルの数をランダムに決定(1以上N-1以下)
         std::uniform_int_distribution<size_t> dist(1, AB_cycles.size() - 1);
         size_t num_cycles = dist(rng);
-        size_t merge_count = 0;
-        for (size_t i = 0; i < num_cycles; ++i) {
-            merge_count += AB_cycles[AB_cycle_indices[i]].size();
-            E_set.merge(AB_cycles[AB_cycle_indices[i]]);
-        }
         
         // 緩和個体を作成
-        multiset<edge> relaxed_individual_edges(parent1_edges.begin(), parent1_edges.end());
-        for (const auto& [edge, from_parent1] : E_set) {
-            if (from_parent1) {
-                auto it = relaxed_individual_edges.find(edge);
-                relaxed_individual_edges.erase(it);
-            } else {
-                relaxed_individual_edges.insert(edge);
+        unordered_multiset<edge> relaxed_individual_edges(parent1_edges.begin(), parent1_edges.end());
+        for (size_t i = 0; i < num_cycles; ++i) {
+            for (const auto& [edge, from_parent1] : AB_cycles[AB_cycle_indices[i]]) {
+                if (from_parent1) {
+                    auto it = relaxed_individual_edges.find(edge);
+                    relaxed_individual_edges.erase(it);
+                } else {
+                    relaxed_individual_edges.insert(edge);
+                }
             }
         }
         
         // 部分巡回路の配列に変換
-        vector<multiset<edge>> partial_cycles;
-        map<size_t, vector<size_t>> child_adjacency_list;
+        vector<vector<edge>> partial_cycles;
+        unordered_map<size_t, vector<size_t>> child_adjacency_list;
         for (const auto& e : relaxed_individual_edges) {
             child_adjacency_list[e.v1].push_back(e.v2);
             child_adjacency_list[e.v2].push_back(e.v1);
         }
-        
-        
+
         while (!child_adjacency_list.empty()) {
-            multiset<edge> cycle;
+            vector<edge> cycle;
             size_t current_city = child_adjacency_list.begin()->first;
 
             while (child_adjacency_list.contains(current_city)) {
@@ -277,7 +290,7 @@ std::vector<std::vector<size_t>> edge_assembly_crossover(const std::vector<size_
                 if (child_adjacency_list[next_city].empty()) {
                     child_adjacency_list.erase(next_city);
                 }
-                cycle.insert({current_city, next_city});
+                cycle.push_back({current_city, next_city});
                 current_city = next_city;
             }
 
@@ -296,17 +309,24 @@ std::vector<std::vector<size_t>> edge_assembly_crossover(const std::vector<size_
             // 最小の部分巡回路と接続する部分巡回路を見つける
             edge e1;
             edge e2;
+            size_t e1_index = 0;
+            size_t e2_index = 0;
             // 順方向接続か逆方向接続か
             bool forward_connection = true;
             double min_cost = std::numeric_limits<double>::max();
             size_t min_cost_index = 0;
 
-            multiset<edge>& min_cycle = partial_cycles[min_cycle_index];
+            vector<edge>& min_cycle = partial_cycles[min_cycle_index];
             for (size_t i = 0; i < partial_cycles.size(); ++i) {
                 if (i == min_cycle_index) continue;
                 
-                for (const auto& edge1 : partial_cycles[min_cycle_index]) {
-                    for (const auto& edge2 : partial_cycles[i]) {
+                
+                // for (const auto& edge1 : partial_cycles[min_cycle_index]) {
+                //     for (const auto& edge2 : partial_cycles[i]) {
+                for (size_t j = 0; j < partial_cycles[min_cycle_index].size(); ++j) {
+                    const auto& edge1 = partial_cycles[min_cycle_index][j];
+                    for (size_t k = 0; k < partial_cycles[i].size(); ++k) {
+                        const auto& edge2 = partial_cycles[i][k];
                         // double cost = - adjacency_matrix[edge1.from][edge1.to] - adjacency_matrix[edge2.from][edge2.to]
                         //             + adjacency_matrix[edge1.from][edge2.to] + adjacency_matrix[edge2.from][edge1.to];
                         
@@ -321,24 +341,34 @@ std::vector<std::vector<size_t>> edge_assembly_crossover(const std::vector<size_
                             min_cost = std::min(forward_cost, reverse_cost);
                             e1 = edge1;
                             e2 = edge2;
+                            e1_index = j;
+                            e2_index = k;
                             min_cost_index = i;
                             forward_connection = (forward_cost < reverse_cost);
                         }
                     }
                 }
             }
-            // e1とe2をそれぞれ削除して、接続する辺をpartial_cycles[min_cycle_index]に追加
-            partial_cycles[min_cycle_index].erase(partial_cycles[min_cycle_index].find(e1));
-            partial_cycles[min_cost_index].erase(partial_cycles[min_cost_index].find(e2));
+            // // e1とe2をそれぞれ削除して、接続する辺をpartial_cycles[min_cycle_index]に追加
+            // partial_cycles[min_cycle_index].erase(partial_cycles[min_cycle_index].find(e1));
+            // partial_cycles[min_cost_index].erase(partial_cycles[min_cost_index].find(e2));
             if (forward_connection) {
-                partial_cycles[min_cycle_index].insert({e1.v1, e2.v2});
-                partial_cycles[min_cycle_index].insert({e2.v1, e1.v2});
+                // partial_cycles[min_cycle_index].insert({e1.v1, e2.v2});
+                // partial_cycles[min_cycle_index].insert({e2.v1, e1.v2});
+                partial_cycles[min_cycle_index][e1_index] = {e1.v1, e2.v2};
+                partial_cycles[min_cost_index][e2_index] = {e2.v1, e1.v2};
             } else {
-                partial_cycles[min_cycle_index].insert({e1.v1, e2.v1});
-                partial_cycles[min_cycle_index].insert({e2.v2, e1.v2});
+                // partial_cycles[min_cycle_index].insert({e1.v1, e2.v1});
+                // partial_cycles[min_cycle_index].insert({e2.v2, e1.v2});
+                partial_cycles[min_cycle_index][e1_index] = {e1.v1, e2.v1};
+                partial_cycles[min_cost_index][e2_index] = {e2.v2, e1.v2};
             }
             // partial_cycles[min_cost_index]をmin_cycle_indexにマージ
-            partial_cycles[min_cycle_index].merge(partial_cycles[min_cost_index]);
+            // partial_cycles[min_cycle_index].append_range(partial_cycles[min_cost_index]);
+            partial_cycles[min_cycle_index].reserve(partial_cycles[min_cycle_index].size() + partial_cycles[min_cost_index].size());
+            for (auto& e : partial_cycles[min_cost_index]) {
+                partial_cycles[min_cycle_index].push_back(move(e));
+            }
 
             // 末尾の部分巡回路をmin_cost_indexに移動して、削除
             if (min_cost_index < partial_cycles.size() - 1) {
@@ -347,9 +377,8 @@ std::vector<std::vector<size_t>> edge_assembly_crossover(const std::vector<size_
             partial_cycles.pop_back();
         }
         
-
         // 最後に残った部分巡回路をchild_pathに変換
-        const multiset<edge>& final_cycle = partial_cycles.front();
+        const vector<edge>& final_cycle = partial_cycles.front();
         // まず、隣接リストに変換
         vector<vector<size_t>> final_adjacency_list(final_cycle.size());
         for (const auto& e : final_cycle) {
@@ -370,6 +399,7 @@ std::vector<std::vector<size_t>> edge_assembly_crossover(const std::vector<size_
             prev_sity = current_city;
             current_city = next_city;
         }
+        
     }
     return children;
 }
@@ -549,7 +579,7 @@ int main()
         auto start_time = chrono::high_resolution_clock::now();
 
         // 世代交代モデル ElitistRecombinationを使用して、遺伝的アルゴリズムを実行
-        vector<Individual> result = mpi::genetic_algorithm::ElitistRecombination<10>(population, end_condition, calc_fitness, edge_assembly_crossover, adjacency_matrix, local_rng);
+        vector<Individual> result = mpi::genetic_algorithm::ElitistRecombination<100>(population, end_condition, calc_fitness, edge_assembly_crossover, adjacency_matrix, local_rng);
         
         auto end_time = chrono::high_resolution_clock::now();
         trial_times[trial] = chrono::duration<double>(end_time - start_time).count();
