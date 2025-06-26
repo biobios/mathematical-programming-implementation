@@ -243,24 +243,40 @@ std::vector<std::vector<size_t>> edge_assembly_crossover(const std::vector<size_
             continue;
         }
         
-        // ABサイクルをランダムに選択して、E-setを作成
-        // set<edge_with_parent> E_set;
-        vector<size_t> AB_cycle_indices(AB_cycles.size());
-        std::iota(AB_cycle_indices.begin(), AB_cycle_indices.end(), 0); // 0からN-1までの整数を初期化
-        std::shuffle(AB_cycle_indices.begin(), AB_cycle_indices.end(), rng); // ランダムにシャッフル
-        // 使用するABサイクルの数をランダムに決定(1以上N-1以下)
-        std::uniform_int_distribution<size_t> dist(1, AB_cycles.size() - 1);
-        size_t num_cycles = dist(rng);
+        // // ABサイクルをランダムに選択して、E-setを作成
+        // // set<edge_with_parent> E_set;
+        // vector<size_t> AB_cycle_indices(AB_cycles.size());
+        // std::iota(AB_cycle_indices.begin(), AB_cycle_indices.end(), 0); // 0からN-1までの整数を初期化
+        // std::shuffle(AB_cycle_indices.begin(), AB_cycle_indices.end(), rng); // ランダムにシャッフル
+        // // 使用するABサイクルの数をランダムに決定(1以上N-1以下)
+        // std::uniform_int_distribution<size_t> dist(1, AB_cycles.size() - 1);
+        // size_t num_cycles = dist(rng);
+        
+        // // 緩和個体を作成
+        // unordered_multiset<edge> relaxed_individual_edges(parent1_edges.begin(), parent1_edges.end());
+        // for (size_t i = 0; i < num_cycles; ++i) {
+        //     for (const auto& [edge, from_parent1] : AB_cycles[AB_cycle_indices[i]]) {
+        //         if (from_parent1) {
+        //             auto it = relaxed_individual_edges.find(edge);
+        //             relaxed_individual_edges.erase(it);
+        //         } else {
+        //             relaxed_individual_edges.insert(edge);
+        //         }
+        //     }
+        // }
         
         // 緩和個体を作成
         unordered_multiset<edge> relaxed_individual_edges(parent1_edges.begin(), parent1_edges.end());
-        for (size_t i = 0; i < num_cycles; ++i) {
-            for (const auto& [edge, from_parent1] : AB_cycles[AB_cycle_indices[i]]) {
+        uniform_int_distribution<size_t> dist_01(0, 1);
+        for (const auto& AB_cycle : AB_cycles) {
+            if (dist_01(rng) == 0)
+                continue; // このABサイクルは使用しない
+            for (const auto& [e, from_parent1] : AB_cycle) {
                 if (from_parent1) {
-                    auto it = relaxed_individual_edges.find(edge);
+                    auto it = relaxed_individual_edges.find(e);
                     relaxed_individual_edges.erase(it);
                 } else {
-                    relaxed_individual_edges.insert(edge);
+                    relaxed_individual_edges.insert(e);
                 }
             }
         }
