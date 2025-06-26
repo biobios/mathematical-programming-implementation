@@ -15,6 +15,7 @@
 #include <list>
 
 #include "elitist_recombination.hpp"
+#include "tsp_loader.hpp"
 
 double calc_fitness(const std::vector<size_t>& path, const std::vector<std::vector<double>>& adjacency_matrix){
     double distance = 0.0;
@@ -416,57 +417,12 @@ constexpr double calc_distance(const std::tuple<double, double>& city1, const st
 int main()
 {
     using namespace std;
-    string file_name = "att532.tsp";
-    fstream file(file_name);
-    if (!file.is_open()) {
-        cerr << "Error: Could not open the file '" << file_name << "'." << endl;
-        return 1;
-    }
-    
-    vector<tuple<int/*city id*/, double/*x*/, double/*y*/>> city_positions;
-    string line;
-    // ヘッダ行を読み飛ばす(NODE_COORD_SECTIONが出てくるまで)
-    while (getline(file, line)) {
-        if (line.find("NODE_COORD_SECTION") != string::npos) {
-            break; // NODE_COORD_SECTIONが見つかったらループを抜ける
-        }
-    }
-    
-    // "EOF"が出てくるまで都市の座標を読み込む
-    while (getline(file, line)) {
-        if (line.find("EOF") != string::npos) {
-            break; // EOFが見つかったらループを抜ける
-        }
-        
-        istringstream iss(line);
-        int id;
-        double x, y;
-        if (!(iss >> id >> x >> y)) {
-            cerr << "Error: Invalid line format: " << line << endl;
-            continue; // 無効な行はスキップ
-        }
-        
-        city_positions.emplace_back(id, x, y);
-    }
-    file.close();
-    
-    // 隣接行列を作成
-    vector<vector<double>> adjacency_matrix(city_positions.size(), vector<double>(city_positions.size(), 0.0));
-    for (size_t i = 0; i < city_positions.size(); ++i) {
-        for (size_t j = 0; j < city_positions.size(); ++j) {
-            if (i == j)
-                continue;
-            
-            auto [id_i, x_i, y_i] = city_positions[i];
-            auto [id_j, x_j, y_j] = city_positions[j];
-            double distance = calc_distance(make_tuple(x_i, y_i), make_tuple(x_j, y_j));
-            
-            adjacency_matrix[i][j] = distance;
-            adjacency_matrix[j][i] = distance;
-        }
-    }
-    
-    cout << "Number of cities: " << city_positions.size() << endl;
+    // TSPファイルの読み込み
+    string file_name = "rat575.tsp";
+    tsp::TSP tsp = tsp::TSP_Loader::load_tsp(file_name);
+    cout << "TSP Name: " << tsp.name << endl;
+    cout << "Distance Type: " << tsp.distance_type << endl;
+    cout << "Number of Cities: " << tsp.city_count << endl;
     
     // 試行回数
     constexpr size_t trials = 30;
@@ -574,6 +530,9 @@ int main()
                 return generation > max_generations || max_fitness == min_fitness;
             }
         } end_condition;
+        
+        // 隣接行列
+        auto& adjacency_matrix = tsp.adjacency_matrix;
         
         // 計測開始
         auto start_time = chrono::high_resolution_clock::now();
