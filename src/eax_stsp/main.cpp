@@ -38,7 +38,6 @@ void apply_2opt(std::vector<size_t>& path, const std::vector<std::vector<double>
     using namespace std;
     size_t n = path.size();
     bool improved = true;
-    double current_fitness = calc_fitness(path, adjacency_matrix);
     while (improved) {
         improved = false;
         for (size_t i = 0; i < path.size() - 1 && !improved; ++i) {
@@ -94,17 +93,6 @@ std::vector<std::vector<size_t>> edge_assembly_crossover(const std::vector<size_
     
     using edge_with_parent = pair<edge, bool>; // from_parent1 : bool
     
-    auto has_any_edge = [](const vector<array<size_t, 2>>& adjacency_list) {
-        size_t n = adjacency_list.size();
-        for (const auto& edge : adjacency_list) {
-            if (edge[0] != n || edge[1] != n) {
-                return true; // 少なくとも1つのエッジが存在する
-            }
-        }
-        
-        return false; // すべてのエッジがnである場合、エッジは存在しない
-    };
-
     size_t n = parent1.size();
     vector<array<size_t, 2>> adjacency_list_parent1(n);
     vector<array<size_t, 2>> adjacency_list_parent2(n);
@@ -334,7 +322,6 @@ std::vector<std::vector<size_t>> edge_assembly_crossover(const std::vector<size_
             double min_cost = std::numeric_limits<double>::max();
             size_t min_cost_index = 0;
 
-            vector<edge>& min_cycle = partial_cycles[min_cycle_index];
             for (size_t i = 0; i < partial_cycles.size(); ++i) {
                 if (i == min_cycle_index) continue;
                 
@@ -422,15 +409,6 @@ std::vector<std::vector<size_t>> edge_assembly_crossover(const std::vector<size_
     return children;
 }
 
-constexpr double calc_distance(const std::tuple<double, double>& city1, const std::tuple<double, double>& city2) {
-    double xd = std::get<0>(city1) - std::get<0>(city2);
-    double yd = std::get<1>(city1) - std::get<1>(city2);
-    double rij = std::sqrt((xd * xd + yd * yd) / 10.0);
-    double tij = int(rij + 0.5);
-    if (tij < rij) return tij + 1.0;
-    else return tij;
-}
-
 int main()
 {
     using namespace std;
@@ -491,7 +469,7 @@ int main()
             double best_fitness = 0.0;
             size_t generation_of_reached_best = 0;
             
-            bool operator()(const vector<Individual>& population, const vector<double>& fitness_values, const vector<vector<double>>& adjacency_matrix) {
+            bool operator()([[maybe_unused]]const vector<Individual>& population, const vector<double>& fitness_values, [[maybe_unused]]const vector<vector<double>>& adjacency_matrix) {
                 
                 double ave_fitness = 0.0;
                 double max_fitness = 0.0;
