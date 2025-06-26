@@ -16,6 +16,7 @@
 
 #include "elitist_recombination.hpp"
 #include "tsp_loader.hpp"
+#include "population_initializer.hpp"
 
 double calc_fitness(const std::vector<size_t>& path, const std::vector<std::vector<double>>& adjacency_matrix){
     double distance = 0.0;
@@ -426,12 +427,27 @@ int main()
     
     // 試行回数
     constexpr size_t trials = 30;
-    // 集団サイズ
-    constexpr size_t population_size = 250;
     // 世代数
     constexpr size_t generations = 300;
     // 乱数生成器(グローバル)
-    mt19937 rng;
+    // mt19937 rng;
+    mt19937 rng(545404204);
+    // 集団サイズ
+    size_t population_size = 0;
+    if (tsp.name == "rat575") {
+        population_size = 300;
+    } else if (tsp.name == "att532") {
+        population_size = 250;
+    } else {
+        cerr << "Unsupported TSP file: " << tsp.name << endl;
+        return 1;
+    }
+    // 初期集団生成器
+    tsp::PopulationInitializer population_initializer(population_size, tsp.city_count, 
+    [&tsp](vector<size_t>& individual) {
+        // 2-opt法を適用
+        apply_2opt(individual, tsp.adjacency_matrix);
+    });
     
     using Individual = vector<size_t>;
     
@@ -447,55 +463,7 @@ int main()
         // 乱数生成器(ローカル)
         // グローバルで初期化
         mt19937::result_type seed = rng();
-        mt19937 local_rng(seed);
-
-        // 集団を初期化
-        vector<Individual> population(population_size);
-        
-        string cache_file_name = "initial_population_cache_" + to_string(seed) + "_for_" + file_name;
-        // キャッシュファイルが存在する場合は、そこから初期集団を読み込む
-        ifstream cache_file(cache_file_name);
-        if (cache_file.is_open()) {
-            cout << "Loading initial population from cache file: " << cache_file_name << endl;
-            for (size_t i = 0; i < population_size; ++i) {
-                population[i].resize(city_positions.size());
-                for (size_t j = 0; j < city_positions.size(); ++j) {
-                    cache_file >> population[i][j];
-                }
-                // 2opt法を適用
-                apply_2opt(population[i], adjacency_matrix);
-            }
-            cout << "Initial population loaded from cache." << endl;
-            cache_file.close();
-        }else {
-            for (size_t i = 0; i < population_size; ++i) {
-                population[i].resize(city_positions.size());
-                iota(population[i].begin(), population[i].end(), 0); // 0からN-1までの整数を初期化
-                // ランダムにシャッフル
-                shuffle(population[i].begin(), population[i].end(), local_rng);
-                // 2opt法を適用
-                apply_2opt(population[i], adjacency_matrix);
-                cout << "Individual " << i << " initialized." << endl;
-            }
-            
-            // 初期集団をキャッシュファイルに保存
-            ofstream cache_file(cache_file_name);
-            if (!cache_file.is_open()) {
-                cerr << "Error: Could not open cache file '" << cache_file_name << "' for writing." << endl;
-                return 1;
-            }
-            cout << "Saving initial population to cache file: " << cache_file_name << endl;
-            for (const auto& individual : population) {
-                for (const auto& city : individual) {
-                    cache_file << city << " ";
-                }
-                cache_file << endl; // 各個体の終わりに改行を追加
-            }
-            cache_file.close();
-            cout << "Initial population saved to cache file." << endl;
-            
-        }
-
+        vector<Individual> population = population_initializer.initialize_population(seed, "initial_population_cache_" + to_string(seed) + "_for_" + file_name);
         cout << "Initial population created." << endl;
 
         // 終了判定関数
@@ -533,6 +501,10 @@ int main()
         
         // 隣接行列
         auto& adjacency_matrix = tsp.adjacency_matrix;
+        
+        // // 乱数生成器再初期化
+        // local_rng.seed(seed);
+        mt19937 local_rng(seed);
         
         // 計測開始
         auto start_time = chrono::high_resolution_clock::now();
