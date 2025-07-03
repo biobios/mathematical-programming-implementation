@@ -3,6 +3,8 @@
 #include <vector>
 #include <random>
 
+#include "utils.hpp"
+
 namespace mpi
 {
     namespace genetic_algorithm
@@ -18,15 +20,17 @@ namespace mpi
              * @param cross_over 交叉を行う関数(オブジェクト)
              * @param env 環境情報
              * @param rng 乱数生成器
+             * @param logging ロギング関数(オブジェクト) (デフォルトは何もしない関数)
              * @return 最終的な集団
              */
-            template <typename Individual, typename EndCondition, typename FitnessFunc, typename Environment, typename CrossOverFunc, std::uniform_random_bit_generator RandomGen>
-                requires(requires(std::vector<Individual> population, EndCondition end_condition, FitnessFunc fitness_func, CrossOverFunc cross_over, Environment env, RandomGen rng, std::vector<double> fitness_values) {
-                    { end_condition(population, fitness_values, env) } -> std::convertible_to<bool>;
+            template <typename Individual, typename EndCondition, typename FitnessFunc, typename Environment, typename CrossOverFunc, std::uniform_random_bit_generator RandomGen, typename LoggingFunc = NOP_Function>
+                requires(requires(std::vector<Individual> population, EndCondition end_condition, FitnessFunc fitness_func, CrossOverFunc cross_over, Environment env, RandomGen rng, size_t generation, std::vector<double> fitness_values, LoggingFunc logging) {
+                    { end_condition(population, fitness_values, env, generation) } -> std::convertible_to<bool>;
                     { fitness_func(population[0], env) } -> std::convertible_to<double>;
                     { cross_over(population[0], population[1], 1, env, rng) } -> std::convertible_to<std::vector<Individual>>;
+                    { logging(population, fitness_values, env, generation) } -> std::convertible_to<void>;
                 })
-            constexpr std::vector<Individual> operator()(std::vector<Individual> population, EndCondition&& end_condition, FitnessFunc fitness_func, CrossOverFunc cross_over, Environment env, RandomGen rng) const
+            constexpr std::vector<Individual> operator()(std::vector<Individual> population, EndCondition end_condition, FitnessFunc fitness_func, CrossOverFunc cross_over, Environment env, RandomGen rng, LoggingFunc&& logging = {}) const
             {
                 auto calc_all_fitness = [&fitness_func](const std::vector<Individual>& pop, const Environment& env) {
                     std::vector<double> fitness_values(pop.size());
@@ -35,10 +39,15 @@ namespace mpi
                     }
                     return fitness_values;
                 };
+                
+                size_t generation = 0;
 
                 size_t population_size = population.size();
                 std::vector<double> fitness_values = calc_all_fitness(population, env);
-                while (!end_condition(population, fitness_values, env)) {
+                while (!end_condition(population, fitness_values, env, generation)) {
+                    // ロギング
+                    logging(population, fitness_values, env, generation);
+
                     // ランダムにペアを作成
                     std::vector<size_t> indices(population_size);
                     std::iota(indices.begin(), indices.end(), 0);
@@ -54,8 +63,8 @@ namespace mpi
                         std::vector<double> children_fitness = calc_all_fitness(children, env);
                         
                         // 親と子どもの集団から最良の２個体を選択
-                        children.push_back(move(population[parent1_index]));
-                        children.push_back(move(population[parent2_index]));
+                        children.emplace_back(move(population[parent1_index]));
+                        children.emplace_back(move(population[parent2_index]));
                         children_fitness.push_back(fitness_values[parent1_index]);
                         children_fitness.push_back(fitness_values[parent2_index]);
                         size_t best_index = 0;

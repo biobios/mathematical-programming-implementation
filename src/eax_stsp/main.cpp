@@ -463,35 +463,35 @@ int main()
         // 終了判定関数
         // 世代数に達するか、収束するまで実行
         struct {
-            size_t generation = 0;
             size_t max_generations = generations;
             
-            double best_fitness = 0.0;
-            size_t generation_of_reached_best = 0;
-            
-            bool operator()([[maybe_unused]]const vector<Individual>& population, const vector<double>& fitness_values, [[maybe_unused]]const vector<vector<double>>& adjacency_matrix) {
+            bool operator()([[maybe_unused]]const vector<Individual>& population, const vector<double>& fitness_values, [[maybe_unused]]const vector<vector<int64_t>>& adjacency_matrix, size_t generation) {
                 
-                double ave_fitness = 0.0;
                 double max_fitness = 0.0;
                 double min_fitness = std::numeric_limits<double>::max();
                 for (const auto& fitness : fitness_values) {
-                    ave_fitness += fitness;
                     max_fitness = std::max(max_fitness, fitness);
                     min_fitness = std::min(min_fitness, fitness);
                 }
-                ave_fitness /= fitness_values.size();
                 
-                if (max_fitness > best_fitness) {
-                    best_fitness = max_fitness;
-                    generation_of_reached_best = generation;
-                }
-                
-                // 世代数を増やす
-                ++generation;
                 // 終了条件を満たすかどうかを判定
                 return generation > max_generations || max_fitness == min_fitness;
             }
         } end_condition;
+        
+        // ロガー
+        struct {
+            double best_fitness = 0.0;
+            size_t generation_of_reached_best = 0;
+
+            void operator()([[maybe_unused]]const vector<Individual>& population, const vector<double>& fitness_values, [[maybe_unused]]const vector<vector<int64_t>>& adjacency_matrix, size_t generation) {
+                double max_fitness = *max_element(fitness_values.begin(), fitness_values.end());
+                if (max_fitness > best_fitness) {
+                    best_fitness = max_fitness;
+                    generation_of_reached_best = generation;
+                }
+            }
+        } logging;
         
         // 隣接行列
         auto& adjacency_matrix = tsp.adjacency_matrix;
@@ -504,13 +504,14 @@ int main()
         auto start_time = chrono::high_resolution_clock::now();
 
         // 世代交代モデル ElitistRecombinationを使用して、遺伝的アルゴリズムを実行
-        vector<Individual> result = mpi::genetic_algorithm::ElitistRecombination<100>(population, end_condition, calc_fitness, edge_assembly_crossover, adjacency_matrix, local_rng);
+        vector<Individual> result = mpi::genetic_algorithm::ElitistRecombination<100>(population, end_condition, calc_fitness, eax::edge_assembly_crossover, adjacency_matrix, local_rng, logging);
+        // vector<Individual> result = mpi::genetic_algorithm::SimpleGA(population, end_condition, calc_fitness, eax::edge_assembly_crossover, adjacency_matrix, local_rng);
         
         auto end_time = chrono::high_resolution_clock::now();
         trial_times[trial] = chrono::duration<double>(end_time - start_time).count();
         
-        best_path_lengths[trial] = 1.0 / end_condition.best_fitness;
-        generation_of_best[trial] = end_condition.generation_of_reached_best;
+        best_path_lengths[trial] = 1.0 / logging.best_fitness;
+        generation_of_best[trial] = logging.generation_of_reached_best;
     }
     
     // 全試行中のベストとその解に到達した試行の数を出力する
@@ -530,9 +531,14 @@ int main()
 
     // 各試行の経過時間を出力
     cout << "Trial times (seconds): ";
+    double sum_trial_times = 0;
     for (const auto& time : trial_times) {
+        sum_trial_times += time;
         cout << time << " ";
     }
     cout << endl;
+    
+    double average_trial_time = sum_trial_times / trials;
+    cout << "Average trial time: " << average_trial_time << " seconds" << endl;
     return 0;
 }

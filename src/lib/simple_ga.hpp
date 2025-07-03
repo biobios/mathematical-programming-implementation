@@ -18,17 +18,19 @@ namespace mpi
              * @param cross_over 交叉を行う関数(オブジェクト)
              * @param env 環境情報
              * @param rng 乱数生成器
+             * @param logging ロギング関数(オブジェクト) (デフォルトは何もしない関数)
              * @param mutate 突然変異を行う関数(オブジェクト) (デフォルトは何もしない関数)
              * @return 最終的な集団
              */
-            template <typename Individual, typename EndCondition, typename FitnessFunc, typename Environment, typename CrossOverFunc, std::uniform_random_bit_generator RandomGen, typename MutationFunc = NOP_Function>
-                requires(requires(std::vector<Individual> population, EndCondition end_condition, FitnessFunc fitness_func, CrossOverFunc cross_over, Environment env, RandomGen rng, MutationFunc mutate, std::vector<double> fitness_values) {
-                    { end_condition(population, fitness_values, env) } -> std::convertible_to<bool>;
+            template <typename Individual, typename EndCondition, typename FitnessFunc, typename Environment, typename CrossOverFunc, std::uniform_random_bit_generator RandomGen, typename MutationFunc = NOP_Function, typename LoggingFunc = NOP_Function>
+                requires(requires(std::vector<Individual> population, EndCondition& end_condition, FitnessFunc fitness_func, CrossOverFunc cross_over, Environment env, RandomGen rng, MutationFunc mutate, std::vector<double> fitness_values, LoggingFunc logging, size_t generation) {
+                    { end_condition(population, fitness_values, env, generation) } -> std::convertible_to<bool>;
                     { fitness_func(population[0], env) } -> std::convertible_to<double>;
                     { cross_over(population[0], population[1], 1, env, rng) } -> std::convertible_to<std::vector<Individual>>;
                     mutate(population[0], env, rng);
+                    logging(population, fitness_values, env, generation);
                 })
-            constexpr std::vector<Individual> operator()(std::vector<Individual> population, EndCondition end_condition, FitnessFunc fitness_func, CrossOverFunc cross_over, Environment env, RandomGen rng, MutationFunc mutate = {}) const
+            constexpr std::vector<Individual> operator()(std::vector<Individual> population, EndCondition end_condition, FitnessFunc fitness_func, CrossOverFunc cross_over, Environment env, RandomGen rng, LoggingFunc&& logging = {}, MutationFunc mutate = {}) const
             {
                 auto calc_all_fitness = [&fitness_func](const std::vector<Individual>& pop, const Environment& env) {
                     std::vector<double> fitness_values(pop.size());
@@ -37,9 +39,13 @@ namespace mpi
                     }
                     return fitness_values;
                 };
+                
+                size_t generation = 0;
 
                 std::vector<double> fitness_values = calc_all_fitness(population, env);
-                while (!end_condition(population, fitness_values, env)) {
+                while (!end_condition(population, fitness_values, env, generation)) {
+                    logging(population, fitness_values, env, generation);
+
                     std::vector<Individual> new_population;
                     new_population.reserve(population.size());
                     
@@ -62,6 +68,8 @@ namespace mpi
                     population = std::move(new_population);
                     // 適応度を再計算
                     fitness_values = calc_all_fitness(population, env);
+                    
+                    ++generation;
                 }
                 
                 return population;
