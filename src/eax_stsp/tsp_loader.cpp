@@ -25,7 +25,7 @@ namespace tsp {
                 std::string colon;
                 iss >> dimension_label >> colon >> tsp.city_count;
 
-                tsp.adjacency_matrix.resize(tsp.city_count, std::vector<double>(tsp.city_count, 0.0));
+                tsp.adjacency_matrix.resize(tsp.city_count, std::vector<int64_t>(tsp.city_count, 0.0));
             } else if (line.find("EDGE_WEIGHT_TYPE") != std::string::npos) {
                 std::istringstream iss(line);
                 std::string edge_weight_type_label;
@@ -64,7 +64,7 @@ namespace tsp {
         for (size_t i = 0; i < tsp.city_count; ++i) {
             for (size_t j = 0; j < tsp.city_count; ++j) {
                 if (i == j) {
-                    tsp.adjacency_matrix[i][j] = 0.0; // Distance to itself is 0
+                    tsp.adjacency_matrix[i][j] = 0; // Distance to itself is 0
                 } else {
                     double x1 = coordinates[i].first;
                     double y1 = coordinates[i].second;
