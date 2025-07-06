@@ -88,6 +88,8 @@ namespace mpi
                         fitness_values[parent1_index] = best_fitness;
                         fitness_values[parent2_index] = second_best_fitness;
                     }
+                    
+                    generation++;
                 }
                 
                 return population;
