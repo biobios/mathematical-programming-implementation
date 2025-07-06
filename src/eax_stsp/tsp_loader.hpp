@@ -25,6 +25,7 @@ namespace tsp {
         std::string distance_type;
         size_t city_count;
         std::vector<std::vector<int64_t>> adjacency_matrix;
+        std::vector<std::vector<std::pair<int64_t, size_t>>> NN_list;
     };
 
     class TSP_Loader {

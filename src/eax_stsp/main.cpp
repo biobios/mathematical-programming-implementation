@@ -113,14 +113,16 @@ int main(int argc, char* argv[])
         mt19937::result_type seed = rng();
         vector<Individual> population = population_initializer.initialize_population(seed, "initial_population_cache_" + to_string(seed) + "_for_" + file_name);
         cout << "Initial population created." << endl;
+        
+        using Env = tsp::TSP;
 
         // 終了判定関数
         // 世代数に達するか、収束するまで実行
         struct {
             size_t max_generations = generations;
-            
-            bool operator()([[maybe_unused]]const vector<Individual>& population, const vector<double>& fitness_values, [[maybe_unused]]const vector<vector<int64_t>>& adjacency_matrix, size_t generation) {
-                
+
+            bool operator()([[maybe_unused]]const vector<Individual>& population, const vector<double>& fitness_values, [[maybe_unused]]const Env& tsp, size_t generation) {
+
                 double max_fitness = 0.0;
                 double min_fitness = std::numeric_limits<double>::max();
                 for (const auto& fitness : fitness_values) {
@@ -138,7 +140,7 @@ int main(int argc, char* argv[])
             double best_fitness = 0.0;
             size_t generation_of_reached_best = 0;
 
-            void operator()([[maybe_unused]]const vector<Individual>& population, const vector<double>& fitness_values, [[maybe_unused]]const vector<vector<int64_t>>& adjacency_matrix, size_t generation) {
+            void operator()([[maybe_unused]]const vector<Individual>& population, const vector<double>& fitness_values, [[maybe_unused]]const Env& tsp, size_t generation) {
                 double max_fitness = *max_element(fitness_values.begin(), fitness_values.end());
                 if (max_fitness > best_fitness) {
                     best_fitness = max_fitness;
@@ -147,18 +149,19 @@ int main(int argc, char* argv[])
             }
         } logging;
 
-        // 隣接行列
-        auto& adjacency_matrix = tsp.adjacency_matrix;
+        // 適応度関数
+        auto calc_fitness_lambda = [](const Individual& individual, const Env& tsp) {
+            return calc_fitness(individual, tsp.adjacency_matrix);
+        };
         
         // // 乱数生成器再初期化
-        // local_rng.seed(seed);
         mt19937 local_rng(seed);
         
         // 計測開始
         auto start_time = chrono::high_resolution_clock::now();
 
         // 世代交代モデル ElitistRecombinationを使用して、遺伝的アルゴリズムを実行
-        vector<Individual> result = mpi::genetic_algorithm::ElitistRecombination<100>(population, end_condition, calc_fitness, eax::edge_assembly_crossover, adjacency_matrix, local_rng, logging);
+        vector<Individual> result = mpi::genetic_algorithm::ElitistRecombination<100>(population, end_condition, calc_fitness_lambda, eax::edge_assembly_crossover, tsp, local_rng, logging);
         // vector<Individual> result = mpi::genetic_algorithm::SimpleGA(population, end_condition, calc_fitness, eax::edge_assembly_crossover, adjacency_matrix, local_rng);
         
         auto end_time = chrono::high_resolution_clock::now();

@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <algorithm>
 
 namespace tsp {
     TSP TSP_Loader::load_tsp(const std::string& file_name) {
@@ -60,8 +61,11 @@ namespace tsp {
             throw std::runtime_error("Number of cities does not match the specified dimension.");
         }
         
+        tsp.NN_list.resize(tsp.city_count);
+        
         // Fill the adjacency matrix based on the coordinates
         for (size_t i = 0; i < tsp.city_count; ++i) {
+            tsp.NN_list[i].reserve(tsp.city_count - 1); // Reserve space for neighbors
             for (size_t j = 0; j < tsp.city_count; ++j) {
                 if (i == j) {
                     tsp.adjacency_matrix[i][j] = 0; // Distance to itself is 0
@@ -77,8 +81,10 @@ namespace tsp {
                     } else {
                         throw std::runtime_error("Unsupported distance type: " + tsp.distance_type);
                     }
+                    tsp.NN_list[i].emplace_back(tsp.adjacency_matrix[i][j], j);
                 }
             }
+            std::sort(tsp.NN_list[i].begin(), tsp.NN_list[i].end());
         }
         
 

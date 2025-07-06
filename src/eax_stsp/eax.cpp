@@ -185,8 +185,7 @@ void step_2(std::vector<std::array<size_t, 2>> adjacency_list_parent1,
 
 void step_3_and_4(std::vector<std::vector<size_t>>& child_adjacency_list,
                   const std::vector<std::vector<std::pair<edge, bool>>>& AB_cycles,
-                  std::mt19937& rng,
-                  size_t n)
+                  std::mt19937& rng)
 {
     auto start_time = std::chrono::high_resolution_clock::now();
     using namespace std;
@@ -244,17 +243,25 @@ void step_3_and_4(std::vector<std::vector<size_t>>& child_adjacency_list,
 
 void step_5_and_6(std::vector<std::vector<size_t>>& child_adjacency_list,
             const std::vector<std::vector<int64_t>>& adjacency_matrix,
-            std::vector<edge>& final_cycle,
-            size_t n)
+            std::vector<size_t>& child_path,
+            size_t n,
+            const std::vector<std::vector<std::pair<int64_t, size_t>>>& NN_list)
 {
     auto start_time = std::chrono::high_resolution_clock::now();
     using namespace std;
     using distance_type = std::remove_cvref_t<decltype(adjacency_matrix)>::value_type::value_type;
-    vector<vector<edge>> partial_cycles;
+    // vector<vector<edge>> partial_cycles;
+    // vector<pair<size_t, size_t>> belongs_to_cycle(n, {n, n}); // 各都市がどの部分巡回路に属するかを記録
+    vector<size_t> belongs_to_cycle(n, n); // 各都市がどの部分巡回路に属するかを記録
+    vector<vector<size_t>> cycles_cities; // 各部分巡回路に属する都市のリスト
+    vector<pair<size_t, size_t>> double_linked_list(n, {n, n});
+    // vector<vector<pair<size_t,size_t>>> partial_cycles;
     size_t remaining_edges = n;
-
+    size_t cycle_index = 0;
+    
     while (remaining_edges > 0) {
-        vector<edge> cycle;
+        // vector<pair<size_t,size_t>> cycle; // 初期化
+        vector<size_t> cycle_cities;
         size_t current_city = 0;
         
         for (size_t i = 0; i < n; ++i) {
@@ -263,7 +270,7 @@ void step_5_and_6(std::vector<std::vector<size_t>>& child_adjacency_list,
                 break;
             }
         }
-
+        size_t prev_city = 0;
         while (!child_adjacency_list[current_city].empty()) {
             auto next_city = child_adjacency_list[current_city].back();
             // リストから現在のエッジを削除
@@ -272,12 +279,21 @@ void step_5_and_6(std::vector<std::vector<size_t>>& child_adjacency_list,
             auto it = find(child_adjacency_list[next_city].begin(), child_adjacency_list[next_city].end(), current_city);
             child_adjacency_list[next_city].erase(it);
 
-            cycle.push_back({current_city, next_city});
+            belongs_to_cycle[current_city] = cycle_index;
+            cycle_cities.push_back(current_city);
+            // cycle.push_back({prev_city, next_city});
+            double_linked_list[current_city] = {prev_city, next_city};
+            prev_city = current_city;
             current_city = next_city;
             remaining_edges -= 1;
         }
+        
+        // cycle[0].first = prev_city;
+        double_linked_list[current_city].first = prev_city;
 
-        partial_cycles.emplace_back(move(cycle));
+        cycles_cities.emplace_back(move(cycle_cities));
+        cycle_index += 1;
+        // partial_cycles.emplace_back(move(cycle));
     }
 
     auto end_time = std::chrono::high_resolution_clock::now();
@@ -448,26 +464,21 @@ void step_5_and_6(std::vector<std::vector<size_t>>& child_adjacency_list,
     // }
     
     
-    // map<pair<size_t, size_t>, tuple<distance_type, size_t, size_t, bool>> min_cost_edges;
-    vector<vector<tuple<distance_type, size_t, size_t, bool>>> min_cost_edges(partial_cycles.size(), vector<tuple<distance_type, size_t, size_t, bool>>(partial_cycles.size(), {std::numeric_limits<distance_type>::max(), 0, 0, true}));
-    vector<set<size_t>> partial_cycle_indices(partial_cycles.size());
-    for (size_t i = 0; i < partial_cycle_indices.size(); ++i) {
+    auto start_time2 = std::chrono::high_resolution_clock::now();
+    
+    vector<set<size_t>> partial_cycle_indices(cycles_cities.size());
+    for (size_t i = 0; i < cycles_cities.size(); ++i) {
         partial_cycle_indices[i].insert(i);
     }
-    
-    auto start_time2 = std::chrono::high_resolution_clock::now();
     
     while (partial_cycle_indices.size() > 1) {
         // 最小の部分巡回路を見つける
         size_t min_cycle_index = 0;
-        size_t min_cycle_size = numeric_limits<size_t>::max();
-        
-        auto start_time3 = std::chrono::high_resolution_clock::now();
-
+        size_t min_cycle_size = std::numeric_limits<size_t>::max();
         for (size_t i = 0; i < partial_cycle_indices.size(); ++i) {
             size_t size = 0;
             for (const auto& index : partial_cycle_indices[i]) {
-                size += partial_cycles[index].size();
+                size += cycles_cities[index].size();
             }
             
             if (size < min_cycle_size) {
@@ -476,199 +487,358 @@ void step_5_and_6(std::vector<std::vector<size_t>>& child_adjacency_list,
             }
         }
         
-        auto end_time3 = std::chrono::high_resolution_clock::now();
-        times2[1] += std::chrono::duration<double>(end_time3 - start_time3).count();
-        auto start_time4 = std::chrono::high_resolution_clock::now();
-
-        // 最小の部分巡回路と接続する部分巡回路を見つける
-        pair<size_t, size_t> min_cycle_pair;
-        size_t min_partial_cycle_indices_index = 0;
-        tuple<distance_type, size_t, size_t, bool> min_cost_edge = {std::numeric_limits<distance_type>::max(), 0, 0, true};
-
-        for (size_t cycle_index2 = 0; cycle_index2 < partial_cycle_indices.size(); ++cycle_index2) {
-            if (cycle_index2 == min_cycle_index) continue; // 最小の部分巡回路は除外
-
-            for (auto i1 : partial_cycle_indices[cycle_index2]) {
-                for (auto i2 : partial_cycle_indices[min_cycle_index]) {
-                    pair<size_t, size_t> cycle_pair = {i1, i2};
-                    
-                    // auto it = min_cost_edges.find(cycle_pair);
-                    auto [min_cost, e1_index, e2_index, forward_connection] = min_cost_edges[cycle_pair.first][cycle_pair.second];
-                    // if (it != min_cost_edges.end()) {
-                    if (min_cost < std::numeric_limits<distance_type>::max()) {
-                        // 既に計算済みのエッジコストを使用
-                        // auto& [cost, e1_index, e2_index, forward_connection] = it->second;
-                        // if (cost < get<0>(min_cost_edge)) {
-                        if (min_cost < get<0>(min_cost_edge)) {
-                            // min_cost_edge = it->second;
-                            min_cost_edge = min_cost_edges[cycle_pair.first][cycle_pair.second];
-                            min_cycle_pair = cycle_pair;
-                            min_partial_cycle_indices_index = cycle_index2;
+        auto& min_cycle_set = partial_cycle_indices[min_cycle_index];
+        
+        constexpr size_t search_range = 10;
+        size_t start = 0;
+        edge e1 = {0, 0};
+        edge e2 = {0, 0};
+        distance_type min_cost = std::numeric_limits<distance_type>::max();
+        bool forward_connection = true;
+        while (e1.v1 == 0 && e1.v2 == 0) {
+            for (auto cycle_index : min_cycle_set) {
+                for (size_t v1_index : cycles_cities[cycle_index]) {
+                    size_t limit = std::min(start + search_range, NN_list[v1_index].size());
+                    for (size_t i = start; i < limit; ++i) {
+                        size_t v2_index = NN_list[v1_index][i].second;
+                        if (min_cycle_set.contains(belongs_to_cycle[v2_index])) {
+                            continue;
                         }
+
+                        // 8通りの接続のコストを計算
+                        pair<size_t, size_t> connected_city_pair_v1 = double_linked_list[v1_index];
+                        pair<size_t, size_t> connected_city_pair_v2 = double_linked_list[v2_index];
                         
-                        continue;
-                    }
-                    
-                    tuple<distance_type, size_t, size_t, bool> edge_cost = {std::numeric_limits<distance_type>::max(), 0, 0, true};
-                    for (size_t j = 0; j < partial_cycles[cycle_pair.first].size(); ++j) {
-                        const auto& edge1 = partial_cycles[cycle_pair.first][j];
-                        for (size_t k = 0; k < partial_cycles[cycle_pair.second].size(); ++k) {
-                            const auto& edge2 = partial_cycles[cycle_pair.second][k];
-                            
-                            // 2通り試す
-                            distance_type forward_cost = - adjacency_matrix[edge1.v1][edge1.v2] - adjacency_matrix[edge2.v1][edge2.v2]
-                                        + adjacency_matrix[edge1.v1][edge2.v2] + adjacency_matrix[edge2.v1][edge1.v2];
-                            
-                            distance_type reverse_cost = - adjacency_matrix[edge1.v1][edge1.v2] - adjacency_matrix[edge2.v1][edge2.v2]
-                                        + adjacency_matrix[edge1.v1][edge2.v1] + adjacency_matrix[edge2.v2][edge1.v2];
-                            
-                            if (forward_cost < get<0>(edge_cost) || reverse_cost < get<0>(edge_cost)) {
-                                // if (forward_cost < reverse_cost) {
-                                //     get<0>(edge_cost) = forward_cost;
-                                //     get<3>(edge_cost) = true;
-                                // } else {
-                                //     get<0>(edge_cost) = reverse_cost;
-                                //     get<3>(edge_cost) = false;
-                                // }
-                                // get<1>(edge_cost) = j;
-                                // get<2>(edge_cost) = k;
-                                edge_cost = {
-                                    std::min(forward_cost, reverse_cost), 
-                                    j, 
-                                    k, 
-                                    forward_cost < reverse_cost
-                                };
+                        array<edge, 2> edges1 = {
+                            edge(v1_index, connected_city_pair_v1.first),
+                            edge(v1_index, connected_city_pair_v1.second)
+                        };
+                        
+                        array<edge, 2> edges2 = {
+                            edge(v2_index, connected_city_pair_v2.first),
+                            edge(v2_index, connected_city_pair_v2.second)
+                        };
+                        
+                        for (const auto& edge1 : edges1) {
+                            for (const auto& edge2 : edges2) {
+                                distance_type forward_cost = - adjacency_matrix[edge1.v1][edge1.v2] - adjacency_matrix[edge2.v1][edge2.v2]
+                                            + adjacency_matrix[edge1.v1][edge2.v2] + adjacency_matrix[edge2.v1][edge1.v2];
+
+                                distance_type reverse_cost = - adjacency_matrix[edge1.v1][edge1.v2] - adjacency_matrix[edge2.v1][edge2.v2]
+                                            + adjacency_matrix[edge1.v1][edge2.v1] + adjacency_matrix[edge2.v2][edge1.v2];
+                                
+                                if (forward_cost < min_cost || reverse_cost < min_cost) {
+                                    e1 = edge1;
+                                    e2 = edge2;
+                                    min_cost = std::min(forward_cost, reverse_cost);
+                                    forward_connection = (forward_cost < reverse_cost);
+                                }
                             }
                         }
                     }
-                    
-                    if (get<0>(edge_cost) < get<0>(min_cost_edge)) {
-                        min_cost_edge = edge_cost;
-                        min_cycle_pair = cycle_pair;
-                        min_partial_cycle_indices_index = cycle_index2;
-                    }
-                    min_cost_edges[cycle_pair.first][cycle_pair.second] = edge_cost;
-                    min_cost_edges[cycle_pair.second][cycle_pair.first] = {
-                        get<0>(edge_cost), get<2>(edge_cost), get<1>(edge_cost), get<3>(edge_cost)
-                    };
                 }
             }
-        }
-        auto end_time4 = std::chrono::high_resolution_clock::now();
-        times2[2] += std::chrono::duration<double>(end_time4 - start_time4).count();
-        auto start_time5 = std::chrono::high_resolution_clock::now();
-        auto [min_cost, e1_index, e2_index, forward_connection] = min_cost_edge;
-        auto [i1, i2] = min_cycle_pair;
-        if (min_cost == std::numeric_limits<distance_type>::max()) {
-            // ここに到達することはないはず
-            std::cerr << "No valid connection found between cycles." << std::endl;
-            exit(1);
+            
+            start += search_range;
+            // 見つからなかったら次の範囲を探す
         }
         
-        auto e1 = partial_cycles[i1][e1_index];
-        auto e2 = partial_cycles[i2][e2_index];
-        
+        // 見つかった辺を使って部分巡回路を接続
         if (forward_connection) {
-            partial_cycles[i1][e1_index] = {e1.v1, e2.v2};
-            partial_cycles[i2][e2_index] = {e2.v1, e1.v2};
+    //         e1.v2 -> e2.v2;
+            if (double_linked_list[e1.v1].first == e1.v2) {
+                double_linked_list[e1.v1].first = e2.v2;
+            } else {
+                double_linked_list[e1.v1].second = e2.v2;
+            }
+
+    //         e1.v1 -> e2.v1;
+            if (double_linked_list[e1.v2].first == e1.v1) {
+                double_linked_list[e1.v2].first = e2.v1;
+            } else {
+                double_linked_list[e1.v2].second = e2.v1;
+            }
+            
+    //         e2.v2 -> e1.v2;
+            if (double_linked_list[e2.v1].first == e2.v2) {
+                double_linked_list[e2.v1].first = e1.v2;
+            } else {
+                double_linked_list[e2.v1].second = e1.v2;
+            }
+            
+    //         e2.v1 -> e1.v1;
+            if (double_linked_list[e2.v2].first == e2.v1) {
+                double_linked_list[e2.v2].first = e1.v1;
+            } else {
+                double_linked_list[e2.v2].second = e1.v1;
+            }
         } else {
-            partial_cycles[i1][e1_index] = {e1.v1, e2.v1};
-            partial_cycles[i2][e2_index] = {e2.v2, e1.v2};
-        }
-        
-        partial_cycle_indices[min_cycle_index].merge(partial_cycle_indices[min_partial_cycle_indices_index]);
-        if (min_partial_cycle_indices_index != partial_cycle_indices.size() - 1) {
-            partial_cycle_indices[min_partial_cycle_indices_index].swap(partial_cycle_indices.back());
-            if (min_cycle_index == partial_cycle_indices.size() - 1) {
-                min_cycle_index = min_partial_cycle_indices_index;
+    //         e1.v2 -> e2.v1;
+            if (double_linked_list[e1.v1].first == e1.v2) {
+                double_linked_list[e1.v1].first = e2.v1;
+            } else {
+                double_linked_list[e1.v1].second = e2.v1;
+            }
+
+    //         e1.v1 -> e2.v2;
+            if (double_linked_list[e1.v2].first == e1.v1) {
+                double_linked_list[e1.v2].first = e2.v2;
+            } else {
+                double_linked_list[e1.v2].second = e2.v2;
+            }
+            
+    //         e2.v2 -> e1.v1;
+            if (double_linked_list[e2.v1].first == e2.v2) {
+                double_linked_list[e2.v1].first = e1.v1;
+            } else {
+                double_linked_list[e2.v1].second = e1.v1;
+            }
+            
+    //         e2.v1 -> e1.v2;
+            if (double_linked_list[e2.v2].first == e2.v1) {
+                double_linked_list[e2.v2].first = e1.v2;
+            } else {
+                double_linked_list[e2.v2].second = e1.v2;
             }
         }
-
+        
+        // 接続した部分巡回路を削除
+        size_t connect_index_with_min_cycle = 0;
+        size_t connect_cycle_index = belongs_to_cycle[e2.v1];
+        for (size_t i = 0; i < partial_cycle_indices.size(); ++i) {
+            if (partial_cycle_indices[i].contains(connect_cycle_index)) {
+                connect_index_with_min_cycle = i;
+                break;
+            }
+        }
+        
+        partial_cycle_indices[connect_index_with_min_cycle].merge(partial_cycle_indices[min_cycle_index]);
+        if (min_cycle_index < partial_cycle_indices.size() - 1) {
+            std::swap(partial_cycle_indices[min_cycle_index], partial_cycle_indices.back());
+        }
+        
         partial_cycle_indices.pop_back();
-        
-        for (size_t i = 0; i < partial_cycles.size(); ++i) {
-            auto& [old_min_cost, old_e1_index, old_e2_index, old_forward_connection] = min_cost_edges[i][i1];
-            if (old_e2_index == e1_index) {
-                min_cost_edges[i][i1] = {std::numeric_limits<distance_type>::max(), 0, 0, true};
-                min_cost_edges[i1][i] = {std::numeric_limits<distance_type>::max(), 0, 0, true};
-            }
-        }
-        
-        for (size_t i = 0; i < partial_cycles.size(); ++i) {
-            auto& [old_min_cost, old_e1_index, old_e2_index, old_forward_connection] = min_cost_edges[i][i2];
-            if (old_e2_index == e2_index) {
-                min_cost_edges[i][i2] = {std::numeric_limits<distance_type>::max(), 0, 0, true};
-                min_cost_edges[i2][i] = {std::numeric_limits<distance_type>::max(), 0, 0, true};
-            }
-        }
-        
-        // {
-        //     size_t i;
-        //     for (i = 0; i < i1; ++i) {
-        //         pair<size_t, size_t> cycle_pair = {i, i1};
-        //         auto [old_min_cost, old_e1_index, old_e2_index, old_forward_connection] = min_cost_edges[cycle_pair];
-        //         if (old_e2_index == e1_index) {
-        //             min_cost_edges.erase(cycle_pair);
-        //         }
-        //     }
-            
-        //     i = i1 + 1;
-        //     for (; i < partial_cycles.size(); ++i) {
-        //         pair<size_t, size_t> cycle_pair = {i1, i};
-        //         auto [old_min_cost, old_e1_index, old_e2_index, old_forward_connection] = min_cost_edges[cycle_pair];
-        //         if (old_e1_index == e1_index) {
-        //             min_cost_edges.erase(cycle_pair);
-        //         }
-        //     }
-        // }
-        // {
-        //     size_t i;
-        //     for (i = 0; i < i2; ++i) {
-        //         pair<size_t, size_t> cycle_pair = {i, i2};
-        //         auto [old_min_cost, old_e1_index, old_e2_index, old_forward_connection] = min_cost_edges[cycle_pair];
-        //         if (old_e2_index == e2_index) {
-        //             min_cost_edges.erase(cycle_pair);
-        //         }
-        //     }
-            
-        //     i = i2 + 1;
-        //     for (; i < partial_cycles.size(); ++i) {
-        //         pair<size_t, size_t> cycle_pair = {i2, i};
-        //         auto [old_min_cost, old_e1_index, old_e2_index, old_forward_connection] = min_cost_edges[cycle_pair];
-        //         if (old_e1_index == e2_index) {
-        //             min_cost_edges.erase(cycle_pair);
-        //         }
-        //     }
-        // }
-        
-        
-        // auto new_e1 = partial_cycles[i1][e1_index];
-        // for (size_t i = 0; i < partial_cycles.size(); ++i) {
-        //     // if (partial_cycle_indices[min_cycle_index].contains(i)) continue;
-        //     pair<size_t, size_t> cycle_pair = {i1, i};
-            
-        //     if (i1 > i) {
-        //         cycle_pair = {i, i1};
-        //     }
-            
-        //     min_cost_edges.erase(cycle_pair);
-        // }
-
-        // auto new_e2 = partial_cycles[i2][e2_index];
-        // for (size_t i = 0; i < partial_cycles.size(); ++i) {
-        //     // if (partial_cycle_indices[min_cycle_index].contains(i)) continue;
-        //     pair<size_t, size_t> cycle_pair = {i2, i};
-            
-        //     if (i2 > i) {
-        //         cycle_pair = {i, i2};
-        //     }
-        //     min_cost_edges.erase(cycle_pair);
-            
-        // }
-        
-        auto end_time5 = std::chrono::high_resolution_clock::now();
-        times2[3] += std::chrono::duration<double>(end_time5 - start_time5).count();
     }
+    
+    // map<pair<size_t, size_t>, tuple<distance_type, size_t, size_t, bool>> min_cost_edges;
+    // vector<vector<tuple<distance_type, size_t, size_t, bool>>> min_cost_edges(partial_cycles.size(), vector<tuple<distance_type, size_t, size_t, bool>>(partial_cycles.size(), {std::numeric_limits<distance_type>::max(), 0, 0, true}));
+    // vector<set<size_t>> partial_cycle_indices(partial_cycles.size());
+    // for (size_t i = 0; i < partial_cycle_indices.size(); ++i) {
+    //     partial_cycle_indices[i].insert(i);
+    // }
+    
+    // while (partial_cycle_indices.size() > 1) {
+    //     // 最小の部分巡回路を見つける
+    //     size_t min_cycle_index = 0;
+    //     size_t min_cycle_size = numeric_limits<size_t>::max();
+        
+    //     auto start_time3 = std::chrono::high_resolution_clock::now();
+
+    //     for (size_t i = 0; i < partial_cycle_indices.size(); ++i) {
+    //         size_t size = 0;
+    //         for (const auto& index : partial_cycle_indices[i]) {
+    //             size += partial_cycles[index].size();
+    //         }
+            
+    //         if (size < min_cycle_size) {
+    //             min_cycle_size = size;
+    //             min_cycle_index = i;
+    //         }
+    //     }
+        
+    //     auto end_time3 = std::chrono::high_resolution_clock::now();
+    //     times2[1] += std::chrono::duration<double>(end_time3 - start_time3).count();
+    //     auto start_time4 = std::chrono::high_resolution_clock::now();
+
+    //     // 最小の部分巡回路と接続する部分巡回路を見つける
+    //     pair<size_t, size_t> min_cycle_pair;
+    //     size_t min_partial_cycle_indices_index = 0;
+    //     tuple<distance_type, size_t, size_t, bool> min_cost_edge = {std::numeric_limits<distance_type>::max(), 0, 0, true};
+
+    //     for (size_t cycle_index2 = 0; cycle_index2 < partial_cycle_indices.size(); ++cycle_index2) {
+    //         if (cycle_index2 == min_cycle_index) continue; // 最小の部分巡回路は除外
+
+    //         for (auto i1 : partial_cycle_indices[cycle_index2]) {
+    //             for (auto i2 : partial_cycle_indices[min_cycle_index]) {
+    //                 pair<size_t, size_t> cycle_pair = {i1, i2};
+                    
+    //                 // auto it = min_cost_edges.find(cycle_pair);
+    //                 auto [min_cost, e1_index, e2_index, forward_connection] = min_cost_edges[cycle_pair.first][cycle_pair.second];
+    //                 // if (it != min_cost_edges.end()) {
+    //                 if (min_cost < std::numeric_limits<distance_type>::max()) {
+    //                     // 既に計算済みのエッジコストを使用
+    //                     // auto& [cost, e1_index, e2_index, forward_connection] = it->second;
+    //                     // if (cost < get<0>(min_cost_edge)) {
+    //                     if (min_cost < get<0>(min_cost_edge)) {
+    //                         // min_cost_edge = it->second;
+    //                         min_cost_edge = min_cost_edges[cycle_pair.first][cycle_pair.second];
+    //                         min_cycle_pair = cycle_pair;
+    //                         min_partial_cycle_indices_index = cycle_index2;
+    //                     }
+                        
+    //                     continue;
+    //                 }
+                    
+    //                 tuple<distance_type, size_t, size_t, bool> edge_cost = {std::numeric_limits<distance_type>::max(), 0, 0, true};
+    //                 for (size_t j = 0; j < partial_cycles[cycle_pair.first].size(); ++j) {
+    //                     const auto& edge1 = partial_cycles[cycle_pair.first][j];
+    //                     for (size_t k = 0; k < partial_cycles[cycle_pair.second].size(); ++k) {
+    //                         const auto& edge2 = partial_cycles[cycle_pair.second][k];
+                            
+    //                         // 2通り試す
+    //                         distance_type forward_cost = - adjacency_matrix[edge1.v1][edge1.v2] - adjacency_matrix[edge2.v1][edge2.v2]
+    //                                     + adjacency_matrix[edge1.v1][edge2.v2] + adjacency_matrix[edge2.v1][edge1.v2];
+                            
+    //                         distance_type reverse_cost = - adjacency_matrix[edge1.v1][edge1.v2] - adjacency_matrix[edge2.v1][edge2.v2]
+    //                                     + adjacency_matrix[edge1.v1][edge2.v1] + adjacency_matrix[edge2.v2][edge1.v2];
+                            
+    //                         if (forward_cost < get<0>(edge_cost) || reverse_cost < get<0>(edge_cost)) {
+    //                             // if (forward_cost < reverse_cost) {
+    //                             //     get<0>(edge_cost) = forward_cost;
+    //                             //     get<3>(edge_cost) = true;
+    //                             // } else {
+    //                             //     get<0>(edge_cost) = reverse_cost;
+    //                             //     get<3>(edge_cost) = false;
+    //                             // }
+    //                             // get<1>(edge_cost) = j;
+    //                             // get<2>(edge_cost) = k;
+    //                             edge_cost = {
+    //                                 std::min(forward_cost, reverse_cost), 
+    //                                 j, 
+    //                                 k, 
+    //                                 forward_cost < reverse_cost
+    //                             };
+    //                         }
+    //                     }
+    //                 }
+                    
+    //                 if (get<0>(edge_cost) < get<0>(min_cost_edge)) {
+    //                     min_cost_edge = edge_cost;
+    //                     min_cycle_pair = cycle_pair;
+    //                     min_partial_cycle_indices_index = cycle_index2;
+    //                 }
+    //                 min_cost_edges[cycle_pair.first][cycle_pair.second] = edge_cost;
+    //                 min_cost_edges[cycle_pair.second][cycle_pair.first] = {
+    //                     get<0>(edge_cost), get<2>(edge_cost), get<1>(edge_cost), get<3>(edge_cost)
+    //                 };
+    //             }
+    //         }
+    //     }
+    //     auto end_time4 = std::chrono::high_resolution_clock::now();
+    //     times2[2] += std::chrono::duration<double>(end_time4 - start_time4).count();
+    //     auto start_time5 = std::chrono::high_resolution_clock::now();
+    //     auto [min_cost, e1_index, e2_index, forward_connection] = min_cost_edge;
+    //     auto [i1, i2] = min_cycle_pair;
+    //     if (min_cost == std::numeric_limits<distance_type>::max()) {
+    //         // ここに到達することはないはず
+    //         std::cerr << "No valid connection found between cycles." << std::endl;
+    //         exit(1);
+    //     }
+        
+    //     auto e1 = partial_cycles[i1][e1_index];
+    //     auto e2 = partial_cycles[i2][e2_index];
+        
+    //     if (forward_connection) {
+    //         partial_cycles[i1][e1_index] = {e1.v1, e2.v2};
+    //         partial_cycles[i2][e2_index] = {e2.v1, e1.v2};
+    //     } else {
+    //         partial_cycles[i1][e1_index] = {e1.v1, e2.v1};
+    //         partial_cycles[i2][e2_index] = {e2.v2, e1.v2};
+    //     }
+        
+    //     partial_cycle_indices[min_cycle_index].merge(partial_cycle_indices[min_partial_cycle_indices_index]);
+    //     if (min_partial_cycle_indices_index != partial_cycle_indices.size() - 1) {
+    //         partial_cycle_indices[min_partial_cycle_indices_index].swap(partial_cycle_indices.back());
+    //         if (min_cycle_index == partial_cycle_indices.size() - 1) {
+    //             min_cycle_index = min_partial_cycle_indices_index;
+    //         }
+    //     }
+
+    //     partial_cycle_indices.pop_back();
+        
+    //     for (size_t i = 0; i < partial_cycles.size(); ++i) {
+    //         auto& [old_min_cost, old_e1_index, old_e2_index, old_forward_connection] = min_cost_edges[i][i1];
+    //         if (old_e2_index == e1_index) {
+    //             min_cost_edges[i][i1] = {std::numeric_limits<distance_type>::max(), 0, 0, true};
+    //             min_cost_edges[i1][i] = {std::numeric_limits<distance_type>::max(), 0, 0, true};
+    //         }
+    //     }
+        
+    //     for (size_t i = 0; i < partial_cycles.size(); ++i) {
+    //         auto& [old_min_cost, old_e1_index, old_e2_index, old_forward_connection] = min_cost_edges[i][i2];
+    //         if (old_e2_index == e2_index) {
+    //             min_cost_edges[i][i2] = {std::numeric_limits<distance_type>::max(), 0, 0, true};
+    //             min_cost_edges[i2][i] = {std::numeric_limits<distance_type>::max(), 0, 0, true};
+    //         }
+    //     }
+        
+    //     // {
+    //     //     size_t i;
+    //     //     for (i = 0; i < i1; ++i) {
+    //     //         pair<size_t, size_t> cycle_pair = {i, i1};
+    //     //         auto [old_min_cost, old_e1_index, old_e2_index, old_forward_connection] = min_cost_edges[cycle_pair];
+    //     //         if (old_e2_index == e1_index) {
+    //     //             min_cost_edges.erase(cycle_pair);
+    //     //         }
+    //     //     }
+            
+    //     //     i = i1 + 1;
+    //     //     for (; i < partial_cycles.size(); ++i) {
+    //     //         pair<size_t, size_t> cycle_pair = {i1, i};
+    //     //         auto [old_min_cost, old_e1_index, old_e2_index, old_forward_connection] = min_cost_edges[cycle_pair];
+    //     //         if (old_e1_index == e1_index) {
+    //     //             min_cost_edges.erase(cycle_pair);
+    //     //         }
+    //     //     }
+    //     // }
+    //     // {
+    //     //     size_t i;
+    //     //     for (i = 0; i < i2; ++i) {
+    //     //         pair<size_t, size_t> cycle_pair = {i, i2};
+    //     //         auto [old_min_cost, old_e1_index, old_e2_index, old_forward_connection] = min_cost_edges[cycle_pair];
+    //     //         if (old_e2_index == e2_index) {
+    //     //             min_cost_edges.erase(cycle_pair);
+    //     //         }
+    //     //     }
+            
+    //     //     i = i2 + 1;
+    //     //     for (; i < partial_cycles.size(); ++i) {
+    //     //         pair<size_t, size_t> cycle_pair = {i2, i};
+    //     //         auto [old_min_cost, old_e1_index, old_e2_index, old_forward_connection] = min_cost_edges[cycle_pair];
+    //     //         if (old_e1_index == e2_index) {
+    //     //             min_cost_edges.erase(cycle_pair);
+    //     //         }
+    //     //     }
+    //     // }
+        
+        
+    //     // auto new_e1 = partial_cycles[i1][e1_index];
+    //     // for (size_t i = 0; i < partial_cycles.size(); ++i) {
+    //     //     // if (partial_cycle_indices[min_cycle_index].contains(i)) continue;
+    //     //     pair<size_t, size_t> cycle_pair = {i1, i};
+            
+    //     //     if (i1 > i) {
+    //     //         cycle_pair = {i, i1};
+    //     //     }
+            
+    //     //     min_cost_edges.erase(cycle_pair);
+    //     // }
+
+    //     // auto new_e2 = partial_cycles[i2][e2_index];
+    //     // for (size_t i = 0; i < partial_cycles.size(); ++i) {
+    //     //     // if (partial_cycle_indices[min_cycle_index].contains(i)) continue;
+    //     //     pair<size_t, size_t> cycle_pair = {i2, i};
+            
+    //     //     if (i2 > i) {
+    //     //         cycle_pair = {i, i2};
+    //     //     }
+    //     //     min_cost_edges.erase(cycle_pair);
+            
+    //     // }
+        
+    //     auto end_time5 = std::chrono::high_resolution_clock::now();
+    //     times2[3] += std::chrono::duration<double>(end_time5 - start_time5).count();
+    // }
     
     // cout << "Total edge cost calculations: " << calc_count << endl;
     // cout << "Expected edge cost calculations: " << (partial_cycles.size() * (partial_cycles.size() - 1)) / 2 << endl;
@@ -680,11 +850,25 @@ void step_5_and_6(std::vector<std::vector<size_t>>& child_adjacency_list,
     // 最後に残った部分巡回路をchild_pathに変換
     // final_cycle = move(partial_cycles.front());
     
-    final_cycle.reserve(n);
-    for (const auto& cycle : partial_cycles) {
-        for (const auto& e : cycle) {
-            final_cycle.push_back(e);
+    // final_cycle.reserve(n);
+    // for (const auto& cycle : partial_cycles) {
+    //     for (const auto& e : cycle) {
+    //         final_cycle.push_back(e);
+    //     }
+    // }
+    
+    child_path.resize(n);
+    
+    size_t prev_city = 0;
+    size_t current_city = 0;
+    for (size_t i = 0; i < n; ++i) {
+        child_path[i] = current_city;
+        auto next_city = double_linked_list[current_city].first;
+        if (next_city == prev_city) {
+            next_city = double_linked_list[current_city].second;
         }
+        prev_city = current_city;
+        current_city = next_city;
     }
     
     end_time = std::chrono::high_resolution_clock::now();
@@ -701,11 +885,11 @@ struct std::hash<edge> {
 
 namespace eax {
 std::vector<std::vector<size_t>> edge_assembly_crossover(const std::vector<size_t>& parent1, const std::vector<size_t>& parent2, size_t children_size,
-                                            const std::vector<std::vector<int64_t>>& adjacency_matrix, std::mt19937& rng) {
-    
+                                            const tsp::TSP& tsp, std::mt19937& rng) {
+
+    auto& adjacency_matrix = tsp.adjacency_matrix;
+    auto& NN_list = tsp.NN_list;
     using namespace std;
-    
-    using distance_type = std::remove_cvref_t<decltype(adjacency_matrix)>::value_type::value_type;
     
     using edge_with_parent = pair<edge, bool>; // from_parent1 : bool
     
@@ -940,7 +1124,7 @@ std::vector<std::vector<size_t>> edge_assembly_crossover(const std::vector<size_
         //     }
         // }
         
-        step_3_and_4(child_adjacency_list, AB_cycles, rng, n);
+        step_3_and_4(child_adjacency_list, AB_cycles, rng);
 
         // 部分巡回路の配列に変換
         // vector<vector<edge>> partial_cycles;
@@ -1058,31 +1242,32 @@ std::vector<std::vector<size_t>> edge_assembly_crossover(const std::vector<size_
         //     }
         //     partial_cycles.pop_back();
         // }
-        vector<edge> final_cycle;
-        step_5_and_6(child_adjacency_list, adjacency_matrix, final_cycle, n);
+        // vector<edge> final_cycle;
+        vector<size_t>& child_path = children[child_index];
+        step_5_and_6(child_adjacency_list, adjacency_matrix, child_path, n, NN_list);
         
         // 最後に残った部分巡回路をchild_pathに変換
         // const vector<edge>& final_cycle = partial_cycles.front();
         // まず、隣接リストに変換
-        vector<vector<size_t>> final_adjacency_list(final_cycle.size());
-        for (const auto& e : final_cycle) {
-            final_adjacency_list[e.v1].push_back(e.v2);
-            final_adjacency_list[e.v2].push_back(e.v1);
-        }
-        // そして、child_path(パス表現)に変換
-        size_t current_city = 0;
-        size_t prev_sity = 0;
-        vector<size_t>& child_path = children[child_index];
-        child_path.resize(final_adjacency_list.size());
-        for (size_t i = 0; i < child_path.size(); ++i) {
-            child_path[i] = current_city;
-            size_t next_city = final_adjacency_list[current_city][0];
-            if (next_city == prev_sity) {
-                next_city = final_adjacency_list[current_city][1];
-            }
-            prev_sity = current_city;
-            current_city = next_city;
-        }
+        // vector<vector<size_t>> final_adjacency_list(final_cycle.size());
+        // for (const auto& e : final_cycle) {
+        //     final_adjacency_list[e.v1].push_back(e.v2);
+        //     final_adjacency_list[e.v2].push_back(e.v1);
+        // }
+        // // そして、child_path(パス表現)に変換
+        // size_t current_city = 0;
+        // size_t prev_sity = 0;
+        // vector<size_t>& child_path = children[child_index];
+        // child_path.resize(final_adjacency_list.size());
+        // for (size_t i = 0; i < child_path.size(); ++i) {
+        //     child_path[i] = current_city;
+        //     size_t next_city = final_adjacency_list[current_city][0];
+        //     if (next_city == prev_sity) {
+        //         next_city = final_adjacency_list[current_city][1];
+        //     }
+        //     prev_sity = current_city;
+        //     current_city = next_city;
+        // }
         
     }
     return children;
