@@ -19,15 +19,96 @@
 #include "tsp_loader.hpp"
 #include "population_initializer.hpp"
 #include "eax.hpp"
+#include "individual.hpp"
+#include "generational_model.hpp"
+#include "environment.hpp"
 
-double calc_fitness(const std::vector<size_t>& path, const std::vector<std::vector<int64_t>>& adjacency_matrix){
+double calc_fitness(const eax::Individual& individual, const std::vector<std::vector<int64_t>>& adjacency_matrix){
     double distance = 0.0;
-    for (size_t i = 0; i < path.size() - 1; ++i) {
-        distance += adjacency_matrix[path[i]][path[i + 1]];
+    size_t prev = 0;
+    size_t current = 0;
+    for (size_t i = 0; i < individual.size(); ++i) {
+        size_t next = individual[current][0];
+        if (next == prev) {
+            next = individual[current][1];
+        }
+        
+        distance += adjacency_matrix[current][next];
+        prev = current;
+        current = next;
     }
-    // 最後の都市から最初の都市への距離を加算
-    distance += adjacency_matrix[path.back()][path.front()];
     return 1.0 / distance;
+}
+
+double calc_distance(const eax::Individual& individual, const std::vector<std::vector<int64_t>>& adjacency_matrix) {
+    double distance = 0.0;
+    for (size_t i = 0; i < individual.size(); ++i) {
+        distance += adjacency_matrix[i][individual[i][0]];
+        distance += adjacency_matrix[i][individual[i][1]];
+    }
+    return distance / 2.0;
+}
+
+double calc_entropy(double molecule, double denominator) {
+    double ratio = molecule / denominator;
+    if (ratio == 0.0) {
+        return 0.0;
+    }
+    return -ratio * std::log2(ratio);
+}
+
+// 評価値
+double eval_ent(const eax::Individual& child, const eax::Individual& parent, const eax::Environment& env) {
+    const size_t n = env.tsp.city_count;
+    constexpr double epsilon = 1e-9;
+    
+    double delta_L = calc_distance(child, env.tsp.adjacency_matrix) - calc_distance(parent, env.tsp.adjacency_matrix);
+    if (delta_L >= 0.0) {
+        return 0.0; // 子の距離が親より長い場合は評価値は0
+    }
+    double delta_H = 0.0;
+    
+    for (size_t i = 0; i < n; ++i) {
+        size_t prev_v = parent[i][0];
+        size_t prev_u = parent[i][1];
+        
+        size_t new_v = child[i][0];
+        size_t new_u = child[i][1];
+        
+        if (prev_v != new_v && prev_v != new_u) { // i -> prev_vが消えたなら
+            delta_H += calc_entropy(env.pop_edge_counts[i][prev_v] - 1, n)
+                     - calc_entropy(env.pop_edge_counts[i][prev_v], n);
+        }
+        
+        if (prev_u != new_v && prev_u != new_u) { // i -> prev_uが消えたなら
+            delta_H += calc_entropy(env.pop_edge_counts[i][prev_u] - 1, n)
+                     - calc_entropy(env.pop_edge_counts[i][prev_u], n);
+        }
+        
+        if (new_v != prev_v && new_v != prev_u) { // i -> new_vができたなら
+            delta_H += calc_entropy(env.pop_edge_counts[i][new_v] + 1, n)
+                     - calc_entropy(env.pop_edge_counts[i][new_v], n);
+        }
+        
+        if (new_u != prev_v && new_u != prev_u) { // i -> new_uができたなら
+            delta_H += calc_entropy(env.pop_edge_counts[i][new_u] + 1, n)
+                     - calc_entropy(env.pop_edge_counts[i][new_u], n);
+        }
+    }
+    
+    // 多様性が増すならば
+    if (delta_H >= 0) {
+        return -1.0 * delta_L / epsilon;
+    }
+
+    // 多様性が減るならば
+    // 減少多様性当たりの距離の減少量を評価値とする
+    return delta_L / delta_H;
+    
+}
+
+double eval_greedy(const eax::Individual& child, const eax::Individual& parent, const eax::Environment& env) {
+    return calc_distance(parent, env.tsp.adjacency_matrix) - calc_distance(child, env.tsp.adjacency_matrix);
 }
 
 void two_opt_swap(std::vector<size_t>& path, size_t i, size_t j) {
@@ -97,7 +178,7 @@ int main(int argc, char* argv[])
         apply_2opt(individual, tsp.adjacency_matrix);
     });
     
-    using Individual = vector<size_t>;
+    using Individual = eax::Individual;
     
     // 1試行にかかった時間
     vector<double> trial_times(trials, 0.0);
@@ -111,17 +192,24 @@ int main(int argc, char* argv[])
         // 乱数生成器(ローカル)
         // グローバルで初期化
         mt19937::result_type seed = rng();
-        vector<Individual> population = population_initializer.initialize_population(seed, "initial_population_cache_" + to_string(seed) + "_for_" + file_name);
+        vector<vector<size_t>> initial_paths = population_initializer.initialize_population(seed, "initial_population_cache_" + to_string(seed) + "_for_" + file_name);
+        vector<eax::Individual> population;
+        population.reserve(initial_paths.size());
+        for (const auto& path : initial_paths) {
+            population.emplace_back(path);
+        }
+
         cout << "Initial population created." << endl;
         
-        using Env = tsp::TSP;
+        using Env = eax::Environment;
 
         // 終了判定関数
         // 世代数に達するか、収束するまで実行
         struct {
             size_t max_generations = generations;
 
-            bool operator()([[maybe_unused]]const vector<Individual>& population, const vector<double>& fitness_values, [[maybe_unused]]const Env& tsp, size_t generation) {
+            bool operator()(const vector<Individual>& population, const vector<double>& fitness_values, Env& env, size_t generation) {
+                env.update_edge_counts(population);
 
                 double max_fitness = 0.0;
                 double min_fitness = std::numeric_limits<double>::max();
@@ -130,8 +218,11 @@ int main(int argc, char* argv[])
                     min_fitness = std::min(min_fitness, fitness);
                 }
                 
+                double min_length = 1.0 / max_fitness;
+                double max_length = 1.0 / min_fitness;
+                
                 // 終了条件を満たすかどうかを判定
-                return generation > max_generations || max_fitness == min_fitness;
+                return generation > max_generations || max_fitness == min_fitness || (max_length - min_length) < 10;
             }
         } end_condition;
         
@@ -142,6 +233,8 @@ int main(int argc, char* argv[])
 
             void operator()([[maybe_unused]]const vector<Individual>& population, const vector<double>& fitness_values, [[maybe_unused]]const Env& tsp, size_t generation) {
                 double max_fitness = *max_element(fitness_values.begin(), fitness_values.end());
+                double min_fitness = *min_element(fitness_values.begin(), fitness_values.end());
+                cout << "Generation: " << generation << ", Max Fitness: " << max_fitness << ", Min Fitness: " << min_fitness << endl;
                 if (max_fitness > best_fitness) {
                     best_fitness = max_fitness;
                     generation_of_reached_best = generation;
@@ -150,25 +243,61 @@ int main(int argc, char* argv[])
         } logging;
 
         // 適応度関数
-        auto calc_fitness_lambda = [](const Individual& individual, const Env& tsp) {
-            return calc_fitness(individual, tsp.adjacency_matrix);
+        auto calc_fitness_lambda = [](const Individual& child, const Individual& parent, Env& env) {
+            switch (env.selection_type) {
+                case eax::SelectionType::Greedy:
+                    return eval_greedy(child, parent, env);
+                case eax::SelectionType::LDL:
+                    return eval_ent(child, parent, env);
+                case eax::SelectionType::Ent:
+                    return eval_ent(child, parent, env);
+                default:
+                    throw std::runtime_error("Unknown selection type");
+            }
         };
         
         // // 乱数生成器再初期化
         mt19937 local_rng(seed);
+
+        // 環境
+        Env tsp_env;
+        tsp_env.tsp = tsp;
+        tsp_env.N_parameter = 1;
+        tsp_env.eax_type = eax::EAXType::N_AB;
+        tsp_env.selection_type = eax::SelectionType::Greedy;
+        tsp_env.set_initial_edge_counts(population);
         
+        cout << "Starting genetic algorithm..." << endl;
         // 計測開始
         auto start_time = chrono::high_resolution_clock::now();
 
         // 世代交代モデル ElitistRecombinationを使用して、遺伝的アルゴリズムを実行
-        vector<Individual> result = mpi::genetic_algorithm::ElitistRecombination<100>(population, end_condition, calc_fitness_lambda, eax::edge_assembly_crossover, tsp, local_rng, logging);
+        // vector<Individual> result = mpi::genetic_algorithm::ElitistRecombination<100>(population, end_condition, calc_fitness_lambda, eax::edge_assembly_crossover, tsp, local_rng, logging);
         // vector<Individual> result = mpi::genetic_algorithm::SimpleGA(population, end_condition, calc_fitness, eax::edge_assembly_crossover, adjacency_matrix, local_rng);
-        
+        vector<Individual> result = eax::GenerationalModel<100>(population, end_condition, calc_fitness_lambda, eax::edge_assembly_crossover, tsp_env, local_rng, logging);
+
         auto end_time = chrono::high_resolution_clock::now();
         trial_times[trial] = chrono::duration<double>(end_time - start_time).count();
         
         best_path_lengths[trial] = 1.0 / logging.best_fitness;
         generation_of_best[trial] = logging.generation_of_reached_best;
+        
+        // bestの経路を出力
+        cout << "Best path : ";
+        const auto& best_individual = result[0];
+        size_t prev_city = 0;
+        size_t current_city = 0;
+        for (size_t i = 0; i < best_individual.size(); ++i) {
+            cout << current_city << " ";
+            size_t next_city = best_individual[current_city][0];
+            if (next_city == prev_city) {
+                next_city = best_individual[current_city][1];
+            }
+            prev_city = current_city;
+            current_city = next_city;
+        }
+        cout << endl;
+        cout << "Trial " << trial + 1 << " completed." << endl;
     }
     
     // 全試行中のベストとその解に到達した試行の数を出力する

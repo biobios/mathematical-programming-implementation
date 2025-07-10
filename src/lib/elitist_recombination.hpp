@@ -63,8 +63,8 @@ namespace mpi
                         std::vector<double> children_fitness = calc_all_fitness(children, env);
                         
                         // 親と子どもの集団から最良の２個体を選択
-                        children.emplace_back(move(population[parent1_index]));
-                        children.emplace_back(move(population[parent2_index]));
+                        children.emplace_back(std::move(population[parent1_index]));
+                        children.emplace_back(std::move(population[parent2_index]));
                         children_fitness.push_back(fitness_values[parent1_index]);
                         children_fitness.push_back(fitness_values[parent2_index]);
                         size_t best_index = 0;
