@@ -255,8 +255,8 @@ int main(int argc, char* argv[])
         } else if (string(argv[i]) == "--trials" && i + 1 < argc) {
             // 試行回数を指定する
             try {
-                size_t trials_input = stoul(argv[++i]);
-                if (trials_input == 0) {
+                trials = stoul(argv[++i]);
+                if (trials == 0) {
                     throw invalid_argument("Number of trials must be greater than 0.");
                 }
             } catch (const invalid_argument& e) {
