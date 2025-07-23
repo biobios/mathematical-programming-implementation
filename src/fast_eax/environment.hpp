@@ -19,6 +19,7 @@ namespace eax {
     struct Environment {
         tsp::TSP tsp;
         size_t N_parameter;
+        size_t population_size;
         EAXType eax_type;
         SelectionType selection_type;
         std::vector<std::vector<size_t>> pop_edge_counts; // 各エッジの個数
