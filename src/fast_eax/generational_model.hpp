@@ -24,16 +24,17 @@ namespace eax {
         template <typename Individual, typename EndCondition, typename FitnessFunc, typename Environment, typename CrossOverFunc, std::uniform_random_bit_generator RandomGen, typename LoggingFunc = mpi::NOP_Function>
             requires(requires(std::vector<Individual> population, EndCondition end_condition, FitnessFunc fitness_func, CrossOverFunc cross_over, Environment env, RandomGen rng, size_t generation, LoggingFunc logging) {
                 { end_condition(population, env, generation) } -> std::convertible_to<bool>;
-                { fitness_func(population[0], population[1], env) } -> std::convertible_to<double>;
-                { cross_over(population[0], population[1], 1, env, rng) } -> std::convertible_to<std::vector<Individual>>;
+                { fitness_func(cross_over(population[0], population[1], 1, env, rng)[0], env) } -> std::convertible_to<double>;
+                population[0] = cross_over(population[0], population[1], 1, env, rng)[0];
                 { logging(population, env, generation) } -> std::convertible_to<void>;
             })
         constexpr std::vector<Individual> operator()(std::vector<Individual> population, EndCondition end_condition, FitnessFunc fitness_func, CrossOverFunc cross_over, Environment env, RandomGen rng, LoggingFunc&& logging = {}) const
         {
-            auto calc_all_fitness = [&fitness_func](const std::vector<Individual>& pop, const Individual parent, Environment& env) {
-                std::vector<double> fitness_values(pop.size());
-                for (size_t i = 0; i < pop.size(); ++i) {
-                    fitness_values[i] = fitness_func(pop[i], parent, env);
+            using Child = std::invoke_result_t<CrossOverFunc, Individual&, Individual&, size_t, Environment&, RandomGen&>::value_type;
+            auto calc_all_fitness = [&fitness_func](const std::vector<Child>& children, Environment& env) {
+                std::vector<double> fitness_values(children.size());
+                for (size_t i = 0; i < children.size(); ++i) {
+                    fitness_values[i] = fitness_func(children[i], env);
                 }
                 return fitness_values;
             };
@@ -56,8 +57,8 @@ namespace eax {
                     size_t parent_B_index = indices[(i + 1) % population_size];
                     Individual& parent_A = population[parent_A_index];
                     Individual& parent_B = population[parent_B_index];
-                    std::vector<Individual> children = cross_over(parent_A, parent_B, N_cross, env, rng);
-                    std::vector<double> children_fitness = calc_all_fitness(children, parent_A, env);
+                    std::vector<Child> children = cross_over(parent_A, parent_B, N_cross, env, rng);
+                    std::vector<double> children_fitness = calc_all_fitness(children, env);
                     
                     // 子供の中で最良の個体を選択
                     size_t best_index = 0;
@@ -76,7 +77,7 @@ namespace eax {
                         // 子供の適応度が0の場合、親Aをそのままにする
                     }
                 }
-                
+
                 // 最後の個体を削除
                 population.pop_back();
                 

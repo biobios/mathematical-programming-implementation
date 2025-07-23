@@ -23,6 +23,8 @@
 #include "generational_model.hpp"
 #include "environment.hpp"
 
+std::array<double, 2> eax::Child::calc_times;
+
 double calc_fitness(const eax::Individual& individual, const std::vector<std::vector<int64_t>>& adjacency_matrix){
     double distance = 0.0;
     size_t prev = 0;
@@ -58,43 +60,13 @@ double calc_entropy(double molecule, double denominator) {
 }
 
 // 評価値
-double eval_ent(const eax::Individual& child, const eax::Individual& parent, const eax::Environment& env) {
-    const size_t n = env.tsp.city_count;
+double eval_ent(const eax::Child& child, eax::Environment& env) {
     constexpr double epsilon = 1e-9;
-    
-    double delta_L = calc_distance(child, env.tsp.adjacency_matrix) - calc_distance(parent, env.tsp.adjacency_matrix);
+    double delta_L = child.get_delta_distance(env.tsp.adjacency_matrix);
     if (delta_L >= 0.0) {
         return 0.0; // 子の距離が親より長い場合は評価値は0
     }
-    double delta_H = 0.0;
-    
-    for (size_t i = 0; i < n; ++i) {
-        size_t prev_v = parent[i][0];
-        size_t prev_u = parent[i][1];
-        
-        size_t new_v = child[i][0];
-        size_t new_u = child[i][1];
-        
-        if (prev_v != new_v && prev_v != new_u) { // i -> prev_vが消えたなら
-            delta_H += calc_entropy(env.pop_edge_counts[i][prev_v] - 1, n)
-                     - calc_entropy(env.pop_edge_counts[i][prev_v], n);
-        }
-        
-        if (prev_u != new_v && prev_u != new_u) { // i -> prev_uが消えたなら
-            delta_H += calc_entropy(env.pop_edge_counts[i][prev_u] - 1, n)
-                     - calc_entropy(env.pop_edge_counts[i][prev_u], n);
-        }
-        
-        if (new_v != prev_v && new_v != prev_u) { // i -> new_vができたなら
-            delta_H += calc_entropy(env.pop_edge_counts[i][new_v] + 1, n)
-                     - calc_entropy(env.pop_edge_counts[i][new_v], n);
-        }
-        
-        if (new_u != prev_v && new_u != prev_u) { // i -> new_uができたなら
-            delta_H += calc_entropy(env.pop_edge_counts[i][new_u] + 1, n)
-                     - calc_entropy(env.pop_edge_counts[i][new_u], n);
-        }
-    }
+    double delta_H = child.get_delta_entropy(env.pop_edge_counts, env.population_size);
     
     // 多様性が増すならば
     if (delta_H >= 0) {
@@ -107,8 +79,8 @@ double eval_ent(const eax::Individual& child, const eax::Individual& parent, con
     
 }
 
-double eval_greedy(const eax::Individual& child, const eax::Individual& parent, const eax::Environment& env) {
-    return calc_distance(parent, env.tsp.adjacency_matrix) - calc_distance(child, env.tsp.adjacency_matrix);
+double eval_greedy(const eax::Child& child, const eax::Environment& env) {
+    return -1.0 * child.get_delta_distance(env.tsp.adjacency_matrix);
 }
 
 void two_opt_swap(std::vector<size_t>& path, size_t i, size_t j) {
@@ -414,14 +386,14 @@ int main(int argc, char* argv[])
         } logging;
 
         // 適応度関数
-        auto calc_fitness_lambda = [](const Individual& child, const Individual& parent, Env& env) {
+        auto calc_fitness_lambda = [](const eax::Child& child, Env& env) {
             switch (env.selection_type) {
                 case eax::SelectionType::Greedy:
-                    return eval_greedy(child, parent, env);
+                    return eval_greedy(child, env);
                 case eax::SelectionType::LDL:
-                    return eval_ent(child, parent, env);
+                    return eval_ent(child, env);
                 case eax::SelectionType::Ent:
-                    return eval_ent(child, parent, env);
+                    return eval_ent(child, env);
                 default:
                     throw std::runtime_error("Unknown selection type");
             }
@@ -433,6 +405,7 @@ int main(int argc, char* argv[])
         // 環境
         Env tsp_env;
         tsp_env.tsp = tsp;
+        tsp_env.population_size = population_size;
         tsp_env.N_parameter = 1;
         tsp_env.eax_type = eax::EAXType::N_AB;
         // tsp_env.selection_type = eax::SelectionType::Greedy;
@@ -500,5 +473,6 @@ int main(int argc, char* argv[])
     cout << "Average trial time: " << average_trial_time << " seconds" << endl;
 
     eax::print_time();
+    eax::Child::print_times();
     return 0;
 }

@@ -9,7 +9,7 @@
 
 namespace eax {
     
-    std::vector<Individual> edge_assembly_crossover(const Individual& parent1, const Individual& parent2, size_t children_size,
+    std::vector<Child> edge_assembly_crossover(const Individual& parent1, const Individual& parent2, size_t children_size,
                                             const Environment& env, std::mt19937& rng);
 
     void print_time();

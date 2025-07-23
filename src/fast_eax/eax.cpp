@@ -250,7 +250,7 @@ void apply_E_set_Rand(const std::vector<std::vector<size_t>>& AB_cycles,
                   const std::vector<size_t>& path,
                   const std::vector<size_t>& pos,
                   std::vector<Segment>& segments,
-                  eax::Individual& child,
+                  IntermediateIndividual& child,
                   std::mt19937& rng)
 {
     auto start_time = std::chrono::high_resolution_clock::now();
@@ -268,11 +268,12 @@ void apply_E_set_Rand(const std::vector<std::vector<size_t>>& AB_cycles,
             size_t v2 = AB_cycle[i];
             size_t v3 = AB_cycle[next_index];
 
-            if (child[v2][0] == v1) {
-                child[v2][0] = v3;
-            } else {
-                child[v2][1] = v3;
-            }
+            child.change_connection(v2, v1, v3);
+            // if (child[v2][0] == v1) {
+            //     child[v2][0] = v3;
+            // } else {
+            //     child[v2][1] = v3;
+            // }
 
             if ((v1 == path.front() && v2 == path.back()) || 
                 (v2 == path.front() && v1 == path.back())) {
@@ -287,11 +288,12 @@ void apply_E_set_Rand(const std::vector<std::vector<size_t>>& AB_cycles,
             size_t v2 = AB_cycle[i];
             size_t v3 = AB_cycle[prev_index];
 
-            if (child[v2][0] == v1) {
-                child[v2][0] = v3;
-            } else {
-                child[v2][1] = v3;
-            }
+            child.change_connection(v2, v1, v3);
+            // if (child[v2][0] == v1) {
+            //     child[v2][0] = v3;
+            // } else {
+            //     child[v2][1] = v3;
+            // }
         }
 
         for (size_t i = 1; i < AB_cycle.size(); i += 2) {
@@ -336,12 +338,13 @@ void apply_E_set_N_AB(const std::vector<std::vector<size_t>>& AB_cycles,
                   const std::vector<size_t>& path,
                   const std::vector<size_t>& pos,
                   std::vector<Segment>& segments,
-                  eax::Individual& child,
+                  IntermediateIndividual& child,
                   const size_t n_parameter,
                   std::mt19937& rng)
 {
     auto start_time = std::chrono::high_resolution_clock::now();
     using namespace std;
+    const size_t city_count = path.size();
     // uniform_int_distribution<size_t> dist_01(0, 1);
     // uniform_int_distribution<size_t> dist(0, AB_cycles.size() - 1);
     vector<size_t> indicies(AB_cycles.size());
@@ -362,11 +365,12 @@ void apply_E_set_N_AB(const std::vector<std::vector<size_t>>& AB_cycles,
             size_t v2 = AB_cycle[i];
             size_t v3 = AB_cycle[next_index];
 
-            if (child[v2][0] == v1) {
-                child[v2][0] = v3;
-            } else {
-                child[v2][1] = v3;
-            }
+            child.change_connection(v2, v1, v3);
+            // if (child[v2][0] == v1) {
+            //     child[v2][0] = v3;
+            // } else {
+            //     child[v2][1] = v3;
+            // }
 
             if ((v1 == path.front() && v2 == path.back()) || 
                 (v2 == path.front() && v1 == path.back())) {
@@ -381,11 +385,12 @@ void apply_E_set_N_AB(const std::vector<std::vector<size_t>>& AB_cycles,
             size_t v2 = AB_cycle[i];
             size_t v3 = AB_cycle[prev_index];
 
-            if (child[v2][0] == v1) {
-                child[v2][0] = v3;
-            } else {
-                child[v2][1] = v3;
-            }
+            child.change_connection(v2, v1, v3);
+            // if (child[v2][0] == v1) {
+            //     child[v2][0] = v3;
+            // } else {
+            //     child[v2][1] = v3;
+            // }
         }
 
         for (size_t i = 1; i < AB_cycle.size(); i += 2) {
@@ -398,19 +403,16 @@ void apply_E_set_N_AB(const std::vector<std::vector<size_t>>& AB_cycles,
         
     }
     
+    if (!cut_between_first_and_last) {
+        cut_positions.emplace_back(0, city_count - 1);
+        cut_positions.emplace_back(city_count - 1, 0);
+    }
     
     std::sort(cut_positions.begin(), cut_positions.end());
     segments.reserve(cut_positions.size() / 2);
     size_t segment_id = 0;
-    size_t start = 0;
-    if (!cut_between_first_and_last) {
-        if (cut_positions.empty()) {
-            return;
-        }
-        start = 1;
-        cut_positions.emplace_back(cut_positions.front().first, cut_positions.front().second);
-    }
-    for (size_t i = start; i < cut_positions.size() - 1; i += 2, segment_id++) {
+
+    for (size_t i = 0; i < cut_positions.size(); i += 2, segment_id++) {
         Segment segment;
         segment.ID = segment_id;
         segment.beginning_pos = cut_positions[i].first;
@@ -420,7 +422,6 @@ void apply_E_set_N_AB(const std::vector<std::vector<size_t>>& AB_cycles,
         segments.push_back(segment);
     }
     
-    
     auto end_time = std::chrono::high_resolution_clock::now();
     times[2] += std::chrono::duration<double>(end_time - start_time).count();
 }
@@ -429,7 +430,7 @@ void step_5_and_6(const std::vector<std::vector<int64_t>>& adjacency_matrix,
             std::vector<Segment>& segments,
             const std::vector<size_t>& path,
             const std::vector<size_t>& pos,
-            eax::Individual& child,
+            IntermediateIndividual& child,
             size_t n,
             const std::vector<std::vector<std::pair<int64_t, size_t>>>& NN_list)
 {
@@ -538,6 +539,8 @@ void step_5_and_6(const std::vector<std::vector<int64_t>>& adjacency_matrix,
     
     auto start_time2 = std::chrono::high_resolution_clock::now();
     
+    using edge = pair<size_t, size_t>;
+    
     while (sub_tours_segments.size() > 1) {
         auto start_time3 = std::chrono::high_resolution_clock::now();
         // 最小の部分巡回路を見つける
@@ -576,8 +579,8 @@ void step_5_and_6(const std::vector<std::vector<int64_t>>& adjacency_matrix,
         edge e1 = {0, 0};
         edge e2 = {0, 0};
         distance_type min_cost = std::numeric_limits<distance_type>::max();
-        bool forward_connection = true;
-        while (e1.v1 == 0 && e1.v2 == 0) {
+        // bool forward_connection = true;
+        while (e1.first == 0 && e1.second == 0) {
             // if (start >= n) {
             //     cerr << "start >= n, breaking" << endl;
             //     cerr << "min_sub_tour_set.size() = " << min_sub_tour_set.size() << endl;
@@ -668,17 +671,16 @@ void step_5_and_6(const std::vector<std::vector<int64_t>>& adjacency_matrix,
                             
                             for (const auto& edge1 : edges1) {
                                 for (const auto& edge2 : edges2) {
-                                    distance_type forward_cost = - adjacency_matrix[edge1.v1][edge1.v2] - adjacency_matrix[edge2.v1][edge2.v2]
-                                                + adjacency_matrix[edge1.v1][edge2.v2] + adjacency_matrix[edge2.v1][edge1.v2];
+                                    auto [v1, v2] = edge1;
+                                    auto [u1, u2] = edge2;
+                                    distance_type forward_cost = - adjacency_matrix[v1][v2] - adjacency_matrix[u1][u2]
+                                                + adjacency_matrix[v1][u1] + adjacency_matrix[v2][u2];
 
-                                    distance_type reverse_cost = - adjacency_matrix[edge1.v1][edge1.v2] - adjacency_matrix[edge2.v1][edge2.v2]
-                                                + adjacency_matrix[edge1.v1][edge2.v1] + adjacency_matrix[edge2.v2][edge1.v2];
-                                    
-                                    if (forward_cost < min_cost || reverse_cost < min_cost) {
+                                    if (forward_cost < min_cost) {
                                         e1 = edge1;
                                         e2 = edge2;
-                                        min_cost = std::min(forward_cost, reverse_cost);
-                                        forward_connection = (forward_cost < reverse_cost);
+                                        min_cost = forward_cost;
+                                        // forward_connection = (forward_cost < reverse_cost);
                                         // if (edge1.v1 == edge2.v1 || edge1.v1 == edge2.v2 || edge1.v2 == edge2.v1 || edge1.v2 == edge2.v2) {
                                         //     cerr << "Error: e1 and e2 are the same edge." << endl;
                                         //     cerr << "e1 = (" << edge1.v1 << ", " << edge1.v2 << "), e2 = (" << edge2.v1 << ", " << edge2.v2 << ")" << endl;
@@ -705,6 +707,16 @@ void step_5_and_6(const std::vector<std::vector<int64_t>>& adjacency_matrix,
                                         //     exit(1);
                                         // }
                                     }
+
+                                    distance_type reverse_cost = - adjacency_matrix[v1][v2] - adjacency_matrix[u1][u2]
+                                                + adjacency_matrix[v1][u2] + adjacency_matrix[v2][u1];
+                                    
+                                    if (reverse_cost < min_cost) {
+                                        e1 = edge1;
+                                        e2 = {u2, u1};
+                                        min_cost = reverse_cost;
+                                    }
+
                                 }
                             }
                         }
@@ -721,63 +733,64 @@ void step_5_and_6(const std::vector<std::vector<int64_t>>& adjacency_matrix,
         auto start_time5 = std::chrono::high_resolution_clock::now();
             
         // 見つかった辺を使って部分巡回路を接続
-        if (forward_connection) {
-    //         e1.v2 -> e2.v2;
-            if (child[e1.v1][0] == e1.v2) {
-                child[e1.v1][0] = e2.v2;
-            } else {
-                child[e1.v1][1] = e2.v2;
-            }
+        child.swap_edges(e1, e2);
+    //     if (forward_connection) {
+    // //         e1.v2 -> e2.v2;
+    //         if (child[e1.v1][0] == e1.v2) {
+    //             child[e1.v1][0] = e2.v2;
+    //         } else {
+    //             child[e1.v1][1] = e2.v2;
+    //         }
 
-    //         e1.v1 -> e2.v1;
-            if (child[e1.v2][0] == e1.v1) {
-                child[e1.v2][0] = e2.v1;
-            } else {
-                child[e1.v2][1] = e2.v1;
-            }
+    // //         e1.v1 -> e2.v1;
+    //         if (child[e1.v2][0] == e1.v1) {
+    //             child[e1.v2][0] = e2.v1;
+    //         } else {
+    //             child[e1.v2][1] = e2.v1;
+    //         }
             
-    //         e2.v2 -> e1.v2;
-            if (child[e2.v1][0] == e2.v2) {
-                child[e2.v1][0] = e1.v2;
-            } else {
-                child[e2.v1][1] = e1.v2;
-            }
+    // //         e2.v2 -> e1.v2;
+    //         if (child[e2.v1][0] == e2.v2) {
+    //             child[e2.v1][0] = e1.v2;
+    //         } else {
+    //             child[e2.v1][1] = e1.v2;
+    //         }
             
-    //         e2.v1 -> e1.v1;
-            if (child[e2.v2][0] == e2.v1) {
-                child[e2.v2][0] = e1.v1;
-            } else {
-                child[e2.v2][1] = e1.v1;
-            }
-        } else {
-    //         e1.v2 -> e2.v1;
-            if (child[e1.v1][0] == e1.v2) {
-                child[e1.v1][0] = e2.v1;
-            } else {
-                child[e1.v1][1] = e2.v1;
-            }
+    // //         e2.v1 -> e1.v1;
+    //         if (child[e2.v2][0] == e2.v1) {
+    //             child[e2.v2][0] = e1.v1;
+    //         } else {
+    //             child[e2.v2][1] = e1.v1;
+    //         }
+    //     } else {
+    // //         e1.v2 -> e2.v1;
+    //         if (child[e1.v1][0] == e1.v2) {
+    //             child[e1.v1][0] = e2.v1;
+    //         } else {
+    //             child[e1.v1][1] = e2.v1;
+    //         }
 
-    //         e1.v1 -> e2.v2;
-            if (child[e1.v2][0] == e1.v1) {
-                child[e1.v2][0] = e2.v2;
-            } else {
-                child[e1.v2][1] = e2.v2;
-            }
+    // //         e1.v1 -> e2.v2;
+    //         if (child[e1.v2][0] == e1.v1) {
+    //             child[e1.v2][0] = e2.v2;
+    //         } else {
+    //             child[e1.v2][1] = e2.v2;
+    //         }
             
-    //         e2.v2 -> e1.v1;
-            if (child[e2.v1][0] == e2.v2) {
-                child[e2.v1][0] = e1.v1;
-            } else {
-                child[e2.v1][1] = e1.v1;
-            }
+    // //         e2.v2 -> e1.v1;
+    //         if (child[e2.v1][0] == e2.v2) {
+    //             child[e2.v1][0] = e1.v1;
+    //         } else {
+    //             child[e2.v1][1] = e1.v1;
+    //         }
             
-    //         e2.v1 -> e1.v2;
-            if (child[e2.v2][0] == e2.v1) {
-                child[e2.v2][0] = e1.v2;
-            } else {
-                child[e2.v2][1] = e1.v2;
-            }
-        }
+    // //         e2.v1 -> e1.v2;
+    //         if (child[e2.v2][0] == e2.v1) {
+    //             child[e2.v2][0] = e1.v2;
+    //         } else {
+    //             child[e2.v2][1] = e1.v2;
+    //         }
+    //     }
         
         // if (e1.v1 == e2.v1 || e1.v1 == e2.v2 || e1.v2 == e2.v1 || e1.v2 == e2.v2) {
         //     cerr << "Error: e1 and e2 are the same edge." << endl;
@@ -808,7 +821,7 @@ void step_5_and_6(const std::vector<std::vector<int64_t>>& adjacency_matrix,
         
         // 接続した部分巡回路を削除
         size_t connect_index_with_min_sub_tour = numeric_limits<size_t>::max();
-        size_t connect_city_pos = pos[e2.v2];
+        size_t connect_city_pos = pos[e2.second];
         for (size_t i = 0; i < sub_tours_segments.size(); ++i) {
             for (auto segment_index : sub_tours_segments[i]) {
                 auto& segment = segments[segment_index];
@@ -934,7 +947,7 @@ struct std::hash<edge> {
 };
 
 namespace eax {
-std::vector<Individual> edge_assembly_crossover(const Individual& parent1, const Individual& parent2, size_t children_size,
+std::vector<Child> edge_assembly_crossover(const Individual& parent1, const Individual& parent2, size_t children_size,
                                             const eax::Environment& env, std::mt19937& rng) {
 
     auto& tsp = env.tsp;
@@ -960,35 +973,35 @@ std::vector<Individual> edge_assembly_crossover(const Individual& parent1, const
         current = next;
     }
     
-    
     step_2(parent1, parent2, AB_cycles, rng, n);
     
     
-    vector<Individual> children(children_size, parent1);
+    // vector<Individual> children(children_size, parent1);
+    vector<Child> children;
+    IntermediateIndividual working_individual(parent1);
     for (size_t child_index = 0; child_index < children_size; ++child_index) {
         
-        
-        // ABサイクルが1個以下なら、parent1かparent2をランダムに返す
-        if (AB_cycles.size() <= 1) {
-            uniform_int_distribution<size_t> dist(0, 1);
-            if (dist(rng) == 0) {
-                children[child_index] = parent1;
-            } else {
-                children[child_index] = parent2;
-            }
-            continue;
-        }
+        // // ABサイクルが1個以下なら、parent1かparent2をランダムに返す
+        // if (AB_cycles.size() <= 1) {
+        //     uniform_int_distribution<size_t> dist(0, 1);
+        //     if (dist(rng) == 0) {
+        //         children[child_index] = parent1;
+        //     } else {
+        //         children[child_index] = parent2;
+        //     }
+        //     continue;
+        // }
         
         // 緩和個体を作成
-        Individual& child = children[child_index];
+        // Individual& child = children[child_index];
         vector<Segment> segments;
         
         switch (env.eax_type) {
             case eax::EAXType::Rand:
-                apply_E_set_Rand(AB_cycles, path, pos, segments, child, rng);
+                apply_E_set_Rand(AB_cycles, path, pos, segments, working_individual, rng);
                 break;
             case eax::EAXType::N_AB:
-                apply_E_set_N_AB(AB_cycles, path, pos, segments, child, env.N_parameter, rng);
+                apply_E_set_N_AB(AB_cycles, path, pos, segments, working_individual, env.N_parameter, rng);
                 break;
             default:
                 cerr << "Error: Unknown EAX type." << endl;
@@ -996,44 +1009,48 @@ std::vector<Individual> edge_assembly_crossover(const Individual& parent1, const
         }
 
         if (segments.empty()) {
-            uniform_int_distribution<size_t> dist(0, 1);
-            if (dist(rng) == 0) {
-                children[child_index] = parent1;
-            } else {
-                children[child_index] = parent2;
-            }
+            // uniform_int_distribution<size_t> dist(0, 1);
+            // if (dist(rng) == 0) {
+            //     children[child_index] = parent1;
+            // } else {
+            //     children[child_index] = parent2;
+            // }
+            cerr << "Error: segments is empty." << endl;
+            exit(1);
         }
 
-        step_5_and_6(adjacency_matrix, segments, path, pos, child, n, NN_list);
+        step_5_and_6(adjacency_matrix, segments, path, pos, working_individual, n, NN_list);
         
-        vector<uint64_t> visit_count(n, 0);
-        size_t prev_city = 0;
-        size_t current_city = 0;
-        for (size_t i = 0; i < n; ++i) {
-            visit_count[current_city]++;
-            size_t next_city = child[current_city][0];
-            if (next_city == prev_city) {
-                next_city = child[current_city][1];
-            }
-            prev_city = current_city;
-            current_city = next_city;
-        }
+        children.emplace_back(working_individual.convert_to_child_and_revert());
+
+        // vector<uint64_t> visit_count(n, 0);
+        // size_t prev_city = 0;
+        // size_t current_city = 0;
+        // for (size_t i = 0; i < n; ++i) {
+        //     visit_count[current_city]++;
+        //     size_t next_city = child[current_city][0];
+        //     if (next_city == prev_city) {
+        //         next_city = child[current_city][1];
+        //     }
+        //     prev_city = current_city;
+        //     current_city = next_city;
+        // }
         
-        // 各都市の訪問回数が1回でない場合、エラー
-        for (size_t i = 0; i < n; ++i) {
-            if (visit_count[i] != 1) {
-                cerr << "Error: city " << i << " visited " << visit_count[i] << " times." << endl;
-                cerr << "Child path: ";
-                for (size_t j = 0; j < n; ++j) {
-                    cerr << child[j][0] << " ";
-                    if (child[j][1] != child[j][0]) {
-                        cerr << child[j][1] << " ";
-                    }
-                }
-                cerr << endl;
-                exit(1);
-            }
-        }
+        // // 各都市の訪問回数が1回でない場合、エラー
+        // for (size_t i = 0; i < n; ++i) {
+        //     if (visit_count[i] != 1) {
+        //         cerr << "Error: city " << i << " visited " << visit_count[i] << " times." << endl;
+        //         cerr << "Child path: ";
+        //         for (size_t j = 0; j < n; ++j) {
+        //             cerr << child[j][0] << " ";
+        //             if (child[j][1] != child[j][0]) {
+        //                 cerr << child[j][1] << " ";
+        //             }
+        //         }
+        //         cerr << endl;
+        //         exit(1);
+        //     }
+        // }
     }
     return children;
 }
