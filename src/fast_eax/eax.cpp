@@ -47,6 +47,71 @@ struct Segment {
     size_t sub_tour_ID = std::numeric_limits<size_t>::max();
 };
 
+class IntermediateIndividual {
+public:
+    IntermediateIndividual(const eax::Individual& parent) : working_individual(parent) {}
+    eax::Child convert_to_child_and_revert() {
+        revert();
+        eax::Child child(std::move(modifications));
+        modifications.clear();
+        return child;
+    }
+
+    void swap_edges(std::pair<size_t, size_t> edge1, std::pair<size_t, size_t> edge2) {
+        auto [v1, v2] = edge1;
+        auto [u1, u2] = edge2;
+        // v1 -> v2 => v1 -> u1
+        change_connection(v1, v2, u1);
+        // v2 -> v1 => v2 -> u2
+        change_connection(v2, v1, u2);
+        // u1 -> u2 => u1 -> v1
+        change_connection(u1, u2, v1);
+        // u2 -> u1 => u2 -> v2
+        change_connection(u2, u1, v2);
+    }
+    
+    void change_connection(size_t v1, size_t v2, size_t new_v2) {
+        eax::Child::Modification modification{
+            {v1, v2},
+            new_v2
+        };
+        modifications.push_back(modification);
+        
+        if (working_individual[v1][0] == v2) {
+            working_individual[v1][0] = new_v2;
+        } else {
+            working_individual[v1][1] = new_v2;
+        }
+    }
+    
+    const std::array<size_t, 2>& operator[](size_t index) {
+        return working_individual[index];
+    }
+    
+    const std::array<size_t, 2>& operator[](size_t index) const {
+        return working_individual[index];
+    }
+private:
+    void revert() {
+        for (auto it = modifications.crbegin(); it != modifications.crend(); ++it) {
+            undo(*it);
+        }
+    }
+
+    void undo(const eax::Child::Modification& modification) {
+        auto [v1, v2] = modification.edge1;
+        size_t new_v2 = modification.new_v2;
+        if (working_individual[v1][0] == new_v2) {
+            working_individual[v1][0] = v2;
+        } else {
+            working_individual[v1][1] = v2;
+        }
+    }
+
+    eax::Individual working_individual;
+    std::vector<eax::Child::Modification> modifications;
+};
+
 std::vector<double> times(5, 0.0);
 std::vector<double> times2(5, 0.0);
 
