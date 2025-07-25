@@ -784,6 +784,89 @@ void apply_E_set_N_AB(const std::vector<std::vector<size_t>>& AB_cycles,
     times[2] += std::chrono::duration<double>(end_time - start_time).count();
 }
 
+void merge_sub_tours(const std::vector<std::vector<int64_t>>& adjacency_matrix,
+            IntermediateIndividual& child,
+            const std::vector<size_t>& path,
+            const std::vector<size_t>& pos,
+            const std::vector<std::vector<std::pair<int64_t, size_t>>>& NN_list)
+{
+    using namespace std;
+    using distance_type = std::remove_cvref_t<decltype(adjacency_matrix)>::value_type::value_type;
+    using edge = pair<size_t, size_t>;
+
+    while (child.sub_tour_count() > 1) {
+        auto [min_sub_tour_id, min_sub_tour_size] = child.find_min_size_sub_tour();
+        size_t start_city = path[child.get_city_pos_of_sub_tour(min_sub_tour_id)];
+
+        vector<size_t> elem_of_min_sub_tour;
+        elem_of_min_sub_tour.reserve(min_sub_tour_size + 2);
+        vector<bool> in_min_sub_tour(path.size(), false);
+        size_t prev_city = start_city;
+        size_t current_city = start_city;
+        do {
+            elem_of_min_sub_tour.push_back(current_city);
+            in_min_sub_tour[current_city] = true;
+            size_t next_city = child[current_city][0];
+            if (next_city == prev_city) {
+                next_city = child[current_city][1];
+            }
+            prev_city = current_city;
+            current_city = next_city;
+        } while (current_city != start_city);
+        
+        elem_of_min_sub_tour.push_back(elem_of_min_sub_tour[0]);
+        elem_of_min_sub_tour.push_back(elem_of_min_sub_tour[1]);
+        
+        constexpr size_t search_range = 10;
+        size_t start = 0;
+        edge e1 = {0, 0};
+        edge e2 = {0, 0};
+        distance_type min_cost = std::numeric_limits<distance_type>::max();
+        while (e1.first == 0 && e2.first == 0) {
+            for (size_t i = 1; i <= min_sub_tour_size; ++i) {
+                size_t current_city = elem_of_min_sub_tour[i];
+                size_t limit = std::min(start + search_range, NN_list[current_city].size());
+                for (size_t j = start; j < limit; ++j) {
+                    size_t neighbor_city = NN_list[current_city][j].second;
+                    if (in_min_sub_tour[neighbor_city])
+                        continue;
+
+                    for (size_t k = 0; k < 2; ++k) {
+                        size_t connected_to_current_city = child[current_city][k];
+                        for (size_t l = 0; l < 2; ++l) {
+                            size_t connected_to_neighbor_city = child[neighbor_city][l];
+
+                            distance_type cost = - adjacency_matrix[current_city][connected_to_current_city] - adjacency_matrix[neighbor_city][connected_to_neighbor_city]
+                                                 + adjacency_matrix[current_city][neighbor_city] + adjacency_matrix[connected_to_current_city][connected_to_neighbor_city];
+                            
+                            if (cost < min_cost) {
+                                min_cost = cost;
+                                e1 = {current_city, connected_to_current_city};
+                                e2 = {neighbor_city, connected_to_neighbor_city};
+                            }
+                            
+                            cost = - adjacency_matrix[current_city][connected_to_current_city] - adjacency_matrix[neighbor_city][connected_to_neighbor_city]
+                                   + adjacency_matrix[current_city][connected_to_neighbor_city] + adjacency_matrix[connected_to_current_city][neighbor_city];
+
+                            if (cost < min_cost) {
+                                min_cost = cost;
+                                e1 = {current_city, connected_to_current_city};
+                                e2 = {connected_to_neighbor_city, neighbor_city};
+                            }
+                        }
+                    }                    
+                }
+            }
+            
+            start += search_range;
+        }
+        
+        child.swap_edges(e1, e2);
+        size_t connected_to_min_sub_tour = child.find_sub_tour_containing(pos[e2.first]);
+        child.merge_sub_tour(min_sub_tour_id, connected_to_min_sub_tour);
+    }
+}
+
 void step_5_and_6(const std::vector<std::vector<int64_t>>& adjacency_matrix,
             std::vector<Segment>& segments,
             const std::vector<size_t>& path,
