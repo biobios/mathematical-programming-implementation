@@ -14,6 +14,8 @@
 #include <iostream>
 #include <map>
 
+#include "limited_range_integer_set.hpp"
+
 namespace {
 struct Segment {
     size_t ID;
@@ -103,13 +105,15 @@ void step_2(const eax::Individual& parent1,
     size_t rest_edge_count = n;
     vector<array<bool, 2>> edge_used_parent1(n, {false, false});
     vector<array<bool, 2>> edge_used_parent2(n, {false, false});
-    vector<size_t> rest_cities(n);
-    vector<size_t> city_indices(n);
-    iota(rest_cities.begin(), rest_cities.end(), 0);
-    iota(city_indices.begin(), city_indices.end(), 0);
+    // vector<size_t> rest_cities(n);
+    // vector<size_t> city_indices(n);
+    // iota(rest_cities.begin(), rest_cities.end(), 0);
+    // iota(city_indices.begin(), city_indices.end(), 0);
+    mpi::LimitedRangeIntegerSet rest_cities(n - 1, mpi::LimitedRangeIntegerSet::InitSet::Universal);
     do {
-
-        size_t current_city = rest_cities[uniform_int_distribution<size_t>(0, rest_cities.size() - 1)(rng)];
+        size_t rand_city_index = uniform_int_distribution<size_t>(0, rest_cities.size() - 1)(rng);
+        // size_t current_city = rest_cities[uniform_int_distribution<size_t>(0, rest_cities.size() - 1)(rng)];
+        size_t current_city = *(rest_cities.begin() + rand_city_index);
         vector<size_t> visited_parent1;
         vector<size_t> visited_parent2;
         visited_parent2.push_back(current_city);
@@ -133,18 +137,20 @@ void step_2(const eax::Individual& parent1,
                 rest_edge_count -= 1;
                 if (edge_used_parent1[current_city][0] && edge_used_parent1[current_city][1]) {
                     // prob[current_city] = 0; // この都市はもう訪問しない
-                    size_t back = rest_cities.back();
-                    rest_cities[city_indices[current_city]] = back;
-                    city_indices[back] = city_indices[current_city];
-                    rest_cities.pop_back();
+                    // size_t back = rest_cities.back();
+                    // rest_cities[city_indices[current_city]] = back;
+                    // city_indices[back] = city_indices[current_city];
+                    // rest_cities.pop_back();
+                    rest_cities.erase(current_city);
                 }
 
                 if (edge_used_parent1[prev_city][0] && edge_used_parent1[prev_city][1]) {
                     // prob[prev_city] = 0; // 前の都市も訪問しない
-                    size_t back = rest_cities.back();
-                    rest_cities[city_indices[prev_city]] = back;
-                    city_indices[back] = city_indices[prev_city];
-                    rest_cities.pop_back();
+                    // size_t back = rest_cities.back();
+                    // rest_cities[city_indices[prev_city]] = back;
+                    // city_indices[back] = city_indices[prev_city];
+                    // rest_cities.pop_back();
+                    rest_cities.erase(prev_city);
                 }
 
                 size_t found_loop_index = visited_parent1.size();
@@ -203,8 +209,12 @@ void step_2(const eax::Individual& parent1,
                 }
                 visited_parent1.resize(found_loop_index);
                 visited_parent2.resize(found_loop_index + 1);
-                if (AB_cycle.size() > 2)
+                if (AB_cycle.size() > 2) {
                     AB_cycles.emplace_back(move(AB_cycle));
+                    if (AB_cycles.size() >= needs) {
+                        return; // 必要な数のABサイクルが見つかった
+                    }
+                }
             }
         }while (!visited_parent1.empty());
     }while (rest_edge_count > 0);
