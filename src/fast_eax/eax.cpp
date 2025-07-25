@@ -26,6 +26,20 @@ struct Segment {
     size_t sub_tour_ID = std::numeric_limits<size_t>::max();
 };
 
+class ABCycle {
+public:
+    ABCycle(const std::vector<size_t>& cycle) : cycle(cycle) {}
+    ABCycle(std::vector<size_t>&& cycle) : cycle(std::move(cycle)) {}
+    size_t size() const {
+        return cycle.size();
+    }
+    size_t operator[](size_t index) const {
+        return cycle[index];
+    }
+private:
+    std::vector<size_t> cycle;
+};
+
 class IntermediateIndividual {
 public:
     IntermediateIndividual(const eax::Individual& parent) : working_individual(parent) {}
