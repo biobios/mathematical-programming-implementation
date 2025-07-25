@@ -300,7 +300,202 @@ private:
 std::vector<double> times(5, 0.0);
 std::vector<double> times2(5, 0.0);
 
-void step_2(const eax::Individual& parent1,
+ABCycle create_AB_cycle(std::vector<size_t>& finding_path,
+                        size_t end_index,
+                        mpi::LimitedRangeIntegerSet& cities_having_2_edges,
+                        mpi::LimitedRangeIntegerSet& cities_having_just_1_edge)
+{
+    bool starts_with_B = finding_path.size() % 2 == 0;
+    size_t start_index = finding_path.size() - 1;
+    std::vector<size_t> AB_cycle;
+    AB_cycle.reserve(start_index - end_index);
+    
+    size_t last = 0;
+    if (starts_with_B) {
+        last = finding_path[start_index];
+        if (cities_having_2_edges.contains(last)) {
+            cities_having_2_edges.erase(last);
+            cities_having_just_1_edge.insert(last);
+        } else if (cities_having_just_1_edge.contains(last)) {
+            cities_having_just_1_edge.erase(last);
+        }
+        start_index -= 1;
+    }
+    
+    for (size_t i = start_index; i > end_index; i -= 1) {
+        size_t current = finding_path[i];
+        AB_cycle.push_back(current);
+        if (cities_having_2_edges.contains(current)) {
+            cities_having_2_edges.erase(current);
+            cities_having_just_1_edge.insert(current);
+        } else if (cities_having_just_1_edge.contains(current)) {
+            cities_having_just_1_edge.erase(current);
+        }
+    }
+    
+    if (starts_with_B) {
+        AB_cycle.push_back(last);
+    }
+    
+    finding_path.resize(end_index + 1);
+    
+    return ABCycle(std::move(AB_cycle));
+}
+
+std::vector<ABCycle> find_AB_cycles(size_t needs,
+            const eax::Individual& parent1,
+            const eax::Individual& parent2,
+            std::mt19937& rng,
+            size_t city_count)
+{
+    using namespace std;
+    mpi::LimitedRangeIntegerSet cities_having_2_edges(city_count - 1, mpi::LimitedRangeIntegerSet::InitSet::Universal);
+    mpi::LimitedRangeIntegerSet cities_having_just_1_edge(city_count - 1, mpi::LimitedRangeIntegerSet::InitSet::Empty);
+    array<vector<uint8_t>, 2> least_recently_used_edge = {vector<uint8_t>(city_count, 0), vector<uint8_t>(city_count, 0)};
+    vector<ABCycle> AB_cycles;
+    
+    struct {
+        const eax::Individual& parent1;
+        const eax::Individual& parent2;
+        const eax::Individual& operator[](size_t index) const {
+            return index == 0 ? parent1 : parent2;
+        }
+    } parents = {parent1, parent2};
+
+    // array<const eax::Individual&, 2> parents = {parent1, parent2};
+    
+    uniform_int_distribution<size_t> dist_01(0, 1);
+    
+    vector<size_t> visited;
+    vector<size_t> first_visited(city_count, 0);
+    size_t current_city = numeric_limits<size_t>::max();
+    
+    while (cities_having_2_edges.size() > 0) {
+        
+        if (!(cities_having_2_edges.contains(current_city) ||
+            cities_having_just_1_edge.contains(current_city))) { // 現在の都市にエッジが存在しない場合
+
+            // 2つエッジを持つ都市からランダムに選択
+            size_t rand_to_select_city = uniform_int_distribution<size_t>(0, cities_having_2_edges.size() - 1)(rng);
+            current_city = *(cities_having_2_edges.begin() + rand_to_select_city);
+            
+            visited.clear();
+            visited.push_back(current_city);
+            first_visited[current_city] = 0;
+        }
+        
+        while (true) {  // ABサイクルを一つ見つけるまでループ
+            size_t prev_city = current_city;
+            size_t prev_first_visited = first_visited[prev_city];
+            size_t prev_edge_count = cities_having_2_edges.contains(current_city) ? 2 : 1;
+            size_t next_edge_parent = visited.size() % 2;
+            
+            if (prev_edge_count == 1) { // エッジが一つなら
+                // 単純に最近最も使用されていないエッジを選択
+                current_city = parents[next_edge_parent][prev_city][least_recently_used_edge[next_edge_parent][prev_city]];
+                // もうほかの枝は存在しないので LRU は更新しない
+            } else {
+                size_t selected_index = 0;
+                if (prev_first_visited != visited.size() - 1) {
+                    // 2回訪れた都市なら、残り一つのエッジを選択
+                    // prev_first_visitedが直前じゃなければ、2回訪れたことが分かる
+                    selected_index = least_recently_used_edge[next_edge_parent][prev_city];
+                } else { // そうじゃないなら
+                    selected_index = dist_01(rng);
+                }
+                
+                current_city = parents[next_edge_parent][prev_city][selected_index];
+                // LRU を更新
+                least_recently_used_edge[next_edge_parent][prev_city] = 1 - selected_index;
+            }
+            
+            visited.push_back(current_city);
+
+            size_t current_edge_count = cities_having_2_edges.contains(current_city) ? 2 : 1;
+            if (current_edge_count == 1) {
+                // エッジの数が1なら、探索途中か、スタートにたどり着いて一周したか
+                if (current_city == visited.front()) {
+                    // ABサイクル構成処理
+                    ABCycle&& cycle = create_AB_cycle(visited, 0, cities_having_2_edges, cities_having_just_1_edge);
+                    if (cycle.size() > 2) {
+                        AB_cycles.emplace_back(std::move(cycle));
+                    }
+                    break;
+                } else {
+                    continue; // 探索途中なら、次の都市へ
+                }
+            } else {
+                // エッジの数が2なら、探索途中か、スタートにたどり着いて一周したか、途中で交差してABサイクルを構成するか
+                // 次の都市のLRUを更新
+                if (parents[next_edge_parent][current_city][0] == prev_city) {
+                    least_recently_used_edge[next_edge_parent][current_city] = 1;
+                } else {
+                    least_recently_used_edge[next_edge_parent][current_city] = 0;
+                }
+                if (current_city == visited.front()) {
+                    if ((visited.size() + 1) % 2 == 0) { // Bで出てAで帰ってきた
+                        // ABサイクル構成処理
+                        ABCycle&& cycle = create_AB_cycle(visited, 0, cities_having_2_edges, cities_having_just_1_edge);
+                        if (cycle.size() > 2) {
+                            AB_cycles.emplace_back(std::move(cycle));
+                        }
+                        break;
+                    } else { // Bで出てBで帰ってきた
+                        continue;
+                    }
+                } else if (first_visited[current_city] != 0 && (visited.size() - first_visited[current_city] + 1) % 2 == 0) {
+                    // 交差している　かつ　ABサイクルを構成するなら
+                    ABCycle&& cycle = create_AB_cycle(visited, first_visited[current_city], cities_having_2_edges, cities_having_just_1_edge);
+                    if (cycle.size() > 2) {
+                        AB_cycles.emplace_back(std::move(cycle));
+                    }
+                    break;
+                } else if (first_visited[current_city] != 0) {
+                    continue;
+                } else {
+                    first_visited[current_city] = visited.size() - 1;
+                    continue;
+                }
+            }
+        }
+        
+        if (AB_cycles.size() >= needs) {
+            return AB_cycles; // 必要な数のABサイクルが見つかった
+        }
+    }
+    
+    while (cities_having_just_1_edge.size() > 0) {
+        size_t start_city = *(cities_having_just_1_edge.begin());
+
+        // 1つのエッジを持つ都市からABサイクルを構成する
+        vector<size_t> visited = {start_city};
+
+        size_t current_city = start_city;
+        while (true) {
+            size_t next_edge_parent = visited.size() % 2;
+            size_t selected_index = least_recently_used_edge[next_edge_parent][current_city];
+            size_t next_city = parents[next_edge_parent][current_city][selected_index];
+            visited.push_back(next_city);
+            if (next_city == start_city) 
+                break;
+            current_city = next_city;
+        }
+        
+        ABCycle&& cycle = create_AB_cycle(visited, 0, cities_having_2_edges, cities_having_just_1_edge);
+        if (cycle.size() > 2) {
+            AB_cycles.emplace_back(std::move(cycle));
+        }
+        
+        if (AB_cycles.size() >= needs) {
+            return AB_cycles; // 必要な数のABサイクルが見つかった
+        }
+    }
+    
+    return AB_cycles;
+}
+
+void step_2(size_t needs,
+            const eax::Individual& parent1,
             const eax::Individual& parent2,
             std::vector<std::vector<size_t>>& AB_cycles,
             std::mt19937& rng,
@@ -379,8 +574,13 @@ void step_2(const eax::Individual& parent1,
                 }
                 visited_parent1.resize(found_loop_index + 1);
                 visited_parent2.resize(found_loop_index + 1);
-                if (AB_cycle.size() > 2)
+                if (AB_cycle.size() > 2){
                     AB_cycles.emplace_back(move(AB_cycle));
+                    if (AB_cycles.size() >= needs) {
+                        return; // 必要な数のABサイクルが見つかった
+                    }
+                }
+
             }else {
                 size_t selected_index = uniform_int_distribution<size_t>(0, 1)(rng);
                 if (edge_used_parent2[current_city][selected_index]) {
