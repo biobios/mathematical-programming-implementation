@@ -77,6 +77,190 @@ public:
         }
     }
     
+    void apply_AB_cycles(const std::vector<ABCycle>& AB_cycles,
+                         const std::vector<size_t>& pos) {
+        using namespace std;
+        const size_t city_count = working_individual.size();
+        // tuple <size_t, size_t, size_t> (a, b, c)
+        // a: beginning or end of segment
+        // b: adjacent to a
+        // c: adjacent to (a - 1)
+        vector<tuple<size_t, size_t, size_t>> cut_positions;
+        bool cut_between_first_and_last = false;
+        auto cut = [&cut_positions, &cut_between_first_and_last, this, &pos, city_count](size_t b1, size_t ba, size_t ab, size_t b2) {
+            change_connection(ba, ab, b1);
+            change_connection(ab, ba, b2);
+            auto pos_b1 = pos[b1];
+            auto pos_ba = pos[ba];
+            auto pos_ab = pos[ab];
+            auto pos_b2 = pos[b2];
+            
+            if (pos_ba == 0 && pos_ab == city_count - 1) {
+                cut_positions.emplace_back(pos_ba, pos_b1, pos_b2);
+                cut_positions.emplace_back(city_count, pos_b1, pos_b2);
+                cut_between_first_and_last = true;
+            } else if (pos_ba == city_count - 1 && pos_ab == 0) {
+                cut_positions.emplace_back(pos_ab, pos_b2, pos_b1);
+                cut_positions.emplace_back(city_count, pos_b2, pos_b1);
+                cut_between_first_and_last = true;
+            } else if (pos_ba < pos_ab) {
+                cut_positions.emplace_back(pos_ab, pos_b2, pos_b1);
+            } else {
+                cut_positions.emplace_back(pos_ba, pos_b1, pos_b2);
+            }
+        };
+        for (const auto& cycle : AB_cycles) {
+            for (size_t i = 2; i < cycle.size() - 2; i += 2) {
+                cut(cycle[i - 1], cycle[i], cycle[i + 1], cycle[i + 2]);
+            }
+            // i = 0
+            {
+                cut(cycle[cycle.size() - 1], cycle[0], cycle[1], cycle[2]);
+            }
+            // i = cycle.size() - 2
+            {
+                cut(cycle[cycle.size() - 3], cycle[cycle.size() - 2], cycle[cycle.size() - 1], cycle[0]);
+            }
+        }
+        
+        if (!cut_between_first_and_last) {
+            cut_positions.emplace_back(0, city_count - 1, 0);
+            cut_positions.emplace_back(city_count, city_count - 1, 0);
+        }
+
+        std::sort(cut_positions.begin(), cut_positions.end());
+
+        std::map<size_t, size_t> pos_to_segment_id;
+        segments.reserve(cut_positions.size());
+        auto add_segment = [this, &cut_positions, &pos_to_segment_id](size_t begin_i, size_t end_i) {
+            auto [beginning_pos, beginning_adjacent_pos, beginning_minus_one_adjacent_pos] = cut_positions[begin_i];
+            auto [end_pos_plus_one, end_pos_plus_one_adjacent_pos, end_adjacent_pos] = cut_positions[end_i];
+            Segment segment {
+                .ID = segments.size(),
+                .beginning_pos = beginning_pos,
+                .end_pos = end_pos_plus_one - 1,
+                .beginning_adjacent_pos = beginning_adjacent_pos,
+                .end_adjacent_pos = end_adjacent_pos,
+                .sub_tour_ID = std::numeric_limits<size_t>::max()
+            };
+            pos_to_segment_id[beginning_pos] = segment.ID;
+            pos_to_segment_id[end_pos_plus_one - 1] = segment.ID;
+            segments.push_back(segment);
+        };
+
+        for (size_t i = 0; i < cut_positions.size() - 1; ++i) {
+            add_segment(i, i + 1);
+        }
+        // i = cut_positions.size() - 1
+        // add_segment(cut_positions.size() - 1, 0);
+        
+        // sub_tour_ID を設定
+        size_t sub_tour_id = 0;
+        while (true) {
+            size_t found_segment = std::numeric_limits<size_t>::max();
+            for (size_t i = 0; i < segments.size(); ++i) {
+                if (segments[i].sub_tour_ID == std::numeric_limits<size_t>::max()) {
+                    found_segment = i;
+                    break;
+                }
+            }
+            if (found_segment == std::numeric_limits<size_t>::max()) {
+                break;
+            }
+
+            size_t current_segment = found_segment;
+            while(true) {
+                segments[current_segment].sub_tour_ID = sub_tour_id;
+                size_t next_segment = pos_to_segment_id[segments[current_segment].beginning_adjacent_pos];
+
+                if (segments[next_segment].sub_tour_ID != std::numeric_limits<size_t>::max()) {
+                    next_segment = pos_to_segment_id[segments[current_segment].end_adjacent_pos];
+                    if (segments[next_segment].sub_tour_ID != std::numeric_limits<size_t>::max()) {
+                        // 1周した
+                        break;
+                    }
+                }
+                
+                current_segment = next_segment;
+            } 
+            
+            sub_tour_id++;
+        }
+
+        sub_tour_sizes.resize(sub_tour_id, 0);
+
+        size_t forcused_segment_id = 0;
+        for (const auto& segment : segments) {
+            if (segment.sub_tour_ID == segments[forcused_segment_id].sub_tour_ID) {
+                segments[forcused_segment_id].end_pos = segment.end_pos;
+                segments[forcused_segment_id].end_adjacent_pos = segment.end_adjacent_pos;
+                sub_tour_sizes[segment.sub_tour_ID] += segment.end_pos - segment.beginning_pos + 1;
+            } else {
+                ++forcused_segment_id;
+                segments[forcused_segment_id] = segment;
+                sub_tour_sizes[segment.sub_tour_ID] = segment.end_pos - segment.beginning_pos + 1;
+            }
+        }
+        segments.resize(forcused_segment_id + 1);
+    }
+    
+    size_t sub_tour_count() const {
+        return sub_tour_sizes.size();
+    }
+    
+    std::pair<size_t, size_t> find_min_size_sub_tour() const {
+        size_t min_size = std::numeric_limits<size_t>::max();
+        size_t min_size_sub_tour_id = 0;
+        for (size_t i = 0; i < sub_tour_sizes.size(); ++i) {
+            if (sub_tour_sizes[i] < min_size) {
+                min_size = sub_tour_sizes[i];
+                min_size_sub_tour_id = i;
+            }
+        }
+        return {min_size_sub_tour_id, min_size};
+    }
+    
+    size_t find_sub_tour_containing(size_t pos) const {
+        for (const auto& segment : segments) {
+            if (segment.beginning_pos <= pos && pos <= segment.end_pos) {
+                return segment.sub_tour_ID;
+            }
+        }
+        throw std::runtime_error("No sub-tour found containing the position");
+    }
+    
+    size_t get_city_pos_of_sub_tour(size_t sub_tour_id) const {
+        for (const auto& segment : segments) {
+            if (segment.sub_tour_ID == sub_tour_id) {
+                return segment.beginning_pos;
+            }
+        }
+        throw std::runtime_error("No sub-tour found with the given ID");
+    }
+    
+    void merge_sub_tour(size_t sub_tour_id1, size_t sub_tour_id2) {
+        for (auto& segment : segments) {
+            if (segment.sub_tour_ID == sub_tour_id2) {
+                segment.sub_tour_ID = sub_tour_id1;
+            }
+        }
+        
+        sub_tour_sizes[sub_tour_id1] += sub_tour_sizes[sub_tour_id2];
+        
+        size_t last_index = sub_tour_sizes.size() - 1;
+        if (sub_tour_id2 < last_index) {
+            for (auto& segment : segments) {
+                if (segment.sub_tour_ID == last_index) {
+                    segment.sub_tour_ID = sub_tour_id2;
+                }
+            }
+            
+            sub_tour_sizes[sub_tour_id2] = sub_tour_sizes[last_index];
+        }
+        
+        sub_tour_sizes.pop_back();
+    }
+    
     const std::array<size_t, 2>& operator[](size_t index) {
         return working_individual[index];
     }
@@ -91,6 +275,12 @@ private:
         }
     }
 
+    void reset() {
+        modifications.clear();
+        segments.clear();
+        sub_tour_sizes.clear();
+    }
+
     void undo(const eax::Child::Modification& modification) {
         auto [v1, v2] = modification.edge1;
         size_t new_v2 = modification.new_v2;
@@ -103,6 +293,8 @@ private:
 
     eax::Individual working_individual;
     std::vector<eax::Child::Modification> modifications;
+    std::vector<Segment> segments;
+    std::vector<size_t> sub_tour_sizes;
 };
 
 std::vector<double> times(5, 0.0);
