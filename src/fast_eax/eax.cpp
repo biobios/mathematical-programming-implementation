@@ -274,7 +274,7 @@ private:
             undo(*it);
         }
     }
-
+    
     void reset() {
         modifications.clear();
         segments.clear();
@@ -1118,7 +1118,7 @@ std::vector<Child> edge_assembly_crossover(const Individual& parent1, const Indi
     
     const size_t n = parent1.size();
     
-    vector<vector<size_t>> AB_cycles;
+    // vector<vector<size_t>> AB_cycles;
     vector<size_t> path(n);
     vector<size_t> pos(n);
     for (size_t i = 0, prev = 0, current = 0; i < n; ++i) {
@@ -1132,7 +1132,34 @@ std::vector<Child> edge_assembly_crossover(const Individual& parent1, const Indi
         current = next;
     }
     
-    step_2(parent1, parent2, AB_cycles, rng, n);
+    // switch (env.eax_type) {
+    //     case eax::EAXType::Rand:
+    //         step_2(numeric_limits<size_t>::max(), parent1, parent2, AB_cycles, rng, n);
+    //         break;
+    //     case eax::EAXType::N_AB:
+    //         step_2(env.N_parameter * children_size, parent1, parent2, AB_cycles, rng, n);
+    //         break;
+    //     default:
+    //         cerr << "Error: Unknown EAX type." << endl;
+    //         exit(1);
+    // }
+    vector<ABCycle> AB_cycles;
+    switch (env.eax_type) {
+        case eax::EAXType::Rand:
+            AB_cycles = find_AB_cycles(numeric_limits<size_t>::max(), parent1, parent2, rng, n);
+            break;
+        case eax::EAXType::N_AB:
+            AB_cycles = find_AB_cycles(env.N_parameter * children_size, parent1, parent2, rng, n);
+            break;
+        default:
+            cerr << "Error: Unknown EAX type." << endl;
+            exit(1);
+    }
+    vector<size_t> AB_cycle_indices(AB_cycles.size());
+    iota(AB_cycle_indices.begin(), AB_cycle_indices.end(), 0);
+    shuffle(AB_cycle_indices.begin(), AB_cycle_indices.end(), rng);
+    
+    // step_2(parent1, parent2, AB_cycles, rng, n);
     
     vector<Child> children;
     IntermediateIndividual working_individual(parent1);
@@ -1143,22 +1170,47 @@ std::vector<Child> edge_assembly_crossover(const Individual& parent1, const Indi
         
         switch (env.eax_type) {
             case eax::EAXType::Rand:
-                apply_E_set_Rand(AB_cycles, path, pos, segments, working_individual, rng);
+                {
+                // apply_E_set_Rand(AB_cycles, path, pos, segments, working_individual, rng);
+                vector<ABCycle> selected_AB_cycles;
+                vector<size_t> selected_AB_cycle_indices;
+                uniform_int_distribution<size_t> dist_01(0, 1);
+                for (size_t i = 0; i < AB_cycles.size(); ++i) {
+                    if (dist_01(rng) == 0) {
+                        selected_AB_cycles.emplace_back(std::move(AB_cycles[AB_cycle_indices[i]]));
+                        selected_AB_cycle_indices.push_back(AB_cycle_indices[i]);
+                    }
+                }
+                working_individual.apply_AB_cycles(selected_AB_cycles, pos);
+                // もとに戻す
+                for (size_t i = 0; i < selected_AB_cycle_indices.size(); ++i) {
+                    AB_cycles[selected_AB_cycle_indices[i]] = std::move(selected_AB_cycles[i]);
+                }
+                }
                 break;
             case eax::EAXType::N_AB:
-                apply_E_set_N_AB(AB_cycles, path, pos, segments, working_individual, env.N_parameter, rng);
+                // apply_E_set_N_AB(AB_cycles, path, pos, segments, working_individual, env.N_parameter, rng);
+                {
+                vector<ABCycle> selected_AB_cycles;
+                for (size_t i = 0; i < env.N_parameter && i < AB_cycles.size(); ++i) {
+                    size_t index = (child_index * env.N_parameter + i) % AB_cycles.size();
+                    selected_AB_cycles.emplace_back(AB_cycles[AB_cycle_indices[index]]);
+                }
+                working_individual.apply_AB_cycles(selected_AB_cycles, pos);
+                }
                 break;
             default:
                 cerr << "Error: Unknown EAX type." << endl;
                 exit(1);
         }
 
-        if (segments.empty()) {
-            cerr << "Error: segments is empty." << endl;
-            exit(1);
-        }
+        // if (segments.empty()) {
+        //     cerr << "Error: segments is empty." << endl;
+        //     exit(1);
+        // }
 
-        step_5_and_6(adjacency_matrix, segments, path, pos, working_individual, n, NN_list);
+        // step_5_and_6(adjacency_matrix, segments, path, pos, working_individual, n, NN_list);
+        merge_sub_tours(adjacency_matrix, working_individual, path, pos, NN_list);
         
         children.emplace_back(working_individual.convert_to_child_and_revert());
 
