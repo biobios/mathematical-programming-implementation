@@ -37,6 +37,27 @@ namespace mpi
             }
         }
         
+        void reset(InitSet init_set = InitSet::Universal)
+        {
+            switch (init_set) {
+                case InitSet::Empty:
+                    elements.clear();
+                    positions.assign(MAX - MIN + 1, std::numeric_limits<size_t>::max());
+                    break;
+                case InitSet::Universal:
+                    elements.clear();
+                    elements.reserve(MAX - MIN + 1);
+                    positions.clear();
+                    for (size_t i = 0; i <= MAX - MIN; ++i) {
+                        elements.push_back(i + MIN);
+                        positions.push_back(i);
+                    }
+                    break;
+                default:
+                    throw std::invalid_argument("Invalid initialization set");
+            }
+        }
+        
         bool contains(size_t value) const
         {
             if (value < MIN || value > MAX) {
