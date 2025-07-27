@@ -13,7 +13,7 @@ namespace eax {
         /**
         * @brief 世代交代モデルを実装する関数オブジェクト
         * @param population 初期集団
-        * @param end_condition 終了条件を満たすかどうかを判定する関数(オブジェクト)
+        * @param update_func 更新処理を行い、世代交代を継続する場合、trueを返す関数(オブジェクト)
         * @param fitness_func 適応度を計算する関数(オブジェクト)
         * @param cross_over 交叉を行う関数(オブジェクト)
         * @param env 環境情報
@@ -21,14 +21,14 @@ namespace eax {
         * @param logging ロギング関数(オブジェクト) (デフォルトは何もしない関数)
         * @return 最終的な集団
         */
-        template <typename Individual, typename EndCondition, typename FitnessFunc, typename Environment, typename CrossOverFunc, std::uniform_random_bit_generator RandomGen, typename LoggingFunc = mpi::NOP_Function>
-            requires(requires(std::vector<Individual> population, EndCondition end_condition, FitnessFunc fitness_func, CrossOverFunc cross_over, Environment env, RandomGen rng, size_t generation, LoggingFunc logging) {
-                { end_condition(population, env, generation) } -> std::convertible_to<bool>;
+        template <typename Individual, typename UpdateFunc, typename FitnessFunc, typename Environment, typename CrossOverFunc, std::uniform_random_bit_generator RandomGen, typename LoggingFunc = mpi::NOP_Function>
+            requires(requires(std::vector<Individual> population, UpdateFunc update_func, FitnessFunc fitness_func, CrossOverFunc cross_over, Environment env, RandomGen rng, size_t generation, LoggingFunc logging) {
+                { update_func(population, env, generation) } -> std::convertible_to<bool>;
                 { fitness_func(cross_over(population[0], population[1], 1, env, rng)[0], env) } -> std::convertible_to<double>;
                 population[0] = cross_over(population[0], population[1], 1, env, rng)[0];
                 { logging(population, env, generation) } -> std::convertible_to<void>;
             })
-        constexpr std::vector<Individual> operator()(std::vector<Individual> population, EndCondition end_condition, FitnessFunc fitness_func, CrossOverFunc cross_over, Environment env, RandomGen rng, LoggingFunc&& logging = {}) const
+        constexpr std::vector<Individual> operator()(std::vector<Individual> population, UpdateFunc update_func, FitnessFunc fitness_func, CrossOverFunc cross_over, Environment env, RandomGen rng, LoggingFunc&& logging = {}) const
         {
             using Child = std::invoke_result_t<CrossOverFunc, Individual&, Individual&, size_t, Environment&, RandomGen&>::value_type;
             auto calc_all_fitness = [&fitness_func](const std::vector<Child>& children, Environment& env) {
@@ -42,7 +42,7 @@ namespace eax {
             size_t generation = 0;
 
             size_t population_size = population.size();
-            while (!end_condition(population, env, generation)) {
+            while (update_func(population, env, generation)) {
                 // ロギング
                 logging(population, env, generation);
                 

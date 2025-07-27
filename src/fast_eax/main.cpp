@@ -22,6 +22,7 @@
 #include "individual.hpp"
 #include "generational_model.hpp"
 #include "environment.hpp"
+#include <time.h>
 
 std::array<double, 2> eax::Child::calc_times;
 
@@ -140,7 +141,7 @@ void apply_neighbor_2opt(std::vector<size_t>& path, const tsp::TSP& tsp, size_t 
     
     using distance_type = std::remove_cvref_t<decltype(adjacency_matrix)>::value_type::value_type;
     const size_t n = path.size();
-    eax::Individual ind(path);
+    eax::Individual ind(path, adjacency_matrix);
     bool improved = true;
     while (improved) {
         size_t range_start = 0;
@@ -206,7 +207,7 @@ int main(int argc, char* argv[])
     size_t generations = 300;
     // 集団サイズ
     size_t population_size = 0;
-    for (size_t i = 1; i < argc; ++i) {
+    for (int64_t i = 1; i < argc; ++i) {
         if (string(argv[i]) == "--file" && i + 1 < argc) {
             // TSPファイル名を指定する
             file_name = argv[++i];
@@ -311,27 +312,29 @@ int main(int argc, char* argv[])
         vector<eax::Individual> population;
         population.reserve(initial_paths.size());
         for (const auto& path : initial_paths) {
-            population.emplace_back(path);
+            population.emplace_back(path, tsp.adjacency_matrix);
         }
 
         cout << "Initial population created." << endl;
         
         using Env = eax::Environment;
 
-        // 終了判定関数
-        // 世代数に達するか、収束するまで実行
+        // 更新処理関数
         struct {
             size_t best_length = 1e18;
             size_t generation_of_reached_best = 0;
             size_t generation_of_change_to_5AB = 0;
             size_t G_devided_by_10 = 0;
 
-            bool operator()(const vector<Individual>& population, Env& env, size_t generation) {
-                env.update_edge_counts(population);
+            bool operator()(vector<Individual>& population, Env& env, size_t generation) {
+                // env.update_edge_counts(population);
+                for (auto& individual : population) {
+                    individual.update(env.tsp.adjacency_matrix).update_edge_counts(env.pop_edge_counts);
+                }
 
                 std::vector<double> lengths(population.size());
                 for (size_t i = 0; i < population.size(); ++i) {
-                    lengths[i] = calc_distance(population[i], env.tsp.adjacency_matrix);
+                    lengths[i] = population[i].get_distance();
                 }
                 
                 double best_length = *std::min_element(lengths.begin(), lengths.end());
@@ -355,14 +358,14 @@ int main(int argc, char* argv[])
                 } else if (env.eax_type == eax::EAXType::N_AB && env.N_parameter == 5) {
                     size_t last_new_record_generation = max(this->generation_of_reached_best, this->generation_of_change_to_5AB);
                     if (generation - last_new_record_generation >= 50) {
-                        return true; // 5ABで50世代以上新記録が出なければ終了
+                        return false; // 5ABで50世代以上新記録が出なければ終了
                     }
                 }
                 
-                return false;
+                return true;
             }
             
-        } end_condition;
+        } update_func;
         
         // ロガー
         struct {
@@ -403,7 +406,7 @@ int main(int argc, char* argv[])
         mt19937 local_rng(local_seed);
 
         // 環境
-        Env tsp_env;
+        Env tsp_env(tsp.city_count);
         tsp_env.tsp = tsp;
         tsp_env.population_size = population_size;
         tsp_env.N_parameter = 1;
@@ -415,14 +418,17 @@ int main(int argc, char* argv[])
         cout << "Starting genetic algorithm..." << endl;
         // 計測開始
         auto start_time = chrono::high_resolution_clock::now();
+        auto start_clock = clock();
 
         // 世代交代モデル ElitistRecombinationを使用して、遺伝的アルゴリズムを実行
         // vector<Individual> result = mpi::genetic_algorithm::ElitistRecombination<100>(population, end_condition, calc_fitness_lambda, eax::edge_assembly_crossover, tsp, local_rng, logging);
         // vector<Individual> result = mpi::genetic_algorithm::SimpleGA(population, end_condition, calc_fitness, eax::edge_assembly_crossover, adjacency_matrix, local_rng);
-        vector<Individual> result = eax::GenerationalModel<30>(population, end_condition, calc_fitness_lambda, eax::edge_assembly_crossover, tsp_env, local_rng, logging);
+        vector<Individual> result = eax::GenerationalModel<30>(population, update_func, calc_fitness_lambda, eax::edge_assembly_crossover, tsp_env, local_rng, logging);
 
+        auto end_clock = clock();
         auto end_time = chrono::high_resolution_clock::now();
-        trial_times[trial] = chrono::duration<double>(end_time - start_time).count();
+        // trial_times[trial] = chrono::duration<double>(end_time - start_time).count();
+        trial_times[trial] = static_cast<double>(end_clock - start_clock) / CLOCKS_PER_SEC;
         
         best_path_lengths[trial] = logging.best_length;
         generation_of_best[trial] = logging.generation_of_reached_best;
