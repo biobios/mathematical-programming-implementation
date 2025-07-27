@@ -1,5 +1,6 @@
 LIB_SRCS=$(wildcard src/lib/*.cpp)
 LIB_OBJS=$(patsubst src/lib/%.cpp, temp/lib/%.o, $(LIB_SRCS))
+DEBUG_LIB_OBJS=$(patsubst src/lib/%.cpp, temp/debug/lib/%.o, $(LIB_SRCS))
 PROF_LIB_OBJS=$(patsubst src/lib/%.cpp, temp/prof/lib/%.o, $(LIB_SRCS))
 
 PROJECTS:=$(patsubst src/%, %, $(filter-out src/lib, $(wildcard src/*)))
@@ -37,6 +38,10 @@ bin/lib$(LIB_NAME).a: $(LIB_OBJS)
 	@mkdir -p $(dir $@)
 	@ar rcs $@ $(LIB_OBJS)
 
+bin/debug/lib$(LIB_NAME).a: $(DEBUG_LIB_OBJS)
+	@mkdir -p $(dir $@)
+	@ar rcs $@ $(DEBUG_LIB_OBJS)
+
 bin/prof/lib$(LIB_NAME).a: $(PROF_LIB_OBJS)
 	@mkdir -p $(dir $@)
 	@ar rcs $@ $(PROF_LIB_OBJS)
@@ -44,6 +49,10 @@ bin/prof/lib$(LIB_NAME).a: $(PROF_LIB_OBJS)
 $(LIB_OBJS): temp/lib/%.o: src/lib/%.cpp
 	@mkdir -p $(dir $@)
 	@$(CXX) -c $< -o $@ $(CXXFLAGS)
+
+$(DEBUG_LIB_OBJS): temp/debug/lib/%.o: src/lib/%.cpp
+	@mkdir -p $(dir $@)
+	@$(CXX) -c $< -o $@ $(CXXFLAGS) -g
 
 $(PROF_LIB_OBJS): temp/prof/lib/%.o: src/lib/%.cpp
 	@mkdir -p $(dir $@)
