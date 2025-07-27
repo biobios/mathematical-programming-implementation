@@ -31,10 +31,10 @@ $(TARGET): $(OBJS) $(ROOT_DIR)/bin/lib$(LIB_NAME).a
 
 $(DEBUG_TARGET): $(DEBUG_OBJS) $(ROOT_DIR)/bin/debug/lib$(LIB_NAME).a
 	@mkdir -p $(dir $@)
-	@$(CXX) -o $@ $(DEBUG_OBJS) $(CXXFLAGS) -g $(DEBUG_LIB_OPTS)
+	@$(CXX) -o $@ $(DEBUG_OBJS) $(CXXFLAGS) -O0 -g $(DEBUG_LIB_OPTS)
 
 $(PROF_TARGET): $(PROF_OBJS) $(ROOT_DIR)/bin/prof/lib$(LIB_NAME).a
-	@$(CXX) -o $@ $(PROF_OBJS) $(CXXFLAGS) -pg $(PROF_LIB_OPTS)
+	@$(CXX) -o $@ $(PROF_OBJS) $(CXXFLAGS) -O0 -pg $(PROF_LIB_OPTS)
 
 $(OBJS): $(ROOT_DIR)/temp/$(PROJECT_NAME)/%.o: %.cpp
 	@mkdir -p $(dir $@)
@@ -42,11 +42,11 @@ $(OBJS): $(ROOT_DIR)/temp/$(PROJECT_NAME)/%.o: %.cpp
 
 $(DEBUG_OBJS): $(ROOT_DIR)/temp/debug/$(PROJECT_NAME)/%.o: %.cpp
 	@mkdir -p $(dir $@)
-	@$(CXX) -c $< -o $@ $(CXXFLAGS) -g
+	@$(CXX) -c $< -o $@ $(CXXFLAGS) -O0 -g
 
 $(PROF_OBJS): $(ROOT_DIR)/temp/prof/$(PROJECT_NAME)/%.o: %.cpp
 	@mkdir -p $(dir $@)
-	@$(CXX) -c $< -o $@ $(CXXFLAGS) -pg
+	@$(CXX) -c $< -o $@ $(CXXFLAGS) -O0 -pg
 
 $(ROOT_DIR)/bin/lib$(LIB_NAME).a:
 	@$(MAKE) -C $(ROOT_DIR) bin/lib$(LIB_NAME).a
