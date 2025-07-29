@@ -27,32 +27,6 @@
 
 std::array<double, 2> eax::Child::calc_times;
 
-double calc_fitness(const eax::Individual& individual, const std::vector<std::vector<int64_t>>& adjacency_matrix){
-    double distance = 0.0;
-    size_t prev = 0;
-    size_t current = 0;
-    for (size_t i = 0; i < individual.size(); ++i) {
-        size_t next = individual[current][0];
-        if (next == prev) {
-            next = individual[current][1];
-        }
-        
-        distance += adjacency_matrix[current][next];
-        prev = current;
-        current = next;
-    }
-    return 1.0 / distance;
-}
-
-double calc_distance(const eax::Individual& individual, const std::vector<std::vector<int64_t>>& adjacency_matrix) {
-    double distance = 0.0;
-    for (size_t i = 0; i < individual.size(); ++i) {
-        distance += adjacency_matrix[i][individual[i][0]];
-        distance += adjacency_matrix[i][individual[i][1]];
-    }
-    return distance / 2.0;
-}
-
 double calc_entropy(double molecule, double denominator) {
     double ratio = molecule / denominator;
     if (ratio == 0.0) {
@@ -83,34 +57,6 @@ double eval_ent(const eax::Child& child, eax::Environment& env) {
 
 double eval_greedy(const eax::Child& child, const eax::Environment& env) {
     return -1.0 * child.get_delta_distance(env.tsp.adjacency_matrix);
-}
-
-void two_opt_swap(std::vector<size_t>& path, size_t i, size_t j) {
-    // iとjの間の部分を逆順にする
-    using namespace std;
-    std::reverse(path.begin() + i, path.begin() + j + 1);
-}
-
-void apply_2opt(std::vector<size_t>& path, const std::vector<std::vector<int64_t>>& adjacency_matrix) {
-    using namespace std;
-    using distance_type = std::remove_cvref_t<decltype(adjacency_matrix)>::value_type::value_type;
-    size_t n = path.size();
-    bool improved = true;
-    while (improved) {
-        improved = false;
-        for (size_t i = 0; i < path.size() - 1 && !improved; ++i) {
-            for (size_t j = i + 1; j < path.size(); ++j) {
-                distance_type old_length = adjacency_matrix[path[i]][path[i + 1]] + adjacency_matrix[path[j]][path[(j + 1) % n]];
-                distance_type new_length = adjacency_matrix[path[i]][path[j]] + adjacency_matrix[path[i + 1]][path[(j + 1) % n]];
-                
-                if (new_length < old_length) {
-                    two_opt_swap(path, i + 1, j);
-                    improved = true;
-                    break;
-                }
-            }
-        }
-    }
 }
 
 void neighbor_2opt_swap(eax::Individual& ind, size_t i1, size_t i2, size_t j1, size_t j2) {
@@ -198,7 +144,6 @@ int main(int argc, char* argv[])
 {
     using namespace std;
     // TSPファイルの読み込み
-    // string file_name = "rat575.tsp";
     string file_name = "att532.tsp";
     // seed値
     mt19937::result_type seed = mt19937::default_seed;
@@ -292,8 +237,6 @@ int main(int argc, char* argv[])
     tsp::PopulationInitializer population_initializer(population_size, tsp.city_count, 
     [&two_opt](vector<size_t>& individual, std::mt19937::result_type seed) {
         // 2-opt法を適用
-        // apply_2opt(individual, tsp.adjacency_matrix);
-        // apply_neighbor_2opt(individual, tsp);
         two_opt.apply(individual, seed);
     });
     
@@ -331,7 +274,6 @@ int main(int argc, char* argv[])
             size_t G_devided_by_10 = 0;
 
             bool operator()(vector<Individual>& population, Env& env, size_t generation) {
-                // env.update_edge_counts(population);
                 for (auto& individual : population) {
                     individual.update(env.tsp.adjacency_matrix).update_edge_counts(env.pop_edge_counts);
                 }
@@ -379,7 +321,7 @@ int main(int argc, char* argv[])
             void operator()([[maybe_unused]]const vector<Individual>& population, [[maybe_unused]]const Env& tsp, size_t generation) {
                 std::vector<double> lengths(population.size());
                 for (size_t i = 0; i < population.size(); ++i) {
-                    lengths[i] = calc_distance(population[i], tsp.tsp.adjacency_matrix);
+                    lengths[i] = population[i].get_distance();
                 }
                 double best_length = *std::min_element(lengths.begin(), lengths.end());
                 double worst_length = *std::max_element(lengths.begin(), lengths.end());
@@ -431,27 +373,11 @@ int main(int argc, char* argv[])
 
         auto end_clock = clock();
         auto end_time = chrono::high_resolution_clock::now();
-        // trial_times[trial] = chrono::duration<double>(end_time - start_time).count();
         trial_times[trial] = static_cast<double>(end_clock - start_clock) / CLOCKS_PER_SEC;
         
         best_path_lengths[trial] = logging.best_length;
         generation_of_best[trial] = logging.generation_of_reached_best;
         
-        // bestの経路を出力
-        cout << "Best path : ";
-        const auto& best_individual = result[0];
-        size_t prev_city = 0;
-        size_t current_city = 0;
-        for (size_t i = 0; i < best_individual.size(); ++i) {
-            cout << current_city << " ";
-            size_t next_city = best_individual[current_city][0];
-            if (next_city == prev_city) {
-                next_city = best_individual[current_city][1];
-            }
-            prev_city = current_city;
-            current_city = next_city;
-        }
-        cout << endl;
         cout << "Trial " << trial + 1 << " completed." << endl;
     }
     

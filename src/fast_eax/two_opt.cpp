@@ -7,11 +7,7 @@
 
 namespace {
     struct Node {
-        // static constexpr size_t NULL_INDEX = std::numeric_limits<size_t>::max();
         size_t city;
-        // size_t parent = NULL_INDEX;
-        // size_t left = NULL_INDEX;
-        // size_t right = NULL_INDEX;
         Node* parent = nullptr;
         Node* left = nullptr;
         Node* right = nullptr;
