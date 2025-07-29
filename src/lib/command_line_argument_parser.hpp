@@ -52,6 +52,9 @@ namespace mpi {
         template <size_t Index = 0>
         size_t parse_args(size_t argc, char* argv[], size_t index) {
             if constexpr (Index < sizeof...(Args)) {
+                if (index >= argc) {
+                    throw std::runtime_error("Not enough arguments provided for parsing.");
+                }
                 std::string arg = argv[index];
                 std::stringstream ss(arg);
                 if (ss >> std::get<Index>(placeholders)) {
