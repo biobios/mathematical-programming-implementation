@@ -457,14 +457,14 @@ void print_2opt_time() {
 }
 
 
-TwoOpt::TwoOpt(const std::vector<std::vector<int64_t>> &distance_matrix, const std::vector<std::vector<std::pair<int64_t, size_t>>> &nearest_neighbors)
-    : distance_matrix(distance_matrix), nearest_neighbors(nearest_neighbors)
+TwoOpt::TwoOpt(const std::vector<std::vector<int64_t>> &distance_matrix, const std::vector<std::vector<std::pair<int64_t, size_t>>> &nearest_neighbors, size_t near_range)
+    : distance_matrix(distance_matrix), nearest_neighbors(nearest_neighbors), near_range(near_range)
 {
     size_t n = distance_matrix.size();
     near_cities.resize(n);
     
     for (size_t i = 0; i < n; ++i) {
-        for (size_t j = 0; j < n / 20; ++j) {
+        for (size_t j = 0; j < near_range; ++j) {
             auto& [distance, neighbor_index] = nearest_neighbors[i][j];
             near_cities[neighbor_index].push_back(i);
         }
@@ -521,7 +521,7 @@ void TwoOpt::apply(std::vector<size_t>& path, std::mt19937::result_type seed)
                 continue;
             }
 
-            for (size_t i = 0; i < n / 20; ++i) {
+            for (size_t i = 0; i < near_range; ++i) {
                 size_t neighbor_city = nearest_neighbors[current_city][i].second;
                 size_t neighbor_prev_city = get_prev_city(tree, neighbor_city, root);
                 
@@ -546,7 +546,7 @@ void TwoOpt::apply(std::vector<size_t>& path, std::mt19937::result_type seed)
             
             if (improved) break;
 
-            for (size_t i = 0; i < n / 20; ++i) {
+            for (size_t i = 0; i < near_range; ++i) {
                 size_t neighbor_city = nearest_neighbors[current_city][i].second;
                 size_t neighbor_next_city = get_next_city(tree, neighbor_city, root);
                 
