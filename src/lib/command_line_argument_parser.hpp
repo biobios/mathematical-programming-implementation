@@ -50,7 +50,7 @@ namespace mpi {
         }
     private:
         template <size_t Index = 0>
-        size_t parse_args(int argc, char* argv[], size_t index) {
+        size_t parse_args(size_t argc, char* argv[], size_t index) {
             if constexpr (Index < sizeof...(Args)) {
                 std::string arg = argv[index];
                 std::stringstream ss(arg);
