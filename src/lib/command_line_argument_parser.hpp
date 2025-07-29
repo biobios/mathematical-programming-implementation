@@ -15,7 +15,6 @@ namespace mpi {
         virtual size_t parse(size_t argc, char* argv[], size_t start_index) = 0;
         virtual bool matches(const std::string& arg) const = 0;
         virtual void print_help() const = 0;
-    private:
     };
     
     template <typename... Args>
