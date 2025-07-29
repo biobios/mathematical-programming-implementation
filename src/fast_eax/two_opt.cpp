@@ -7,447 +7,428 @@
 
 namespace {
     struct Node {
-        struct NodeVec {
-            std::vector<Node>& nodes;
-            Node& operator[](size_t index) {
-                if (index >= nodes.size()) {
-                    throw std::out_of_range("Index out of range");
-                }
-                return nodes[index];
-            }
-            
-            size_t size() const {
-                return nodes.size();
-            }
-            
-            operator std::vector<Node>&() {
-                return nodes;
-            }
-        };
-        size_t city = std::numeric_limits<size_t>::max();
-        size_t parent = std::numeric_limits<size_t>::max();
-        size_t left = std::numeric_limits<size_t>::max();
-        size_t right = std::numeric_limits<size_t>::max();
+        // static constexpr size_t NULL_INDEX = std::numeric_limits<size_t>::max();
+        size_t city;
+        // size_t parent = NULL_INDEX;
+        // size_t left = NULL_INDEX;
+        // size_t right = NULL_INDEX;
+        Node* parent = nullptr;
+        Node* left = nullptr;
+        Node* right = nullptr;
         bool reversed = false;
 
-        void apply_reverse(std::vector<Node>& tree_, bool parents_is_applied) {
-            NodeVec tree{tree_};
-            if (parent != std::numeric_limits<size_t>::max() && !parents_is_applied) {
-                tree[parent].apply_reverse(tree, false);
-            }
-
-            if (reversed) {
-                std::swap(left, right);
-                if (left != std::numeric_limits<size_t>::max()) {
-                    tree[left].reversed = !tree[left].reversed;
-                }
-                if (right != std::numeric_limits<size_t>::max()) {
-                    tree[right].reversed = !tree[right].reversed;
-                }
-                reversed = false;
-            }
-        }
-        
         bool has_parent() const {
-            return parent != std::numeric_limits<size_t>::max();
+            return parent != nullptr;
         }
         
-        bool is_left_child(std::vector<Node>& tree_, bool parents_is_applied = false) {
-            NodeVec tree{tree_};
-            apply_reverse(tree, parents_is_applied);
-            return has_parent() && tree[parent].left == city;
-        }
-
-        bool is_right_child(std::vector<Node>& tree_, bool parents_is_applied = false) {
-            NodeVec tree{tree_};
-            apply_reverse(tree, parents_is_applied);
-            return has_parent() && tree[parent].right == city;
-        }
-        
-        // 右側に存在する祖先を探す
-        size_t get_right_parent(std::vector<Node>& tree_, bool parents_is_applied = false) {
-            NodeVec tree{tree_};
-            apply_reverse(tree, parents_is_applied);
-            if (!has_parent()) {
-                return std::numeric_limits<size_t>::max(); // 親がいない場合
+        /**
+         * @pre 任意の祖先ancestorについて !ancestor.reversed であること
+         * @post this->!reversed
+         */
+        void apply_reverse_single() {
+            if (reversed) {
+                reversed = false;
+                std::swap(left, right);
+                if (left != nullptr) {
+                    left->reversed = !left->reversed;
+                }
+                if (right != nullptr) {
+                    right->reversed = !right->reversed;
+                }
             }
-            
-            if (is_left_child(tree, true)) {
-                return parent; // 右親は親ノード
-            }
-
-            return tree[parent].get_right_parent(tree, true);
         }
         
-        // 左側に存在する祖先を探す
-        size_t get_left_parent(std::vector<Node>& tree_, bool parents_is_applied = false) {
-            NodeVec tree{tree_};
-            apply_reverse(tree, parents_is_applied);
-            if (!has_parent()) {
-                return std::numeric_limits<size_t>::max(); // 親がいない場合
+        /**
+         * @post path にはこのノードからルートまでのパスが格納される
+         * @param path ノードのポインタを格納するベクター
+         */
+        void path_to_root(std::vector<Node*>& path) {
+            path.clear();
+            Node* current = this;
+            while (current != nullptr) {
+                path.push_back(current);
+                current = current->parent;
             }
-            
-            if (is_right_child(tree, true)) {
-                return parent; // 左親は親ノード
-            }
-
-            return tree[parent].get_left_parent(tree, true);
         }
         
-        // 右隣りのノードを取得
-        size_t get_next(std::vector<Node>& tree_, bool parents_is_applied = false) {
-            NodeVec tree{tree_};
-            apply_reverse(tree, parents_is_applied);
-
-            // 右側に子ノードがある場合はその左端を返す
-            if (right != std::numeric_limits<size_t>::max()) {
-                return tree[right].get_leftmost(tree, true);
+        /**
+         * @post this->!reversed
+         * @post 任意の祖先ancestorについて !ancestor.reversed となる
+         * @post working_memory にはこのノードからルートまでのパスが格納される
+         * @param working_memory ノードのポインタを格納するベクター
+         */
+        void apply_reverse(std::vector<Node*>& working_memory) {
+            path_to_root(working_memory);
+            for (auto it = working_memory.rbegin(); it != working_memory.rend(); ++it) {
+                (*it)->apply_reverse_single();
             }
-            
-            // そうでなければ自身より右側に存在する祖先を探す
-            return tree[city].get_right_parent(tree, true);
-        }
-
-        // 左隣りのノードを取得
-        size_t get_prev(std::vector<Node>& tree_, bool parents_is_applied = false) {
-            NodeVec tree{tree_};
-            apply_reverse(tree, parents_is_applied);
-            
-            // 左側に子ノードがある場合はその右端を返す
-            if (left != std::numeric_limits<size_t>::max()) {
-                return tree[left].get_rightmost(tree, true);
-            }
-            // そうでなければ自身より左側に存在する祖先を探す
-            return tree[city].get_left_parent(tree, true);
         }
         
-        // サブツリーの右端のノードを取得
-        size_t get_rightmost(std::vector<Node>& tree_, bool parents_is_applied = false) {
-            NodeVec tree{tree_};
-            apply_reverse(tree, parents_is_applied);
-            if (right != std::numeric_limits<size_t>::max()) {
-                return tree[right].get_rightmost(tree, true);
-            }
-            
-            return city; // 右端のノードは自身
+        /**
+         * @post this->!reversed
+         * @post 任意の祖先ancestorについて !ancestor.reversed となる
+         */
+        void apply_reverse() {
+            std::vector<Node*> working_memory;
+            apply_reverse(working_memory);
         }
         
-        // サブツリーの左端のノードを取得
-        size_t get_leftmost(std::vector<Node>& tree_, bool parents_is_applied = false) {
-            NodeVec tree{tree_};
-            apply_reverse(tree, parents_is_applied);
-            
-            if (left != std::numeric_limits<size_t>::max()) {
-                return tree[left].get_leftmost(tree, true);
-            }
-            
-            return city; // 左端のノードは自身
+        /**
+         * @pre 任意の祖先ancestorについて !ancestor.reversed であること
+         * @return もし自身が左子ノードならばtrue, そうでなければfalse
+         */
+        bool is_left_child() {
+            return has_parent() && parent->left == this;
         }
         
-        // 回転
-        void rotate(std::vector<Node>& tree_, bool parents_is_applied = false) {
-            NodeVec tree{tree_};
-            apply_reverse(tree, parents_is_applied);
+        /**
+         * @pre 任意の祖先ancestorについて !ancestor.reversed であること
+         * @return もし自身が右子ノードならばtrue, そうでなければfalse
+         */
+        bool is_right_child() {
+            return has_parent() && parent->right == this;
+        }
+        
+        /**
+         * @pre 任意の祖先ancestorについて !ancestor.reversed であること
+         * @return 自身よりも右側に存在する祖先のノードのポインタ
+         */
+        Node* get_right_ancestor() {
+            Node* current = this;
+            while (current->has_parent()) {
+                if (current->is_left_child()) {
+                    return current->parent;
+                }
+                current = current->parent;
+            }
+            return nullptr;
+        }
+        
+        /**
+         * @pre 任意の祖先ancestorについて !ancestor.reversed であること
+         * @return 自身よりも左側に存在する祖先のノードのポインタ
+         */
+        Node* get_left_ancestor() {
+            Node* current = this;
+            while (current->has_parent()) {
+                if (current->is_right_child()) {
+                    return current->parent;
+                }
+                current = current->parent;
+            }
+            return nullptr;
+        }
+        
+        /**
+         * @pre 任意の祖先ancestorについて !ancestor.reversed であること
+         * @pre !this->reversed
+         * @return 右隣りのノードのポインタ
+         */
+        Node* get_next() {
+            if (right != nullptr) {
+                right->apply_reverse_single();
+                return right->get_leftmost();
+            }
+            return get_right_ancestor();
+        }
+        
+        /**
+         * @pre 任意の祖先ancestorについて !ancestor.reversed であること
+         * @pre !this->reversed
+         * @return 左隣りのノードのポインタ
+         */
+        Node* get_prev() {
+            if (left != nullptr) {
+                left->apply_reverse_single();
+                return left->get_rightmost();
+            }
+            return get_left_ancestor();
+        }
+        
+        /**
+         * @pre 任意の祖先ancestorについて !ancestor.reversed であること
+         * @pre !this->reversed
+         * @return 自身の子孫の中で最も左端のノードのポインタ
+         */
+        Node* get_leftmost() {
+            Node* current = this;
+            while (current->left != nullptr) {
+                current = current->left;
+                current->apply_reverse_single();
+            }
+            return current;
+        }
+        
+        /**
+         * @pre 任意の祖先ancestorについて !ancestor.reversed であること
+         * @pre !this->reversed
+         * @return 自身の子孫の中で最も右端のノードのポインタ
+         */
+        Node* get_rightmost() {
+            Node* current = this;
+            while (current->right != nullptr) {
+                current = current->right;
+                current->apply_reverse_single();
+            }
+            return current;
+        }
+        
+        /**
+         * @pre 任意の祖先ancestorについて !ancestor.reversed であること
+         * @pre !this->reversed
+         * @post 親が存在する場合、回転を行う
+         */
+        void rotate() {
             if (!has_parent()) {
                 return; // 親がいない場合は回転できない
             }
-            // if (city == 807 || city == 139 || city == 787 || city == 866) {
-            //     std::cout << "break" << std::endl;
-            // }
-            // if (city >= 1084) {
-            //     exit(1);
-            // }
-            // if (parent == std::numeric_limits<size_t>::max()) {
-            //     std::cerr << "Error: Parent is not set." << std::endl;
-            // }
-            auto& parent_node = tree[parent];
-            if (is_left_child(tree, true)) {
-                // 左子ノードならば右に回転
-                if (right != std::numeric_limits<size_t>::max()) {
-                    auto& right_node = tree[right];
-                    if (parent_node.has_parent()) {
-                        auto& grandparent_node = tree[parent_node.parent];
-                        if (parent_node.is_left_child(tree, true)) {
-                            grandparent_node.left = city;
-                        } else {
-                            grandparent_node.right = city;
-                        }
-                        parent_node.left = right_node.city;
-                        right = parent_node.city;
 
-                        parent = grandparent_node.city;
-                        parent_node.parent = city;
-                        right_node.parent = parent_node.city;
+            auto& parent_node = *parent;
+            if (is_left_child()) {
+                // 左子ノードならば右に回転
+                if (right != nullptr) {
+                    auto& right_node = *right;
+                    if (parent_node.has_parent()) {
+                        auto& grandparent_node = *parent_node.parent;
+                        if (parent_node.is_left_child()) {
+                            grandparent_node.left = this;
+                        } else {
+                            grandparent_node.right = this;
+                        }
+                        parent_node.left = &right_node;
+                        right = &parent_node;
+
+                        parent = &grandparent_node;
+                        parent_node.parent = this;
+                        right_node.parent = &parent_node;
                     } else {
-                        parent_node.left = right_node.city;
-                        right = parent_node.city;
-                        parent = std::numeric_limits<size_t>::max(); // ルートノードになった場合
-                        parent_node.parent = city;
-                        right_node.parent = parent_node.city;
+                        parent_node.left = &right_node;
+                        right = &parent_node;
+                        parent = nullptr; // ルートノードになった場合
+                        parent_node.parent = this;
+                        right_node.parent = &parent_node;
                     }
                 } else {
                     if (parent_node.has_parent()) {
-                        auto& grandparent_node = tree[parent_node.parent];
-                        if (parent_node.is_left_child(tree, true)) {
-                            grandparent_node.left = city;
+                        auto& grandparent_node = *parent_node.parent;
+                        if (parent_node.is_left_child()) {
+                            grandparent_node.left = this;
                         } else {
-                            grandparent_node.right = city;
+                            grandparent_node.right = this;
                         }
-                        parent_node.left = std::numeric_limits<size_t>::max(); // 左子ノード
-                        right = parent_node.city;
-                        parent = grandparent_node.city;
-                        parent_node.parent = city;
+                        parent_node.left = nullptr; // 左子ノード
+                        right = &parent_node;
+                        parent = &grandparent_node;
+                        parent_node.parent = this;
                     } else {
-                        parent_node.left = std::numeric_limits<size_t>::max(); // 左子ノード
-                        right = parent_node.city;
-                        parent = std::numeric_limits<size_t>::max(); // ルートノードになった場合
-                        parent_node.parent = city;
+                        parent_node.left = nullptr; // 左子ノード
+                        right = &parent_node;
+                        parent = nullptr; // ルートノードになった場合
+                        parent_node.parent = this;
                     }
                 }
-                // if (right != std::numeric_limits<size_t>::max()) {
-                //     tree[parent].left = right;
-                //     tree[right].parent = parent;
-                // } else {
-                //     tree[parent].left = std::numeric_limits<size_t>::max(); // 左子ノードがいない場合
-                // }
-                
-                // right = parent;
-                // if (tree[parent].has_parent()) {
-                //     size_t new_parent = tree[parent].parent;
-                //     if (tree[parent].is_left_child(tree, true)) {
-                //         tree[new_parent].left = city;
-                //     } else {
-                //         tree[new_parent].right = city;
-                //     }
-                //     tree[parent].parent = city;
-                //     parent = new_parent;
-                // } else {
-                //     tree[parent].parent = city;
-                //     parent = std::numeric_limits<size_t>::max(); // ルートノードになった場合
-                // }
             } else {
                 // 右子ノードならば左に回転
-                if (left != std::numeric_limits<size_t>::max()) {
-                    auto& left_node = tree[left];
-                    
+                if (left != nullptr) {
+                    auto& left_node = *left;
+
                     if (parent_node.has_parent()) {
-                        auto& grandparent_node = tree[parent_node.parent];
-                        if (parent_node.is_left_child(tree, true)) {
-                            grandparent_node.left = city;
+                        auto& grandparent_node = *parent_node.parent;
+                        if (parent_node.is_left_child()) {
+                            grandparent_node.left = this;
                         } else {
-                            grandparent_node.right = city;
+                            grandparent_node.right = this;
                         }
-                        parent_node.right = left_node.city;
-                        left = parent_node.city;
+                        parent_node.right = &left_node;
+                        left = &parent_node;
 
-                        parent = grandparent_node.city;
-                        parent_node.parent = city;
-                        left_node.parent = parent_node.city;
+                        parent = &grandparent_node;
+                        parent_node.parent = this;
+                        left_node.parent = &parent_node;
                     } else {
-                        parent_node.right = left_node.city;
-                        left = parent_node.city;
-                        parent = std::numeric_limits<size_t>::max(); // ルートノードになった場合
-                        parent_node.parent = city;
-                        left_node.parent = parent_node.city;
+                        parent_node.right = &left_node;
+                        left = &parent_node;
+                        parent = nullptr; // ルートノードになった場合
+                        parent_node.parent = this;
+                        left_node.parent = &parent_node;
                     }
                 } else {
                     if (parent_node.has_parent()) {
-                        auto& grandparent_node = tree[parent_node.parent];
-                        if (parent_node.is_left_child(tree, true)) {
-                            grandparent_node.left = city;
+                        auto& grandparent_node = *parent_node.parent;
+                        if (parent_node.is_left_child()) {
+                            grandparent_node.left = this;
                         } else {
-                            grandparent_node.right = city;
+                            grandparent_node.right = this;
                         }
-                        parent_node.right = std::numeric_limits<size_t>::max(); // 右子ノード
-                        left = parent_node.city;
-                        parent = grandparent_node.city;
-                        parent_node.parent = city;
+                        parent_node.right = nullptr; // 右子ノード
+                        left = &parent_node;
+                        parent = &grandparent_node;
+                        parent_node.parent = this;
                     } else {
-                        parent_node.right = std::numeric_limits<size_t>::max(); // 右子ノード
-                        left = parent_node.city;
-                        parent = std::numeric_limits<size_t>::max(); // ルートノードになった場合
-                        parent_node.parent = city;
+                        parent_node.right = nullptr; // 右子ノード
+                        left = &parent_node;
+                        parent = nullptr; // ルートノードになった場合
+                        parent_node.parent = this;
                     }
                 }
-                // if (right != std::numeric_limits<size_t>::max()) {
-                //     tree[parent].right = left;
-                //     tree[left].parent = parent;
-                // } else {
-                //     tree[parent].right = std::numeric_limits<size_t>::max(); // 右子ノードがいない場合
-                // }
-
-                // left = parent;
-                // if (tree[parent].has_parent()) {
-                //     size_t new_parent = tree[parent].parent;
-                //     if (tree[parent].is_left_child(tree, true)) {
-                //         tree[new_parent].left = city;
-                //     } else {
-                //         tree[new_parent].right = city;
-                //     }
-                //     tree[parent].parent = city;
-                //     parent = new_parent;
-                // } else {
-                //     tree[parent].parent = city;
-                //     parent = std::numeric_limits<size_t>::max(); // ルートノードになった場合
-                // }
-            }
-            // if (has_parent() && (parent == left || parent == right)) {
-            //     std::cerr << "Error: Parent is now a child of this node." << std::endl;
-            //     exit(1);
-            // }
-            // if (parent == std::numeric_limits<size_t>::max()) {
-            //     // ルートノードになった場合は自身をルートに設定
-            //     std::cout << "Node " << city << " is now the root." << std::endl;
-            // }
-        }
-
-        void splay(std::vector<Node>& tree_, bool parents_is_applied = false) {
-            NodeVec tree{tree_};
-            apply_reverse(tree, parents_is_applied);
-            while (has_parent()) {
-                if (!tree[parent].has_parent()) {
-                    rotate(tree, true);
-                } else {
-                    bool is_left = is_left_child(tree, true);
-                    bool parent_is_left = tree[parent].is_left_child(tree, true);
-                    if (is_left == parent_is_left) {
-                        // zig-zig
-                        tree[parent].rotate(tree, true);
-                        rotate(tree, true);
-                    } else {
-                        // zig-zag
-                        rotate(tree, true);
-                        rotate(tree, true);
-                    }
-                }
-            }
-        }
-        
-        // ルートの一つ下までSplayする
-        void splay_subtree(std::vector<Node>& tree_, bool parents_is_applied = false) {
-            NodeVec tree{tree_};
-            apply_reverse(tree, parents_is_applied);
-            while (has_parent() && tree[parent].has_parent()) {
-                if (!tree[tree[parent].parent].has_parent()) {
-                    rotate(tree, true);
-                } else {
-                    bool is_left = is_left_child(tree, true);
-                    bool parent_is_left = tree[parent].is_left_child(tree, true);
-                    if (is_left == parent_is_left) {
-                        // zig-zig
-                        tree[parent].rotate(tree, true);
-                        rotate(tree, true);
-                    } else {
-                        // zig-zag
-                        rotate(tree, true);
-                        rotate(tree, true);
-                    }
-                }
-            }
-        }
-        
-        template <typename Func>
-            requires std::invocable<Func, Node&>
-        void for_each(std::vector<Node>& tree_, Func&& func, bool parents_is_applied = false) {
-            NodeVec tree{tree_};
-            apply_reverse(tree, parents_is_applied);
-            if (left != std::numeric_limits<size_t>::max()) {
-                tree[left].for_each(tree, func, true);
-            }
-            func(*this);
-            if (right != std::numeric_limits<size_t>::max()) {
-                tree[right].for_each(tree, func, true);
             }
         }
     };
     
-    using NodeVec = Node::NodeVec;
-    
-    size_t get_next_city(std::vector<Node>& tree_, size_t current_city, size_t& root) {
-        NodeVec tree{tree_};
-        tree[current_city].splay(tree);
-        root = current_city; // Splayしたノードをルートに設定
-        size_t next_city = tree[current_city].get_next(tree);
-        if (next_city == std::numeric_limits<size_t>::max()) {
-            return tree[root].get_leftmost(tree);
+    class PathTree {
+    public:
+        PathTree(const std::vector<size_t>& path) {
+            size_t n = path.size();
+            nodes.resize(n);
+            for (size_t i = 0; i < n; ++i) {
+                nodes[i].city = i;
+            }
+            auto build_tree = [this, &path](auto& self, size_t begin, size_t mid, size_t end) -> void {
+                size_t mid_city = path[mid];
+                size_t begin_mid = (begin + mid) / 2;
+                size_t mid_end = (mid + end + 1) / 2;
+                if (begin_mid < mid) {
+                    size_t left_child = path[begin_mid];
+                    nodes[mid_city].left = &nodes[left_child];
+                    nodes[left_child].parent = &nodes[mid_city];
+                    self(self, begin, begin_mid, mid);
+                }
+
+                if (mid_end < end) {
+                    size_t right_child = path[mid_end];
+                    nodes[mid_city].right = &nodes[right_child];
+                    nodes[right_child].parent = &nodes[mid_city];
+                    self(self, mid + 1, mid_end, end);
+                }
+            };
+            build_tree(build_tree, 0, n / 2, n);
+            root = path[n / 2];
         }
         
-        return next_city;
-    }
-
-    size_t get_prev_city(std::vector<Node>& tree_, size_t current_city, size_t& root) {
-        NodeVec tree{tree_};
-        tree[current_city].splay(tree);
-        root = current_city; // Splayしたノードをルートに設定
-        size_t prev_city = tree[current_city].get_prev(tree);
-        if (prev_city == std::numeric_limits<size_t>::max()) {
-            return tree[root].get_rightmost(tree);
+        void splay(size_t city) {
+            splay_subtree(city, 0);
+            root = city;
         }
         
-        return prev_city;
-    }
-
-    // a -> b, c -> d のように接続されている
-    void two_opt_swap(std::vector<Node>& tree_, size_t a, size_t b, size_t c, size_t d, size_t& root) {
-        NodeVec tree{tree_};
-        size_t next_a = tree[a].get_next(tree);
-        if (b != next_a) { // b -> ? -> c -> d -> ? -> a 
-                           // a -> b が端の場合
-            tree[d].splay(tree);
-            auto& reverse_range = tree[tree[d].left];
-            reverse_range.reversed = !reverse_range.reversed;
-            root = d;
-            return;
+        // 指定された高さまでSplayする
+        void splay_subtree(size_t city, size_t height) {
+            nodes[city].apply_reverse(working_memory);
+            size_t current_height = working_memory.size() - 1;
+            Node* splay_target = &nodes[city];
+            while (height < current_height) { // 目的の高さよりも高い場合
+                if (current_height == height + 1) { // 祖父母がいない場合(2段上ると目的の高さを超えてしまうとき)
+                    splay_target->rotate();
+                    current_height -= 1;
+                    break;
+                } else {
+                    bool is_left = splay_target->is_left_child();
+                    bool parent_is_left = splay_target->parent->is_left_child();
+                    if (is_left == parent_is_left) {
+                        // zig-zig
+                        splay_target->parent->rotate();
+                        splay_target->rotate();
+                    } else {
+                        // zig-zag
+                        splay_target->rotate();
+                        splay_target->rotate();
+                    }
+                    current_height -= 2;
+                }
+            }
         }
-        size_t next_c = tree[c].get_next(tree);
-        if (d != next_c) { // d -> ? -> a -> b -> ? -> c
-                           // c -> d が端の場合
-            tree[a].splay(tree);
-            auto& reverse_range = tree[tree[a].right];
-            reverse_range.reversed = !reverse_range.reversed;
-            root = a;
-            return;
-        }
-
-        tree[a].splay(tree);
-        tree[d].splay_subtree(tree);
-        root = a;
         
-        if (tree[a].right == d) {
-            // b ~ c の部分を逆順にする
-            auto& reverse_range = tree[tree[d].left];
-            reverse_range.reversed = !reverse_range.reversed;
-        } else {
-            // tree[c].splay(tree);
-            // tree[b].splay_subtree(tree);
-            // // d ~ a の部分を逆順にする
-            // auto& reverse_range = tree[tree[b].left];
-            // reverse_range.reversed = !reverse_range.reversed;
-            // root = c;
-            
-            // ~ c と b ~ の部分を交換して逆順にする
-            auto& a_node = tree[a];
-            auto& d_node = tree[d];
-            auto& b_seg = tree[a_node.right];
-            auto& c_seg = tree[d_node.left];
-
-            a_node.right = c_seg.city;
-            c_seg.parent = a_node.city;
-            
-            d_node.left = b_seg.city;
-            b_seg.parent = d_node.city;
-            
-            c_seg.reversed = !c_seg.reversed;
-            b_seg.reversed = !b_seg.reversed;
-            
-            // if (get_next_city(tree, b, root) != d || get_next_city(tree, a, root) != c) {
-            //     std::cerr << "Error: Two-opt swap failed to maintain connectivity." << std::endl;
-            //     exit(1);
-            // }
+        size_t get_next(size_t city) {
+            splay(city);
+            Node* next_city = nodes[city].get_next();
+            if (next_city == nullptr) {
+                return nodes[root].get_leftmost()->city;
+            }
+            return next_city->city;
         }
-    }
+        
+        size_t get_prev(size_t city) {
+            splay(city);
+            Node* prev_city = nodes[city].get_prev();
+            if (prev_city == nullptr) {
+                return nodes[root].get_rightmost()->city;
+            }
+            return prev_city->city;
+        }
+        
+        void reverse_range(size_t prev_L, size_t next_R) {
+            splay(prev_L);
+            splay_subtree(next_R, 1);
+            auto& prev_L_node = nodes[prev_L];
+            auto& next_R_node = nodes[next_R];
 
-double time_a = 0.0;
+            if (prev_L_node.right == &next_R_node) {
+                // ? - prev_L - L - ? - R - next_R - ? のつながり方のとき
+                // L ~ R の部分を逆順にする
+                auto& reverse_range = *next_R_node.left;
+                reverse_range.reversed = !reverse_range.reversed;
+            } else {
+                if (prev_L_node.right == nullptr) {
+                    // L - ? - R - next_R - ? - prev_L のつながり方の時
+                    // L - ? - R の部分を逆順にする
+                    auto& reverse_range = *next_R_node.left;
+                    reverse_range.reversed = !reverse_range.reversed;
+                } else if (next_R_node.left == nullptr) {
+                    // next_R - ? - prev_L - L - ? - R のつながり方の時
+                    // L - ? - R の部分を逆順にする
+                    auto& reverse_range = *prev_L_node.right;
+                    reverse_range.reversed = !reverse_range.reversed;
+                } else {
+                    // ? - R - next_R - ? - prev_L - L - ? のつながり方の時
+                    // ? - R と L - ? の部分を交換して逆順にする
+                    auto& L_seg = *prev_L_node.right;
+                    auto& R_seg = *next_R_node.left;
+
+                    prev_L_node.right = &R_seg;
+                    R_seg.parent = &prev_L_node;
+                    
+                    next_R_node.left = &L_seg;
+                    L_seg.parent = &next_R_node;
+                    
+                    R_seg.reversed = !R_seg.reversed;
+                    L_seg.reversed = !L_seg.reversed;
+                }
+            }
+        }
+        
+        /**
+         * @pre func は PathTree の状態を変更しないこと
+         */
+        template <typename Func>
+            requires std::invocable<Func, Node&>
+        void for_each(Func&& func) {
+            working_memory.clear();
+            working_memory.push_back(&nodes[root]);
+            while (!working_memory.empty()) {
+                Node* current = working_memory.back();
+                current->apply_reverse_single();
+                if (current->left != nullptr) {
+                    working_memory.push_back(current->left);
+                } else {
+                    do {
+                        if (working_memory.empty())
+                            return;
+                        current = working_memory.back(); // 最初の一回は current == working_memory.back() になる
+                        func(*current);
+                        working_memory.pop_back();
+                    } while (current->right == nullptr);
+                    // 右子ノードが存在しないノードを実行しながら、スタックを戻っていく
+                    working_memory.push_back(current->right);
+                }
+            }
+        }
+        
+    private:
+        std::vector<Node> nodes;
+        std::vector<Node*> working_memory;
+        size_t root;
+    };
+
+    double time_a = 0.0;
 }
 
 namespace eax {
@@ -476,33 +457,8 @@ void TwoOpt::apply(std::vector<size_t>& path, std::mt19937::result_type seed)
     auto start_time = std::chrono::high_resolution_clock::now();
     std::mt19937 rng(seed);
     // 平衡二分木を構築
-    std::vector<Node> tree;
-    size_t n = path.size();
-    tree.resize(n);
-    for (size_t i = 0; i < n; ++i) {
-        tree[i].city = i;
-    }
-    auto build_tree = [](auto& self, std::vector<Node>& tree, const std::vector<size_t>& path, size_t begin, size_t mid, size_t end) -> void{
-        size_t mid_city = path[mid];
-        size_t begin_mid = (begin + mid) / 2;
-        size_t mid_end = (mid + end + 1) / 2;
-        if (begin_mid < mid) {
-            size_t left_child = path[begin_mid];
-            tree[mid_city].left = left_child;
-            tree[left_child].parent = mid_city;
-            self(self, tree, path, begin, begin_mid, mid);
-        }
-
-        if (mid_end < end) {
-            size_t right_child = path[mid_end];
-            tree[mid_city].right = right_child;
-            tree[right_child].parent = mid_city;
-            self(self, tree, path, mid + 1, mid_end, end);
-        }
-    };
-    
-    size_t root = path[n / 2];
-    build_tree(build_tree, tree, path, 0, n / 2, n);
+    const size_t n = path.size();
+    PathTree tree(path);
 
     std::vector<uint8_t> is_active(n, true);
     
@@ -511,10 +467,10 @@ void TwoOpt::apply(std::vector<size_t>& path, std::mt19937::result_type seed)
     while (improved) {
         improved = false;
         size_t start = dist(rng);
-        size_t prev_city = get_prev_city(tree, start, root);
+        size_t prev_city = tree.get_prev(start);
         size_t current_city = start;
         do {
-            size_t next_city = get_next_city(tree, current_city, root);
+            size_t next_city = tree.get_next(current_city);
             if (!is_active[current_city]) {
                 prev_city = current_city;
                 current_city = next_city;
@@ -523,14 +479,14 @@ void TwoOpt::apply(std::vector<size_t>& path, std::mt19937::result_type seed)
 
             for (size_t i = 0; i < near_range; ++i) {
                 size_t neighbor_city = nearest_neighbors[current_city][i].second;
-                size_t neighbor_prev_city = get_prev_city(tree, neighbor_city, root);
+                size_t neighbor_prev_city = tree.get_prev(neighbor_city);
                 
                 int64_t length_diff = distance_matrix[current_city][prev_city] - distance_matrix[current_city][neighbor_city];
                 if (length_diff > 0) {
                     length_diff += distance_matrix[neighbor_city][neighbor_prev_city] - distance_matrix[prev_city][neighbor_prev_city];
                     if (length_diff > 0) {
                         // 2-optスワップする
-                        two_opt_swap(tree, prev_city, current_city, neighbor_prev_city, neighbor_city, root);
+                        tree.reverse_range(prev_city, neighbor_city);
                         std::array<size_t, 4> swap_cities = {prev_city, current_city, neighbor_prev_city, neighbor_city};
 
                         for (size_t city : swap_cities) {
@@ -548,14 +504,14 @@ void TwoOpt::apply(std::vector<size_t>& path, std::mt19937::result_type seed)
 
             for (size_t i = 0; i < near_range; ++i) {
                 size_t neighbor_city = nearest_neighbors[current_city][i].second;
-                size_t neighbor_next_city = get_next_city(tree, neighbor_city, root);
+                size_t neighbor_next_city = tree.get_next(neighbor_city);
                 
                 int64_t length_diff = distance_matrix[current_city][next_city] - distance_matrix[current_city][neighbor_city];
                 if (length_diff > 0) {
                     length_diff += distance_matrix[neighbor_city][neighbor_next_city] - distance_matrix[next_city][neighbor_next_city];
                     if (length_diff > 0) {
                         // 2-optスワップする
-                        two_opt_swap(tree, current_city, next_city, neighbor_city, neighbor_next_city, root);
+                        tree.reverse_range(current_city, neighbor_next_city);
                         std::array<size_t, 4> swap_cities = {current_city, next_city, neighbor_city, neighbor_next_city};
                         for (size_t city : swap_cities) {
                             for (auto neighbor : near_cities[city]) {
@@ -580,16 +536,11 @@ void TwoOpt::apply(std::vector<size_t>& path, std::mt19937::result_type seed)
 
     // 最後に木を走査してパスを更新
     path.clear();
-    tree[root].for_each(tree, [&path](Node& node) {
+    tree.for_each([&path](Node& node) {
         path.push_back(node.city);
     });
-    int64_t total_distance = 0;
-    for (size_t i = 0; i < path.size(); ++i) {
-        size_t next_index = (i + 1) % path.size();
-        total_distance += distance_matrix[path[i]][path[next_index]];
-    }
-    
+
     auto end_time = std::chrono::high_resolution_clock::now();
-    time_a = std::chrono::duration<double>(end_time - start_time).count();
+    time_a += std::chrono::duration<double>(end_time - start_time).count();
 }
 }
