@@ -22,6 +22,7 @@
 #include "individual.hpp"
 #include "generational_model.hpp"
 #include "environment.hpp"
+#include "two_opt.hpp"
 #include <time.h>
 
 std::array<double, 2> eax::Child::calc_times;
@@ -285,12 +286,15 @@ int main(int argc, char* argv[])
         cerr << "Population size must be specified with --ps option." << endl;
         return 1;
     }
+    // 2opt
+    eax::TwoOpt two_opt(tsp.adjacency_matrix, tsp.NN_list);
     // 初期集団生成器
     tsp::PopulationInitializer population_initializer(population_size, tsp.city_count, 
-    [&tsp](vector<size_t>& individual) {
+    [&two_opt](vector<size_t>& individual, std::mt19937::result_type seed) {
         // 2-opt法を適用
         // apply_2opt(individual, tsp.adjacency_matrix);
-        apply_neighbor_2opt(individual, tsp);
+        // apply_neighbor_2opt(individual, tsp);
+        two_opt.apply(individual, seed);
     });
     
     using Individual = eax::Individual;
@@ -480,5 +484,6 @@ int main(int argc, char* argv[])
 
     eax::print_time();
     eax::Child::print_times();
+    eax::print_2opt_time();
     return 0;
 }

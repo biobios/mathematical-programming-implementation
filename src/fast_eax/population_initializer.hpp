@@ -10,8 +10,8 @@
 
 namespace tsp {
     template <std::uniform_random_bit_generator RandomGen = std::mt19937, typename PostProcessFunc = mpi::NOP_Function>
-    requires requires(PostProcessFunc post_process, std::vector<size_t> individual) {
-        { post_process(individual) } -> std::convertible_to<void>;
+    requires requires(PostProcessFunc post_process, std::vector<size_t> individual, RandomGen::result_type seed) {
+        post_process(individual, seed);
     }
     class PopulationInitializer {
         public:
@@ -46,7 +46,7 @@ namespace tsp {
                     std::vector<size_t> cities(city_count_);
                     std::iota(cities.begin(), cities.end(), 0);
                     std::shuffle(cities.begin(), cities.end(), rng);
-                    post_process_(cities);
+                    post_process_(cities, rng());
                     population.emplace_back(std::move(cities));
                 }
                 
