@@ -1,67 +1,53 @@
-LIB_SRCS=$(wildcard src/lib/*.cpp)
-LIB_OBJS=$(patsubst src/lib/%.cpp, temp/lib/%.o, $(LIB_SRCS))
-DEBUG_LIB_OBJS=$(patsubst src/lib/%.cpp, temp/debug/lib/%.o, $(LIB_SRCS))
-PROF_LIB_OBJS=$(patsubst src/lib/%.cpp, temp/prof/lib/%.o, $(LIB_SRCS))
+PROJECTS:=$(patsubst src/%, %, $(wildcard src/*))
+APP_PROJECTS:=$(filter-out lib%, $(PROJECTS))
+LIB_PROJECTS:=$(filter lib%, $(PROJECTS))
 
-PROJECTS:=$(patsubst src/%, %, $(filter-out src/lib, $(wildcard src/*)))
-TARGETS:=$(addprefix bin/, $(PROJECTS))
-DEBUG_TARGETS:=$(addprefix bin/debug/, $(PROJECTS))
-PROF_TARGETS:=$(addprefix bin/prof/, $(PROJECTS))
+APP_TARGETS:=$(addprefix bin/, $(APP_PROJECTS))
+DEBUG_APP_TARGETS:=$(addprefix bin/debug/, $(APP_PROJECTS))
+PROF_APP_TARGETS:=$(addprefix bin/prof/, $(APP_PROJECTS))
+
+LIB_TARGETS:=$(patsubst %, bin/%.a, $(LIB_PROJECTS))
+DEBUG_LIB_TARGETS:=$(patsubst %, bin/debug/%.a, $(LIB_PROJECTS))
+PROF_LIB_TARGETS:=$(patsubst %, bin/prof/%.a, $(LIB_PROJECTS))
+
+MAKEFILE_TEMPLATE_FOR_APP=makefiles/Makefile_app.mk
+MAKEFILE_TEMPLATE_FOR_LIB=makefiles/Makefile_lib.mk
 
 export ROOT_DIR=$(shell pwd)
-export LIB_NAME=mpilib
-export CXXFLAGS=-I$(ROOT_DIR)/src/lib -std=c++23 -O3 -Wall -Wextra -pedantic -mtune=native -march=native
+export CXXFLAGS=-std=c++23 -O3 -Wall -Wextra -pedantic -mtune=native -march=native
 
-all: $(TARGETS)
+all: $(APP_TARGETS) $(LIB_TARGETS)
 
-$(TARGETS): bin/%: src/%/Makefile
-	@$(MAKE) -C src/$*/
+$(APP_TARGETS): bin/%: src/%/Makefile
+	@$(MAKE) -C src/$*/ build
 
-$(DEBUG_TARGETS): bin/debug/%: src/%/Makefile
+$(DEBUG_APP_TARGETS): bin/debug/%: src/%/Makefile
 	@$(MAKE) -C src/$*/ debug_build
 
-$(PROF_TARGETS): bin/prof/%: src/%/Makefile
+$(PROF_APP_TARGETS): bin/prof/%: src/%/Makefile
+	@$(MAKE) -C src/$*/ prof_build
+
+$(LIB_TARGETS): bin/%.a: src/%/Makefile
+	@$(MAKE) -C src/$*/ build
+
+$(DEBUG_LIB_TARGETS): bin/debug/%.a: src/%/Makefile
+	@$(MAKE) -C src/$*/ debug_build
+
+$(PROF_LIB_TARGETS): bin/prof/%.a: src/%/Makefile
 	@$(MAKE) -C src/$*/ prof_build
 
 setup: $(patsubst %, src/%/Makefile, $(PROJECTS))
 
-$(patsubst %, src/%/Makefile, $(PROJECTS)): src/%/Makefile: Makefile_template
+$(patsubst %, src/%/Makefile, $(APP_PROJECTS)): src/%/Makefile: $(MAKEFILE_TEMPLATE_FOR_APP)
 	@cp $< $@
 
-debug:
-	@echo TARGETS: $(TARGETS)
-	@echo LIBS: $(LIBS)
-	@echo PROJECTS: $(PROJECTS)
-	@echo ROOT_DIR: $(ROOT_DIR)
+$(patsubst %, src/%/Makefile, $(LIB_PROJECTS)): src/%/Makefile: $(MAKEFILE_TEMPLATE_FOR_LIB)
+	@cp $< $@
 
-bin/lib$(LIB_NAME).a: $(LIB_OBJS)
-	@mkdir -p $(dir $@)
-	@ar rcs $@ $(LIB_OBJS)
-
-bin/debug/lib$(LIB_NAME).a: $(DEBUG_LIB_OBJS)
-	@mkdir -p $(dir $@)
-	@ar rcs $@ $(DEBUG_LIB_OBJS)
-
-bin/prof/lib$(LIB_NAME).a: $(PROF_LIB_OBJS)
-	@mkdir -p $(dir $@)
-	@ar rcs $@ $(PROF_LIB_OBJS)
-
-$(LIB_OBJS): temp/lib/%.o: src/lib/%.cpp
-	@mkdir -p $(dir $@)
-	@$(CXX) -c $< -o $@ $(CXXFLAGS)
-
-$(DEBUG_LIB_OBJS): temp/debug/lib/%.o: src/lib/%.cpp
-	@mkdir -p $(dir $@)
-	@$(CXX) -c $< -o $@ $(CXXFLAGS) -g
-
-$(PROF_LIB_OBJS): temp/prof/lib/%.o: src/lib/%.cpp
-	@mkdir -p $(dir $@)
-	@$(CXX) -c $< -o $@ $(CXXFLAGS) -pg
-
-$(addprefix run/, $(PROJECTS)): run/%: src/%/Makefile
+$(addprefix run/, $(APP_PROJECTS)): run/%: src/%/Makefile
 	@$(MAKE) -C src/$*/ run
 
-$(addprefix prof_run/, $(PROJECTS)): prof_run/%: src/%/Makefile
+$(addprefix prof_run/, $(APP_PROJECTS)): prof_run/%: src/%/Makefile
 	@$(MAKE) -C src/$*/ prof_run
 
 clean:
@@ -70,4 +56,4 @@ clean:
 	@rm -rf debug
 	@rm -f src/*/Makefile
 
-.PHONY: all clean setup debug $(TARGETS) $(addprefix run/, $(PROJECTS)) $(DEBUG_TARGETS) $(PROF_TARGETS)
+.PHONY: all clean setup $(addprefix run/, $(APP_PROJECTS)) $(addprefix prof_run/, $(APP_PROJECTS)) $(APP_TARGETS) $(DEBUG_APP_TARGETS) $(PROF_APP_TARGETS) $(LIB_TARGETS) $(DEBUG_LIB_TARGETS) $(PROF_LIB_TARGETS)
