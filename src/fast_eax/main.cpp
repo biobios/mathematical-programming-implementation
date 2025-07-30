@@ -23,6 +23,7 @@
 #include "generational_model.hpp"
 #include "environment.hpp"
 #include "two_opt.hpp"
+#include "command_line_argument_parser.hpp"
 #include <time.h>
 
 std::array<double, 2> eax::Child::calc_times;
@@ -144,77 +145,63 @@ int main(int argc, char* argv[])
 {
     using namespace std;
     // TSPファイルの読み込み
-    string file_name = "att532.tsp";
+    string file_name;
     // seed値
     mt19937::result_type seed = mt19937::default_seed;
     // 試行回数
     size_t trials = 1;
-    // 世代数
-    size_t generations = 300;
     // 集団サイズ
     size_t population_size = 0;
-    for (int64_t i = 1; i < argc; ++i) {
-        if (string(argv[i]) == "--file" && i + 1 < argc) {
-            // TSPファイル名を指定する
-            file_name = argv[++i];
-        } else if (string(argv[i]) == "--ps" && i + 1 < argc) {
-            // 集団サイズを指定する
-            try {
-                population_size = stoul(argv[++i]);
-                if (population_size == 0) {
-                    throw invalid_argument("Population size must be greater than 0.");
-                }
-            } catch (const invalid_argument& e) {
-                cerr << "Invalid population size: " << argv[i] << endl;
-                return 1;
-            } catch (const out_of_range& e) {
-                cerr << "Population size out of range: " << argv[i] << endl;
-                return 1;
-            }
-        } else if (string(argv[i]) == "--trials" && i + 1 < argc) {
-            // 試行回数を指定する
-            try {
-                trials = stoul(argv[++i]);
-                if (trials == 0) {
-                    throw invalid_argument("Number of trials must be greater than 0.");
-                }
-            } catch (const invalid_argument& e) {
-                cerr << "Invalid number of trials: " << argv[i] << endl;
-                return 1;
-            } catch (const out_of_range& e) {
-                cerr << "Number of trials out of range: " << argv[i] << endl;
-                return 1;
-            }
-        } else if (string(argv[i]) == "--generations" && i + 1 < argc) {
-            // 世代数を指定する
-            try {
-                size_t generations_input = stoul(argv[++i]);
-                if (generations_input == 0) {
-                    throw invalid_argument("Number of generations must be greater than 0.");
-                }
-            } catch (const invalid_argument& e) {
-                cerr << "Invalid number of generations: " << argv[i] << endl;
-                return 1;
-            } catch (const out_of_range& e) {
-                cerr << "Number of generations out of range: " << argv[i] << endl;
+    
+    // コマンドライン引数の解析
+    mpi::CommandLineArgumentParser parser;
+    
+    mpi::ArgumentSpec file_spec(file_name);
+    file_spec.add_argument_name("--file");
+    file_spec.set_description("--file <filename> \t:TSP file name to load.");
+    parser.add_argument(file_spec);
+
+    mpi::ArgumentSpec ps_spec(population_size);
+    ps_spec.add_argument_name("--ps");
+    ps_spec.add_argument_name("--population-size");
+    ps_spec.set_description("--ps <size> \t\t:Population size for the genetic algorithm.");
+    parser.add_argument(ps_spec);
+    
+    mpi::ArgumentSpec trials_spec(trials);
+    trials_spec.add_argument_name("--trials");
+    trials_spec.set_description("--trials <number> \t:Number of trials to run.");
+    parser.add_argument(trials_spec);
+    
+    mpi::ArgumentSpec seed_spec(seed);
+    seed_spec.add_argument_name("--seed");
+    seed_spec.set_description("--seed <value> \t\t:Seed value for random number generation.");
+    parser.add_argument(seed_spec);
+    
+    bool help_requested = false;
+    mpi::ArgumentSpec help_spec(help_requested);
+    help_spec.add_set_argument_name("--help");
+    help_spec.set_description("--help \t\t\t:Show this help message.");
+    parser.add_argument(help_spec);
+    
+    parser.parse(argc, argv);
+    
+    if (help_requested) {
+        parser.print_help();
+        return 0;
+    }
+    
+    if (file_name.empty()) {
+        cerr << "Error: TSP file name is required." << endl;
+        cerr << "--file <filename> to specify the TSP file." << endl;
                 return 1;
             }
-        } else if (string(argv[i]) == "--seed" && i + 1 < argc) {
-            // 乱数生成器のシード値を指定する
-            try {
-                seed = stoul(argv[++i]);
-            } catch (const invalid_argument& e) {
-                cerr << "Invalid seed value: " << argv[i] << endl;
-                return 1;
-            } catch (const out_of_range& e) {
-                cerr << "Seed value out of range: " << argv[i] << endl;
-                return 1;
-            }
-        } else {
-            cerr << "Unknown option: " << argv[i] << endl;
+    
+    if (population_size == 0) {
+        cerr << "Error: Population size must be greater than 0." << endl;
+        cerr << "--ps <size> to specify the population size." << endl;
             return 1;
         }
-    }
+
     tsp::TSP tsp = tsp::TSP_Loader::load_tsp(file_name);
     cout << "TSP Name: " << tsp.name << endl;
     cout << "Distance Type: " << tsp.distance_type << endl;
@@ -223,14 +210,6 @@ int main(int argc, char* argv[])
     // 乱数成器(グローバル)
     mt19937 rng(seed);
     
-    if (tsp.name == "att532" && population_size == 0) {
-        population_size = 250;
-    } else if(tsp.name == "rat575" && population_size == 0) {
-        population_size = 300;
-    } else if(population_size == 0) {
-        cerr << "Population size must be specified with --ps option." << endl;
-        return 1;
-    }
     // 2opt
     eax::TwoOpt two_opt(tsp.adjacency_matrix, tsp.NN_list);
     // 初期集団生成器
