@@ -193,14 +193,14 @@ int main(int argc, char* argv[])
     if (file_name.empty()) {
         cerr << "Error: TSP file name is required." << endl;
         cerr << "--file <filename> to specify the TSP file." << endl;
-                return 1;
-            }
+        return 1;
+    }
     
     if (population_size == 0) {
         cerr << "Error: Population size must be greater than 0." << endl;
         cerr << "--ps <size> to specify the population size." << endl;
-            return 1;
-        }
+        return 1;
+    }
 
     tsp::TSP tsp = tsp::TSP_Loader::load_tsp(file_name);
     cout << "TSP Name: " << tsp.name << endl;
@@ -221,8 +221,10 @@ int main(int argc, char* argv[])
     
     using Individual = eax::Individual;
     
-    // 1試行にかかった時間
+    // 1試行にかかった実時間
     vector<double> trial_times(trials, 0.0);
+    // 1試行にかかったCPU時間
+    vector<double> trial_cpu_times(trials, 0.0);
     // 各試行のベストの経路長
     vector<double> best_path_lengths(trials, 0.0);
     // 各試行のベストに到達した最初の世代
@@ -263,7 +265,6 @@ int main(int argc, char* argv[])
                 }
                 
                 double best_length = *std::min_element(lengths.begin(), lengths.end());
-                double worst_length = *std::max_element(lengths.begin(), lengths.end());
                 
                 if (best_length < this->best_length) {
                     this->best_length = best_length;
@@ -303,9 +304,10 @@ int main(int argc, char* argv[])
                     lengths[i] = population[i].get_distance();
                 }
                 double best_length = *std::min_element(lengths.begin(), lengths.end());
+                double average_length = std::accumulate(lengths.begin(), lengths.end(), 0.0) / lengths.size();
                 double worst_length = *std::max_element(lengths.begin(), lengths.end());
                 cout << "Generation " << generation << ": Best Length = " << best_length 
-                     << ", Worst Length = " << worst_length << endl;
+                     << ", Average Length = " << average_length << ", Worst Length = " << worst_length << endl;
                 if (best_length < this->best_length) {
                     this->best_length = best_length;
                     generation_of_reached_best = generation;
@@ -352,7 +354,8 @@ int main(int argc, char* argv[])
 
         auto end_clock = clock();
         auto end_time = chrono::high_resolution_clock::now();
-        trial_times[trial] = static_cast<double>(end_clock - start_clock) / CLOCKS_PER_SEC;
+        trial_times[trial] = chrono::duration<double>(end_time - start_time).count();
+        trial_cpu_times[trial] = static_cast<double>(end_clock - start_clock) / CLOCKS_PER_SEC;
         
         best_path_lengths[trial] = logging.best_length;
         generation_of_best[trial] = logging.generation_of_reached_best;
@@ -386,6 +389,18 @@ int main(int argc, char* argv[])
     
     double average_trial_time = sum_trial_times / trials;
     cout << "Average trial time: " << average_trial_time << " seconds" << endl;
+
+    // 各試行のCPU時間を出力
+    cout << "Trial CPU times (seconds): ";
+    double sum_trial_cpu_times = 0;
+    for (const auto& cpu_time : trial_cpu_times) {
+        sum_trial_cpu_times += cpu_time;
+        cout << cpu_time << " ";
+    }
+    cout << endl;
+    
+    double average_trial_cpu_time = sum_trial_cpu_times / trials;
+    cout << "Average trial CPU time: " << average_trial_cpu_time << " seconds" << endl;
 
     eax::print_time();
     eax::Child::print_times();
