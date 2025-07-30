@@ -73,6 +73,10 @@ int main(int argc, char* argv[])
     size_t population_size = 0;
     // 2-optの種類
     bool use_neighbor_2opt = true; // trueならば近傍2-opt, falseならばグローバル2-optを使用
+    // EAXの種類
+    bool use_local_eax = true; // trueならば局所EAX, falseならばグローバルEAXを使用
+    // 評価関数の種類
+    bool use_greedy_selection = false; // trueならば貪欲選択, falseならばエントロピー選択を使用
     
     // コマンドライン引数の解析
     mpi::CommandLineArgumentParser parser;
@@ -106,6 +110,24 @@ int main(int argc, char* argv[])
     two_opt_spec.set_description("--neighbor-2opt \t:Use neighbor 2-opt (default)."
                                  "\n--global-2opt \t\t:Use global 2-opt.");
     parser.add_argument(two_opt_spec);
+    
+    mpi::ArgumentSpec eax_spec(use_local_eax);
+    eax_spec.add_set_argument_name("--local-eax");
+    eax_spec.add_set_argument_name("--no-global-eax");
+    eax_spec.add_unset_argument_name("--global-eax");
+    eax_spec.add_unset_argument_name("--no-local-eax");
+    eax_spec.set_description("--local-eax \t\t:Use local EAX (default)."
+                             "\n--global-eax \t\t:Use global EAX.");
+    parser.add_argument(eax_spec);
+
+    mpi::ArgumentSpec selection_spec(use_greedy_selection);
+    selection_spec.add_set_argument_name("--greedy-selection");
+    selection_spec.add_set_argument_name("--no-ent-selection");
+    selection_spec.add_unset_argument_name("--ent-selection");
+    selection_spec.add_unset_argument_name("--no-greedy-selection");
+    selection_spec.set_description("--greedy-selection \t:Use greedy selection (default)."
+                                    "\n--ent-selection \t:Use entropy selection.");
+    parser.add_argument(selection_spec);
     
     bool help_requested = false;
     mpi::ArgumentSpec help_spec(help_requested);
@@ -188,18 +210,53 @@ int main(int argc, char* argv[])
             size_t generation_of_reached_best = 0;
             size_t generation_of_change_to_5AB = 0;
             size_t G_devided_by_10 = 0;
+            eax::EAXType eax_type;
+            eax::SelectionType selection_type;
 
             bool operator()(vector<Individual>& population, Env& env, size_t generation) {
+                if (selection_type == eax::SelectionType::Greedy) {
+                    update_greedy(population, env);
+                } else {
+                    update_entropy(population, env);
+                }
+
+                if (eax_type == eax::EAXType::Rand) {
+                    return continue_condition_global(population);
+                } else {
+                    return continue_condition_local(population, env, generation);
+                }
+            }
+            
+            void update_greedy(vector<Individual>& population, Env& env) {
+                for (auto& individual : population) {
+                    individual.update(env.tsp.adjacency_matrix);
+                }
+            }
+            
+            void update_entropy(vector<Individual>& population, Env& env) {
                 for (auto& individual : population) {
                     individual.update(env.tsp.adjacency_matrix).update_edge_counts(env.pop_edge_counts);
                 }
-
-                std::vector<double> lengths(population.size());
-                for (size_t i = 0; i < population.size(); ++i) {
-                    lengths[i] = population[i].get_distance();
+            }
+            
+            bool continue_condition_global(const vector<Individual>& population) {
+                double best_length = std::numeric_limits<double>::max();
+                double average_length = 0.0;
+                for (const auto& individual : population) {
+                    double length = individual.get_distance();
+                    best_length = std::min(best_length, length);
+                    average_length += length;
                 }
-                
-                double best_length = *std::min_element(lengths.begin(), lengths.end());
+                average_length /= population.size();
+                return (average_length - best_length) > 0.1;
+            }
+
+            bool continue_condition_local(const vector<Individual>& population, Env& env, size_t generation) {
+                double best_length = std::numeric_limits<double>::max();
+                for (size_t i = 0; i < population.size(); ++i) {
+                    double length = population[i].get_distance();
+                    best_length = std::min(best_length, length);
+                }
                 
                 if (best_length < this->best_length) {
                     this->best_length = best_length;
@@ -225,8 +282,10 @@ int main(int argc, char* argv[])
                 
                 return true;
             }
-            
-        } update_func;
+        } update_func {
+            .eax_type = use_local_eax ? eax::EAXType::N_AB : eax::EAXType::Rand,
+            .selection_type = use_greedy_selection ? eax::SelectionType::Greedy : eax::SelectionType::Ent
+        };
         
         // ロガー
         struct {
@@ -255,8 +314,6 @@ int main(int argc, char* argv[])
             switch (env.selection_type) {
                 case eax::SelectionType::Greedy:
                     return eval_greedy(child, env);
-                case eax::SelectionType::LDL:
-                    return eval_ent(child, env);
                 case eax::SelectionType::Ent:
                     return eval_ent(child, env);
                 default:
@@ -272,9 +329,16 @@ int main(int argc, char* argv[])
         tsp_env.tsp = tsp;
         tsp_env.population_size = population_size;
         tsp_env.N_parameter = 1;
-        tsp_env.eax_type = eax::EAXType::N_AB;
-        // tsp_env.selection_type = eax::SelectionType::Greedy;
-        tsp_env.selection_type = eax::SelectionType::Ent;
+        if (use_local_eax) {
+            tsp_env.eax_type = eax::EAXType::N_AB;
+        } else {
+            tsp_env.eax_type = eax::EAXType::Rand;
+        }
+        if (use_greedy_selection) {
+            tsp_env.selection_type = eax::SelectionType::Greedy;
+        } else {
+            tsp_env.selection_type = eax::SelectionType::Ent;
+        }
         tsp_env.set_initial_edge_counts(population);
         
         cout << "Starting genetic algorithm..." << endl;
