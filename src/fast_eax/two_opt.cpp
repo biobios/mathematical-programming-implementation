@@ -425,6 +425,174 @@ namespace {
     };
 
     double time_a = 0.0;
+    
+    void apply_neighbor_2opt(
+        std::vector<size_t>& path,
+        const std::vector<std::vector<int64_t>>& distance_matrix,
+        const std::vector<std::vector<std::pair<int64_t, size_t>>>& nearest_neighbors,
+        const std::vector<std::vector<size_t>>& near_cities,
+        size_t near_range,
+        std::mt19937::result_type seed
+    ){
+        std::mt19937 rng(seed);
+        // 平衡二分木を構築
+        const size_t n = path.size();
+        PathTree tree(path);
+
+        std::vector<uint8_t> is_active(n, true);
+        
+        std::uniform_int_distribution<size_t> dist(0, n - 1);
+        bool improved = true;
+        while (improved) {
+            improved = false;
+            size_t start = dist(rng);
+            size_t prev_city = tree.get_prev(start);
+            size_t current_city = start;
+            do {
+                size_t next_city = tree.get_next(current_city);
+                if (!is_active[current_city]) {
+                    prev_city = current_city;
+                    current_city = next_city;
+                    continue;
+                }
+
+                for (size_t i = 0; i < near_range; ++i) {
+                    size_t neighbor_city = nearest_neighbors[current_city][i].second;
+                    size_t neighbor_prev_city = tree.get_prev(neighbor_city);
+                    
+                    int64_t length_diff = distance_matrix[current_city][prev_city] - distance_matrix[current_city][neighbor_city];
+                    if (length_diff > 0) {
+                        length_diff += distance_matrix[neighbor_city][neighbor_prev_city] - distance_matrix[prev_city][neighbor_prev_city];
+                        if (length_diff > 0) {
+                            // 2-optスワップする
+                            tree.reverse_range(prev_city, neighbor_city);
+                            std::array<size_t, 4> swap_cities = {prev_city, current_city, neighbor_prev_city, neighbor_city};
+
+                            for (size_t city : swap_cities) {
+                                for (auto neighbor : near_cities[city]) {
+                                    is_active[neighbor] = true;
+                                }
+                            }
+                            improved = true;
+                            break;
+                        }
+                    } else break;
+                }
+                
+                if (improved) break;
+
+                for (size_t i = 0; i < near_range; ++i) {
+                    size_t neighbor_city = nearest_neighbors[current_city][i].second;
+                    size_t neighbor_next_city = tree.get_next(neighbor_city);
+                    
+                    int64_t length_diff = distance_matrix[current_city][next_city] - distance_matrix[current_city][neighbor_city];
+                    if (length_diff > 0) {
+                        length_diff += distance_matrix[neighbor_city][neighbor_next_city] - distance_matrix[next_city][neighbor_next_city];
+                        if (length_diff > 0) {
+                            // 2-optスワップする
+                            tree.reverse_range(current_city, neighbor_next_city);
+                            std::array<size_t, 4> swap_cities = {current_city, next_city, neighbor_city, neighbor_next_city};
+                            for (size_t city : swap_cities) {
+                                for (auto neighbor : near_cities[city]) {
+                                    is_active[neighbor] = true;
+                                }
+                            }
+                            improved = true;
+                            break;
+                        }
+                    } else break;
+                }
+                
+                if (improved) break;
+                
+                is_active[current_city] = false;
+                
+                prev_city = current_city;
+                current_city = next_city;
+
+            } while (current_city != start);
+        }
+
+        // 最後に木を走査してパスを更新
+        path.clear();
+        tree.for_each([&path](Node& node) {
+            path.push_back(node.city);
+        });
+        
+    }
+    
+    void apply_global_2opt(
+        std::vector<size_t>& path,
+        const std::vector<std::vector<int64_t>>& distance_matrix,
+        const std::vector<std::vector<std::pair<int64_t, size_t>>>& nearest_neighbors,
+        std::mt19937::result_type seed
+    ) {
+        std::mt19937 rng(seed);
+        // 平衡二分木を構築
+        const size_t n = path.size();
+        const size_t NN_list_size = nearest_neighbors[0].size();
+        PathTree tree(path);
+        
+        std::uniform_int_distribution<size_t> dist(0, n - 1);
+        bool improved = true;
+        while (improved) {
+            improved = false;
+            size_t start = dist(rng);
+            size_t prev_city = tree.get_prev(start);
+            size_t current_city = start;
+            do {
+                for (size_t i = 0; i < NN_list_size; ++i) {
+                    size_t neighbor_city = nearest_neighbors[current_city][i].second;
+                    size_t neighbor_prev_city = tree.get_prev(neighbor_city);
+                    
+                    int64_t length_diff = distance_matrix[current_city][prev_city] - distance_matrix[current_city][neighbor_city];
+                    if (length_diff > 0) {
+                        length_diff += distance_matrix[neighbor_city][neighbor_prev_city] - distance_matrix[prev_city][neighbor_prev_city];
+                        if (length_diff > 0) {
+                            // 2-optスワップする
+                            tree.reverse_range(prev_city, neighbor_city);
+
+                            improved = true;
+                            break;
+                        }
+                    } else break;
+                }
+                
+                if (improved) break;
+                size_t next_city = tree.get_next(current_city);
+
+                for (size_t i = 0; i < NN_list_size; ++i) {
+                    size_t neighbor_city = nearest_neighbors[current_city][i].second;
+                    size_t neighbor_next_city = tree.get_next(neighbor_city);
+                    
+                    int64_t length_diff = distance_matrix[current_city][next_city] - distance_matrix[current_city][neighbor_city];
+                    if (length_diff > 0) {
+                        length_diff += distance_matrix[neighbor_city][neighbor_next_city] - distance_matrix[next_city][neighbor_next_city];
+                        if (length_diff > 0) {
+                            // 2-optスワップする
+                            tree.reverse_range(current_city, neighbor_next_city);
+
+                            improved = true;
+                            break;
+                        }
+                    } else break;
+                }
+                
+                if (improved) break;
+                
+                prev_city = current_city;
+                current_city = next_city;
+
+            } while (current_city != start);
+        }
+
+        // 最後に木を走査してパスを更新
+        path.clear();
+        tree.for_each([&path](Node& node) {
+            path.push_back(node.city);
+        });
+        
+    }
 }
 
 namespace eax {
@@ -433,13 +601,15 @@ void print_2opt_time() {
     std::cout << "Time: " << time_a << " seconds" << std::endl;
 }
 
-
 TwoOpt::TwoOpt(const std::vector<std::vector<int64_t>> &distance_matrix, const std::vector<std::vector<std::pair<int64_t, size_t>>> &nearest_neighbors, size_t near_range)
-    : distance_matrix(distance_matrix), nearest_neighbors(nearest_neighbors), near_range(near_range)
+    : distance_matrix(distance_matrix), nearest_neighbors(nearest_neighbors), near_range(std::min(near_range, nearest_neighbors[0].size()))
 {
     size_t n = distance_matrix.size();
+    if (near_range >= nearest_neighbors[0].size()) { // 近傍の範囲が距離行列のサイズを超える場合は、近傍はすべての都市なので
+                                                     // 近傍の都市のベクターを作る必要はない
+        return;
+    }
     near_cities.resize(n);
-    
     for (size_t i = 0; i < n; ++i) {
         for (size_t j = 0; j < near_range; ++j) {
             auto& [distance, neighbor_index] = nearest_neighbors[i][j];
@@ -451,90 +621,12 @@ TwoOpt::TwoOpt(const std::vector<std::vector<int64_t>> &distance_matrix, const s
 void TwoOpt::apply(std::vector<size_t>& path, std::mt19937::result_type seed)
 {
     auto start_time = std::chrono::high_resolution_clock::now();
-    std::mt19937 rng(seed);
-    // 平衡二分木を構築
-    const size_t n = path.size();
-    PathTree tree(path);
 
-    std::vector<uint8_t> is_active(n, true);
-    
-    std::uniform_int_distribution<size_t> dist(0, n - 1);
-    bool improved = true;
-    while (improved) {
-        improved = false;
-        size_t start = dist(rng);
-        size_t prev_city = tree.get_prev(start);
-        size_t current_city = start;
-        do {
-            size_t next_city = tree.get_next(current_city);
-            if (!is_active[current_city]) {
-                prev_city = current_city;
-                current_city = next_city;
-                continue;
-            }
-
-            for (size_t i = 0; i < near_range; ++i) {
-                size_t neighbor_city = nearest_neighbors[current_city][i].second;
-                size_t neighbor_prev_city = tree.get_prev(neighbor_city);
-                
-                int64_t length_diff = distance_matrix[current_city][prev_city] - distance_matrix[current_city][neighbor_city];
-                if (length_diff > 0) {
-                    length_diff += distance_matrix[neighbor_city][neighbor_prev_city] - distance_matrix[prev_city][neighbor_prev_city];
-                    if (length_diff > 0) {
-                        // 2-optスワップする
-                        tree.reverse_range(prev_city, neighbor_city);
-                        std::array<size_t, 4> swap_cities = {prev_city, current_city, neighbor_prev_city, neighbor_city};
-
-                        for (size_t city : swap_cities) {
-                            for (auto neighbor : near_cities[city]) {
-                                is_active[neighbor] = true;
-                            }
-                        }
-                        improved = true;
-                        break;
-                    }
-                } else break;
-            }
-            
-            if (improved) break;
-
-            for (size_t i = 0; i < near_range; ++i) {
-                size_t neighbor_city = nearest_neighbors[current_city][i].second;
-                size_t neighbor_next_city = tree.get_next(neighbor_city);
-                
-                int64_t length_diff = distance_matrix[current_city][next_city] - distance_matrix[current_city][neighbor_city];
-                if (length_diff > 0) {
-                    length_diff += distance_matrix[neighbor_city][neighbor_next_city] - distance_matrix[next_city][neighbor_next_city];
-                    if (length_diff > 0) {
-                        // 2-optスワップする
-                        tree.reverse_range(current_city, neighbor_next_city);
-                        std::array<size_t, 4> swap_cities = {current_city, next_city, neighbor_city, neighbor_next_city};
-                        for (size_t city : swap_cities) {
-                            for (auto neighbor : near_cities[city]) {
-                                is_active[neighbor] = true;
-                            }
-                        }
-                        improved = true;
-                        break;
-                    }
-                } else break;
-            }
-            
-            if (improved) break;
-            
-            is_active[current_city] = false;
-            
-            prev_city = current_city;
-            current_city = next_city;
-
-        } while (current_city != start);
+    if (near_range >= nearest_neighbors[0].size()) {
+        apply_global_2opt(path, distance_matrix, nearest_neighbors, seed);
+    } else {
+        apply_neighbor_2opt(path, distance_matrix, nearest_neighbors, near_cities, near_range, seed);
     }
-
-    // 最後に木を走査してパスを更新
-    path.clear();
-    tree.for_each([&path](Node& node) {
-        path.push_back(node.city);
-    });
 
     auto end_time = std::chrono::high_resolution_clock::now();
     time_a += std::chrono::duration<double>(end_time - start_time).count();

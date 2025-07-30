@@ -152,6 +152,8 @@ int main(int argc, char* argv[])
     size_t trials = 1;
     // 集団サイズ
     size_t population_size = 0;
+    // 2-optの種類
+    bool use_neighbor_2opt = true; // trueならば近傍2-opt, falseならばグローバル2-optを使用
     
     // コマンドライン引数の解析
     mpi::CommandLineArgumentParser parser;
@@ -176,6 +178,15 @@ int main(int argc, char* argv[])
     seed_spec.add_argument_name("--seed");
     seed_spec.set_description("--seed <value> \t\t:Seed value for random number generation.");
     parser.add_argument(seed_spec);
+    
+    mpi::ArgumentSpec two_opt_spec(use_neighbor_2opt);
+    two_opt_spec.add_set_argument_name("--neighbor-2opt");
+    two_opt_spec.add_set_argument_name("--no-global-2opt");
+    two_opt_spec.add_unset_argument_name("--global-2opt");
+    two_opt_spec.add_unset_argument_name("--no-neighbor-2opt");
+    two_opt_spec.set_description("--neighbor-2opt \t:Use neighbor 2-opt (default)."
+                                 "\n--global-2opt \t\t:Use global 2-opt.");
+    parser.add_argument(two_opt_spec);
     
     bool help_requested = false;
     mpi::ArgumentSpec help_spec(help_requested);
@@ -210,8 +221,13 @@ int main(int argc, char* argv[])
     // 乱数成器(グローバル)
     mt19937 rng(seed);
     
+    // neighbor_range
+    size_t near_range = 50; // デフォルトの近傍範囲
+    if (!use_neighbor_2opt) {
+        near_range = std::numeric_limits<size_t>::max(); // グローバル2-optの場合は無制限
+    }
     // 2opt
-    eax::TwoOpt two_opt(tsp.adjacency_matrix, tsp.NN_list);
+    eax::TwoOpt two_opt(tsp.adjacency_matrix, tsp.NN_list, near_range);
     // 初期集団生成器
     tsp::PopulationInitializer population_initializer(population_size, tsp.city_count, 
     [&two_opt](vector<size_t>& individual, std::mt19937::result_type seed) {
