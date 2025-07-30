@@ -58,6 +58,11 @@ namespace eax {
                     Individual& parent_A = population[parent_A_index];
                     Individual& parent_B = population[parent_B_index];
                     std::vector<Child> children = cross_over(parent_A, parent_B, N_cross, env, rng);
+
+                    if (children.empty()) {
+                        continue; // 子供が生成されなかった場合はスキップ
+                    }
+
                     std::vector<double> children_fitness = calc_all_fitness(children, env);
                     
                     // 子供の中で最良の個体を選択
@@ -70,7 +75,7 @@ namespace eax {
                         }
                     }
                     
-                    if (best_fitness != 0.0) {
+                    if (best_fitness > 0.0) {
                         // 子供の適応度が0でない場合、親Aを子供に置き換える
                         parent_A = std::move(children[best_index]);
                     } else {
