@@ -60,87 +60,6 @@ double eval_greedy(const eax::Child& child, const eax::Environment& env) {
     return -1.0 * child.get_delta_distance(env.tsp.adjacency_matrix);
 }
 
-void neighbor_2opt_swap(eax::Individual& ind, size_t i1, size_t i2, size_t j1, size_t j2) {
-    // i2~j1の部分を逆順にする
-    size_t current = i2;
-    size_t end = j1;
-    
-    while (current != end) {
-        std::swap(ind[current][0], ind[current][1]);
-        current = ind[current][0]; // 次のノードへ移動
-    }
-    
-    std::swap(ind[j1][0], ind[j1][1]);
-    
-    // 端を接続しなおす
-    ind[i1][1] = j1;
-    ind[j1][0] = i1;
-
-    ind[i2][1] = j2;
-    ind[j2][0] = i2;
-
-}
-
-void apply_neighbor_2opt(std::vector<size_t>& path, const tsp::TSP& tsp, size_t neighbor_size = 10) {
-    using namespace std;
-    
-    auto& adjacency_matrix = tsp.adjacency_matrix;
-    auto& NN_list = tsp.NN_list;
-    
-    using distance_type = std::remove_cvref_t<decltype(adjacency_matrix)>::value_type::value_type;
-    const size_t n = path.size();
-    eax::Individual ind(path, adjacency_matrix);
-    bool improved = true;
-    while (improved) {
-        size_t range_start = 0;
-        improved = false;
-        while (!improved && range_start < n - 1) {
-            size_t range_end = min(range_start + neighbor_size, n - 1);
-
-            for (size_t i = 0; i < n && !improved; ++i) {
-                size_t current_city = i;
-                size_t prev_city = ind[current_city][0];
-                size_t next_city = ind[current_city][1];
-                
-                for (size_t j = range_start; j < range_end; ++j) {
-                    size_t neighbor_city = NN_list[current_city][j].second;
-                    size_t neighbor_prev_city = ind[neighbor_city][0];
-                    size_t neighbor_next_city = ind[neighbor_city][1];
-                    
-                    distance_type old_length = adjacency_matrix[current_city][prev_city];
-                    distance_type new_length = adjacency_matrix[current_city][neighbor_city];
-                    if (old_length > new_length) {
-                        old_length += adjacency_matrix[neighbor_city][neighbor_prev_city];
-                        new_length += adjacency_matrix[prev_city][neighbor_prev_city];
-                        if (old_length > new_length) {
-                            neighbor_2opt_swap(ind, prev_city, current_city, neighbor_prev_city, neighbor_city);
-                            improved = true;
-                            break;
-                        }
-                    }
-                    
-                    old_length = adjacency_matrix[current_city][next_city];
-                    new_length = adjacency_matrix[current_city][neighbor_city];
-                    if (old_length > new_length) {
-                        old_length += adjacency_matrix[neighbor_city][neighbor_next_city];
-                        new_length += adjacency_matrix[next_city][neighbor_next_city];
-                        if (old_length > new_length) {
-                            neighbor_2opt_swap(ind, current_city, next_city, neighbor_city, neighbor_next_city);
-                            improved = true;
-                            break;
-                        }
-                    }
-                }
-            }
-            
-            range_start += neighbor_size;
-        }
-    }
-    
-    path = ind.to_path();
-}
-
-
 int main(int argc, char* argv[])
 {
     using namespace std;
@@ -152,6 +71,8 @@ int main(int argc, char* argv[])
     size_t trials = 1;
     // 集団サイズ
     size_t population_size = 0;
+    // 2-optの種類
+    bool use_neighbor_2opt = true; // trueならば近傍2-opt, falseならばグローバル2-optを使用
     
     // コマンドライン引数の解析
     mpi::CommandLineArgumentParser parser;
@@ -176,6 +97,15 @@ int main(int argc, char* argv[])
     seed_spec.add_argument_name("--seed");
     seed_spec.set_description("--seed <value> \t\t:Seed value for random number generation.");
     parser.add_argument(seed_spec);
+    
+    mpi::ArgumentSpec two_opt_spec(use_neighbor_2opt);
+    two_opt_spec.add_set_argument_name("--neighbor-2opt");
+    two_opt_spec.add_set_argument_name("--no-global-2opt");
+    two_opt_spec.add_unset_argument_name("--global-2opt");
+    two_opt_spec.add_unset_argument_name("--no-neighbor-2opt");
+    two_opt_spec.set_description("--neighbor-2opt \t:Use neighbor 2-opt (default)."
+                                 "\n--global-2opt \t\t:Use global 2-opt.");
+    parser.add_argument(two_opt_spec);
     
     bool help_requested = false;
     mpi::ArgumentSpec help_spec(help_requested);
@@ -210,8 +140,13 @@ int main(int argc, char* argv[])
     // 乱数成器(グローバル)
     mt19937 rng(seed);
     
+    // neighbor_range
+    size_t near_range = 50; // デフォルトの近傍範囲
+    if (!use_neighbor_2opt) {
+        near_range = std::numeric_limits<size_t>::max(); // グローバル2-optの場合は無制限
+    }
     // 2opt
-    eax::TwoOpt two_opt(tsp.adjacency_matrix, tsp.NN_list);
+    eax::TwoOpt two_opt(tsp.adjacency_matrix, tsp.NN_list, near_range);
     // 初期集団生成器
     tsp::PopulationInitializer population_initializer(population_size, tsp.city_count, 
     [&two_opt](vector<size_t>& individual, std::mt19937::result_type seed) {

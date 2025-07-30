@@ -18,7 +18,7 @@ namespace eax {
         std::vector<std::vector<int64_t>> distance_matrix;
         std::vector<std::vector<std::pair<int64_t, size_t>>> nearest_neighbors;
         std::vector<std::vector<size_t>> near_cities;
-        size_t near_range;
+        const size_t near_range;
     };
     
     void print_2opt_time();
