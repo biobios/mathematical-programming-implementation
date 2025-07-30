@@ -1,15 +1,24 @@
 PROJECT_NAME=$(subst $(ROOT_DIR)/src/,,$(shell pwd))
 SRCS=$(wildcard *.cpp)
 OBJS=$(patsubst %.cpp,$(ROOT_DIR)/temp/$(PROJECT_NAME)/%.o,$(SRCS))
+DEBUG_OBJS=$(patsubst %.cpp,$(ROOT_DIR)/temp/debug/$(PROJECT_NAME)/%.o,$(SRCS))
 PROF_OBJS=$(patsubst %.cpp,$(ROOT_DIR)/temp/prof/$(PROJECT_NAME)/%.o,$(SRCS))
 TARGET=$(ROOT_DIR)/bin/$(PROJECT_NAME)
+DEBUG_TARGET=$(ROOT_DIR)/bin/debug/$(PROJECT_NAME)
 PROF_TARGET=$(ROOT_DIR)/bin/prof/$(PROJECT_NAME)
 DEPEND_DATA=$(patsubst $(ROOT_DIR)/data/$(PROJECT_NAME)/%,$(ROOT_DIR)/debug/$(PROJECT_NAME)/%,$(wildcard $(ROOT_DIR)/data/$(PROJECT_NAME)/*))
 
+OBJS_DEPEND=$(OBJS:.o=.d)
+DEBUG_OBJS_DEPEND=$(DEBUG_OBJS:.o=.d)
+PROF_OBJS_DEPEND=$(PROF_OBJS:.o=.d)
+
 LIB_OPTS=-L$(ROOT_DIR)/bin -l$(LIB_NAME)
+DEBUG_LIB_OPTS=-L$(ROOT_DIR)/bin/debug -l$(LIB_NAME)
 PROF_LIB_OPTS=-L$(ROOT_DIR)/bin/prof -l$(LIB_NAME)
 
 build: $(TARGET)
+	
+debug_build: $(DEBUG_TARGET)
 
 prof_build: $(PROF_TARGET)
 
@@ -24,19 +33,30 @@ prof_run: prof_build $(DEPEND_DATA)
 $(TARGET): $(OBJS) $(ROOT_DIR)/bin/lib$(LIB_NAME).a
 	@$(CXX) -o $@ $(OBJS) $(CXXFLAGS) $(LIB_OPTS)
 
+$(DEBUG_TARGET): $(DEBUG_OBJS) $(ROOT_DIR)/bin/debug/lib$(LIB_NAME).a
+	@mkdir -p $(dir $@)
+	@$(CXX) -o $@ $(DEBUG_OBJS) $(CXXFLAGS) -O0 -g $(DEBUG_LIB_OPTS)
+
 $(PROF_TARGET): $(PROF_OBJS) $(ROOT_DIR)/bin/prof/lib$(LIB_NAME).a
-	@$(CXX) -o $@ $(PROF_OBJS) $(CXXFLAGS) -pg $(PROF_LIB_OPTS)
+	@$(CXX) -o $@ $(PROF_OBJS) $(CXXFLAGS) -O0 -pg $(PROF_LIB_OPTS)
 
 $(OBJS): $(ROOT_DIR)/temp/$(PROJECT_NAME)/%.o: %.cpp
 	@mkdir -p $(dir $@)
-	@$(CXX) -c $< -o $@ $(CXXFLAGS)
+	@$(CXX) -c $< -o $@ $(CXXFLAGS) -MMD -MP
+
+$(DEBUG_OBJS): $(ROOT_DIR)/temp/debug/$(PROJECT_NAME)/%.o: %.cpp
+	@mkdir -p $(dir $@)
+	@$(CXX) -c $< -o $@ $(CXXFLAGS) -O0 -g -MMD -MP
 
 $(PROF_OBJS): $(ROOT_DIR)/temp/prof/$(PROJECT_NAME)/%.o: %.cpp
 	@mkdir -p $(dir $@)
-	@$(CXX) -c $< -o $@ $(CXXFLAGS) -pg
+	@$(CXX) -c $< -o $@ $(CXXFLAGS) -O0 -pg -MMD -MP
 
 $(ROOT_DIR)/bin/lib$(LIB_NAME).a:
 	@$(MAKE) -C $(ROOT_DIR) bin/lib$(LIB_NAME).a
+
+$(ROOT_DIR)/bin/debug/lib$(LIB_NAME).a:
+	@$(MAKE) -C $(ROOT_DIR) bin/debug/lib$(LIB_NAME).a
 
 $(ROOT_DIR)/bin/prof/lib$(LIB_NAME).a:
 	@$(MAKE) -C $(ROOT_DIR) bin/prof/lib$(LIB_NAME).a
@@ -46,3 +66,7 @@ $(DEPEND_DATA): $(ROOT_DIR)/debug/$(PROJECT_NAME)/%: $(ROOT_DIR)/data/$(PROJECT_
 	@cp $< $@
 
 .PHONY: build run $(ROOT_DIR)/bin/lib$(LIB_NAME).a $(ROOT_DIR)/bin/prof/lib$(LIB_NAME).a prof_build prof_run
+
+-include $(OBJS_DEPEND)
+-include $(DEBUG_OBJS_DEPEND)
+-include $(PROF_OBJS_DEPEND)

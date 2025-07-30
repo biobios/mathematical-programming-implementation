@@ -1,0 +1,20 @@
+{
+    // IntelliSense を使用して利用可能な属性を学べます。
+    // 既存の属性の説明をホバーして表示します。
+    // 詳細情報は次を確認してください: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "debug fast",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/debug/fast_eax",
+            "args": ["--file", "vm1084.tsp", "--ps", "200", "--trials", "3"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/debug/fast_eax",
+            "environment": [],
+            "externalConsole": false,
+        }
+    ]
+}
+
