@@ -383,11 +383,10 @@ int main()
     // 終了判定関数
     // 世代数に達するか、最良の適応度が0.0025以上になったら終了
     struct {
-        size_t generation = 0;
         size_t max_generations = generations;
         double max_fitness = 0.0025;
         
-        bool operator()(const vector<Individual>& population, const vector<double>& fitness_values, const vector<vector<double>>& adjacency_matrix) {
+        bool operator()(const vector<Individual>& population, const vector<double>& fitness_values, const vector<vector<double>>& adjacency_matrix, size_t generation) {
             // // 最良の個体を見つける
             // auto best_fitness_ptr = std::max_element(fitness_values.begin(), fitness_values.end());
             // size_t best_index = std::distance(fitness_values.begin(), best_fitness_ptr);
@@ -426,10 +425,8 @@ int main()
                 cout << city << " ";
             }
             cout << endl;
-            // 世代数を増やす
-            ++generation;
             // 終了条件を満たすかどうかを判定
-            return generation > max_generations;
+            return generation >= max_generations;
         }
     } end_condition;
     // // 世代交代モデルSimpleGAを使用して、遺伝的アルゴリズムを実行
