@@ -19,6 +19,7 @@
 #include "tsp_loader.hpp"
 #include "population_initializer.hpp"
 #include "eax.hpp"
+#include "command_line_argument_parser.hpp"
 
 double calc_fitness(const std::vector<size_t>& path, const std::vector<std::vector<int64_t>>& adjacency_matrix){
     double distance = 0.0;
@@ -58,7 +59,6 @@ void apply_2opt(std::vector<size_t>& path, const std::vector<std::vector<int64_t
     }
 }
 
-
 int main(int argc, char* argv[])
 {
     using namespace std;
@@ -73,68 +73,47 @@ int main(int argc, char* argv[])
     size_t generations = 300;
     // 集団サイズ
     size_t population_size = 0;
-    for (size_t i = 1; i < argc; ++i) {
-        if (string(argv[i]) == "--file" && i + 1 < argc) {
-            // TSPファイル名を指定する
-            file_name = argv[++i];
-        } else if (string(argv[i]) == "--ps" && i + 1 < argc) {
-            // 集団サイズを指定する
-            try {
-                population_size = stoul(argv[++i]);
-                if (population_size == 0) {
-                    throw invalid_argument("Population size must be greater than 0.");
-                }
-            } catch (const invalid_argument& e) {
-                cerr << "Invalid population size: " << argv[i] << endl;
-                return 1;
-            } catch (const out_of_range& e) {
-                cerr << "Population size out of range: " << argv[i] << endl;
-                return 1;
-            }
-        } else if (string(argv[i]) == "--trials" && i + 1 < argc) {
-            // 試行回数を指定する
-            try {
-                size_t trials_input = stoul(argv[++i]);
-                if (trials_input == 0) {
-                    throw invalid_argument("Number of trials must be greater than 0.");
-                }
-            } catch (const invalid_argument& e) {
-                cerr << "Invalid number of trials: " << argv[i] << endl;
-                return 1;
-            } catch (const out_of_range& e) {
-                cerr << "Number of trials out of range: " << argv[i] << endl;
-                return 1;
-            }
-        } else if (string(argv[i]) == "--generations" && i + 1 < argc) {
-            // 世代数を指定する
-            try {
-                size_t generations_input = stoul(argv[++i]);
-                if (generations_input == 0) {
-                    throw invalid_argument("Number of generations must be greater than 0.");
-                }
-            } catch (const invalid_argument& e) {
-                cerr << "Invalid number of generations: " << argv[i] << endl;
-                return 1;
-            } catch (const out_of_range& e) {
-                cerr << "Number of generations out of range: " << argv[i] << endl;
-                return 1;
-            }
-        } else if (string(argv[i]) == "--seed" && i + 1 < argc) {
-            // 乱数生成器のシード値を指定する
-            try {
-                seed = stoul(argv[++i]);
-            } catch (const invalid_argument& e) {
-                cerr << "Invalid seed value: " << argv[i] << endl;
-                return 1;
-            } catch (const out_of_range& e) {
-                cerr << "Seed value out of range: " << argv[i] << endl;
-                return 1;
-            }
-        } else {
-            cerr << "Unknown option: " << argv[i] << endl;
-            return 1;
-        }
+    
+    mpi::CommandLineArgumentParser parser;
+    
+    mpi::ArgumentSpec file_spec(file_name);
+    file_spec.add_argument_name("--file");
+    file_spec.set_description("--file <filename> \t: Specify the TSP file to load.");
+    parser.add_argument(std::move(file_spec));
+
+    mpi::ArgumentSpec ps_spec(population_size);
+    ps_spec.add_argument_name("--ps");
+    ps_spec.set_description("--ps <size> \t: Specify the population size.");
+    parser.add_argument(std::move(ps_spec));
+    
+    mpi::ArgumentSpec trials_spec(trials);
+    trials_spec.add_argument_name("--trials");
+    trials_spec.set_description("--trials <number> \t: Specify the number of trials.");
+    parser.add_argument(std::move(trials_spec));
+
+    mpi::ArgumentSpec generations_spec(generations);
+    generations_spec.add_argument_name("--generations");
+    generations_spec.set_description("--generations <number> \t: Specify the number of generations.");
+    parser.add_argument(std::move(generations_spec));
+    
+    mpi::ArgumentSpec seed_spec(seed);
+    seed_spec.add_argument_name("--seed");
+    seed_spec.set_description("--seed <value> \t: Specify the random seed value.");
+    parser.add_argument(std::move(seed_spec));
+
+    bool help_requested = false;
+    mpi::ArgumentSpec help_spec(help_requested);
+    help_spec.add_set_argument_name("--help");
+    help_spec.set_description("--help \t: Show this help message.");
+    parser.add_argument(std::move(help_spec));
+
+    parser.parse(argc, argv);
+    
+    if (help_requested) {
+        parser.print_help();
+        return 0;
     }
+    
     tsp::TSP tsp = tsp::TSP_Loader::load_tsp(file_name);
     cout << "TSP Name: " << tsp.name << endl;
     cout << "Distance Type: " << tsp.distance_type << endl;
