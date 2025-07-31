@@ -20,6 +20,7 @@
 #include "population_initializer.hpp"
 #include "eax.hpp"
 #include "command_line_argument_parser.hpp"
+#include "two_opt.hpp"
 
 double calc_fitness(const std::vector<size_t>& path, const std::vector<std::vector<int64_t>>& adjacency_matrix){
     double distance = 0.0;
@@ -29,34 +30,6 @@ double calc_fitness(const std::vector<size_t>& path, const std::vector<std::vect
     // 最後の都市から最初の都市への距離を加算
     distance += adjacency_matrix[path.back()][path.front()];
     return 1.0 / distance;
-}
-
-void two_opt_swap(std::vector<size_t>& path, size_t i, size_t j) {
-    // iとjの間の部分を逆順にする
-    using namespace std;
-    std::reverse(path.begin() + i, path.begin() + j + 1);
-}
-
-void apply_2opt(std::vector<size_t>& path, const std::vector<std::vector<int64_t>>& adjacency_matrix) {
-    using namespace std;
-    using distance_type = std::remove_cvref_t<decltype(adjacency_matrix)>::value_type::value_type;
-    size_t n = path.size();
-    bool improved = true;
-    while (improved) {
-        improved = false;
-        for (size_t i = 0; i < path.size() - 1 && !improved; ++i) {
-            for (size_t j = i + 1; j < path.size(); ++j) {
-                distance_type old_length = adjacency_matrix[path[i]][path[i + 1]] + adjacency_matrix[path[j]][path[(j + 1) % n]];
-                distance_type new_length = adjacency_matrix[path[i]][path[j]] + adjacency_matrix[path[i + 1]][path[(j + 1) % n]];
-                
-                if (new_length < old_length) {
-                    two_opt_swap(path, i + 1, j);
-                    improved = true;
-                    break;
-                }
-            }
-        }
-    }
 }
 
 int main(int argc, char* argv[])
@@ -119,6 +92,8 @@ int main(int argc, char* argv[])
     cout << "Distance Type: " << tsp.distance_type << endl;
     cout << "Number of Cities: " << tsp.city_count << endl;
     
+    // 2 optを適用するためのオブジェクト
+    eax::TwoOpt two_opt(tsp.adjacency_matrix, tsp.NN_list, std::numeric_limits<size_t>::max());
     // 乱数生成器(グローバル)
     mt19937 rng(seed);
     
@@ -148,9 +123,9 @@ int main(int argc, char* argv[])
 
         mt19937::result_type local_seed = rng();
         string cache_file = "init_pop_cache_" + to_string(local_seed) + "_for_" + file_name + "_" + to_string(population_size) + ".txt";
-        vector<Individual> population = population_initializer.initialize_population(local_seed, cache_file, [&tsp](vector<size_t>& path) {
+        vector<Individual> population = population_initializer.initialize_population(local_seed, cache_file, [&two_opt, local_seed](vector<size_t>& path) {
             // 2-optを適用
-            apply_2opt(path, tsp.adjacency_matrix);
+            two_opt.apply(path, local_seed);
         });
         cout << "Initial population created." << endl;
         
