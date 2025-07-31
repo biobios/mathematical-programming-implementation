@@ -157,6 +157,10 @@ std::vector<PooledVectorPtr> find_AB_cycles(size_t needs,
     std::vector<size_t>& first_visited = *first_visited_ptr;
     visited.clear();
     first_visited.assign(city_count, 0);
+    
+    // numeric_limits<size_t>::max() は、 cities_having_2_edges と
+    // cities_having_just_1_edge のどちらにも含まれないので、
+    // 以下のループの開始時に current_city は適切に初期化される
     size_t current_city = numeric_limits<size_t>::max();
 
     // どちらのエッジを通るか判断が必要な都市(2本のエッジを持つ都市)がなくなるまで
