@@ -1,0 +1,1 @@
+DEPEND_LIBS := mpilib
