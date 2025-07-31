@@ -21,6 +21,7 @@ inline mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr create_AB_cycle(s
     AB_cycle.reserve(start_index - end_index);
     
     size_t last = 0;
+    // ABサイクルはAのエッジから始まるようにする
     if (starts_with_B) {
         last = finding_path[start_index];
         if (cities_having_2_edges.contains(last)) {
@@ -92,6 +93,8 @@ std::vector<mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr> find_AB_cyc
     cities_having_2_edges.reset(mpi::LimitedRangeIntegerSet::InitSet::Universal);
     cities_having_just_1_edge.reset(mpi::LimitedRangeIntegerSet::InitSet::Empty);
     struct connections {
+        // edge_pair[0]が least recently used edge
+        // edge_pair[1]が最近通ったエッジ or すでにABサイクルを構成しているエッジ
         std::array<size_t, 2>& edge_pair;
         constexpr size_t least_recently_used_edge() const {
             return edge_pair[0];
@@ -155,6 +158,7 @@ std::vector<mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr> find_AB_cyc
     first_visited.assign(city_count, 0);
     size_t current_city = numeric_limits<size_t>::max();
 
+    // どちらのエッジを通るか判断が必要な都市(2本のエッジを持つ都市)がなくなるまで
     while (cities_having_2_edges.size() > 0) {
 
         if (!(cities_having_2_edges.contains(current_city) ||
@@ -194,7 +198,7 @@ std::vector<mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr> find_AB_cyc
             size_t current_edge_count = cities_having_2_edges.contains(current_city) ? 2 : 1;
             if (current_edge_count == 1) {
                 // エッジの数が1なら、探索途中か、スタートにたどり着いて一周したか
-                if (current_city == visited.front()) {
+                if (current_city == visited.front()) { // スタートにたどり着いたなら
                     // ABサイクル構成処理
                     auto cycle = create_AB_cycle(visited, 0, cities_having_2_edges, cities_having_just_1_edge, any_size_vector_pool);
                     if (cycle->size() > 2) {
@@ -208,15 +212,15 @@ std::vector<mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr> find_AB_cyc
                 // エッジの数が2なら、探索途中か、スタートにたどり着いて一周したか、途中で交差してABサイクルを構成するか
                 // 次の都市のLRUを更新
                 parents[next_edge_parent][current_city].update(prev_city);
-                if (current_city == visited.front()) {
-                    if ((visited.size() + 1) % 2 == 0) { // Bで出てAで帰ってきた
+                if (current_city == visited.front()) { // スタートにたどりついたなら
+                    if ((visited.size() + 1) % 2 == 0) { // 親Bのエッジでスタートして、親Aのエッジで戻ってきた
                         // ABサイクル構成処理
                         auto cycle = create_AB_cycle(visited, 0, cities_having_2_edges, cities_having_just_1_edge, any_size_vector_pool);
                         if (cycle->size() > 2) {
                             AB_cycles.emplace_back(std::move(cycle));
                         }
                         break;
-                    } else { // Bで出てBで帰ってきた
+                    } else { // 親Bのエッジでスタートして、親Bのエッジで帰ってきた
                         continue;
                     }
                 } else if (first_visited[current_city] != 0 && (visited.size() - first_visited[current_city] + 1) % 2 == 0) {
@@ -226,9 +230,9 @@ std::vector<mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr> find_AB_cyc
                         AB_cycles.emplace_back(std::move(cycle));
                     }
                     break;
-                } else if (first_visited[current_city] != 0) {
+                } else if (first_visited[current_city] != 0) { // 交差しているが、ABサイクルを構成しないなら
                     continue;
-                } else {
+                } else { // 初めて通る都市なら
                     first_visited[current_city] = visited.size() - 1;
                     continue;
                 }
@@ -240,6 +244,7 @@ std::vector<mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr> find_AB_cyc
         }
     }
 
+    // 一つのエッジしか残っていないので、LRUをたどるだけでABサイクルを構成する
     while (cities_having_just_1_edge.size() > 0) {
         size_t start_city = *(cities_having_just_1_edge.begin());
 
