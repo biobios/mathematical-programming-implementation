@@ -170,11 +170,7 @@ int main(int argc, char* argv[])
     // 2opt
     eax::TwoOpt two_opt(tsp.adjacency_matrix, tsp.NN_list, near_range);
     // 初期集団生成器
-    tsp::PopulationInitializer population_initializer(population_size, tsp.city_count, 
-    [&two_opt](vector<size_t>& individual, std::mt19937::result_type seed) {
-        // 2-opt法を適用
-        two_opt.apply(individual, seed);
-    });
+    tsp::PopulationInitializer population_initializer(population_size, tsp.city_count);
     
     using Individual = eax::Individual;
     
@@ -193,7 +189,10 @@ int main(int argc, char* argv[])
         // グローバルで初期化
         mt19937::result_type local_seed = rng();
         string cache_file = "init_pop_cache_" + to_string(local_seed) + "_for_" + file_name + "_" + to_string(population_size) + ".txt";
-        vector<vector<size_t>> initial_paths = population_initializer.initialize_population(local_seed, cache_file);
+        vector<vector<size_t>> initial_paths = population_initializer.initialize_population(local_seed, cache_file, [&two_opt, local_seed](vector<size_t>& path) {
+            // 2-optを適用
+            two_opt.apply(path, local_seed);
+        });
         vector<eax::Individual> population;
         population.reserve(initial_paths.size());
         for (const auto& path : initial_paths) {

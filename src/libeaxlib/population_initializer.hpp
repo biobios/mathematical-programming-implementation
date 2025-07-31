@@ -9,17 +9,16 @@
 #include "utils.hpp"
 
 namespace tsp {
-    template <std::uniform_random_bit_generator RandomGen = std::mt19937, typename PostProcessFunc = mpi::NOP_Function>
-    requires requires(PostProcessFunc post_process, std::vector<size_t> individual) {
-        { post_process(individual) } -> std::convertible_to<void>;
-    }
+    template <std::uniform_random_bit_generator RandomGen = std::mt19937>
     class PopulationInitializer {
         public:
-            PopulationInitializer(size_t population_size, size_t city_count, PostProcessFunc post_process = PostProcessFunc())
-                : population_size_(population_size), city_count_(city_count), post_process_(post_process) {}
+            PopulationInitializer(size_t population_size, size_t city_count)
+                : population_size_(population_size), city_count_(city_count) {}
             ~PopulationInitializer() = default;
             
-            std::vector<std::vector<size_t>> initialize_population(RandomGen::result_type seed, std::string cache_file) const
+            template <typename PostProcessFunc = mpi::NOP_Function>
+                requires std::invocable<PostProcessFunc, std::vector<size_t>&>
+            std::vector<std::vector<size_t>> initialize_population(RandomGen::result_type seed, std::string cache_file, PostProcessFunc&& post_process = {}) const
             {
                 std::vector<std::vector<size_t>> population;
                 population.reserve(population_size_);
@@ -46,7 +45,7 @@ namespace tsp {
                     std::vector<size_t> cities(city_count_);
                     std::iota(cities.begin(), cities.end(), 0);
                     std::shuffle(cities.begin(), cities.end(), rng);
-                    post_process_(cities);
+                    post_process(cities);
                     population.emplace_back(std::move(cities));
                 }
                 
@@ -68,6 +67,5 @@ namespace tsp {
         private:
             size_t population_size_;
             size_t city_count_;
-            PostProcessFunc post_process_;
     };
 }

@@ -153,11 +153,7 @@ int main(int argc, char* argv[])
     }
 
     // 初期集団生成器
-    tsp::PopulationInitializer population_initializer(population_size, tsp.city_count, 
-    [&tsp](vector<size_t>& individual) {
-        // 2-opt法を適用
-        apply_2opt(individual, tsp.adjacency_matrix);
-    });
+    tsp::PopulationInitializer population_initializer(population_size, tsp.city_count);
     
     using Individual = vector<size_t>;
     
@@ -173,7 +169,10 @@ int main(int argc, char* argv[])
 
         mt19937::result_type local_seed = rng();
         string cache_file = "init_pop_cache_" + to_string(local_seed) + "_for_" + file_name + "_" + to_string(population_size) + ".txt";
-        vector<Individual> population = population_initializer.initialize_population(local_seed, cache_file);
+        vector<Individual> population = population_initializer.initialize_population(local_seed, cache_file, [&tsp](vector<size_t>& path) {
+            // 2-optを適用
+            apply_2opt(path, tsp.adjacency_matrix);
+        });
         cout << "Initial population created." << endl;
         
         using Env = tsp::TSP;
