@@ -6,8 +6,10 @@
 #include "limited_range_integer_set.hpp"
 
 namespace eax {
-    
-inline mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr create_AB_cycle(std::vector<size_t>& finding_path,
+
+using PooledVectorPtr = mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr;
+
+inline PooledVectorPtr create_AB_cycle(std::vector<size_t>& finding_path,
                         size_t end_index,
                         mpi::LimitedRangeIntegerSet& cities_having_2_edges,
                         mpi::LimitedRangeIntegerSet& cities_having_just_1_edge,
@@ -73,7 +75,7 @@ template <typename Individual>
         { ind[a] } -> std::convertible_to<const std::array<size_t, 2>&>;
         { ind.size() } -> std::convertible_to<size_t>;
     }
-std::vector<mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr> find_AB_cycles(size_t needs,
+std::vector<PooledVectorPtr> find_AB_cycles(size_t needs,
             const Individual& parent1,
             const Individual& parent2,
             std::mt19937& rng,
