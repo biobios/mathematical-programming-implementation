@@ -16,7 +16,7 @@ inline mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr create_AB_cycle(s
     bool starts_with_B = finding_path.size() % 2 == 0;
     size_t start_index = finding_path.size() - 1;
     auto AB_cycle_ptr = any_size_vector_pool.acquire_unique();
-    auto& AB_cycle = *AB_cycle_ptr;
+    std::vector<size_t>& AB_cycle = *AB_cycle_ptr;
     AB_cycle.clear();
     AB_cycle.reserve(start_index - end_index);
     
@@ -84,14 +84,15 @@ std::vector<mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr> find_AB_cyc
 {
     using namespace std;
     const size_t city_count = parent1.size();
-    // mpi::LimitedRangeIntegerSet cities_having_2_edges(city_count - 1, mpi::LimitedRangeIntegerSet::InitSet::Universal);
-    // mpi::LimitedRangeIntegerSet cities_having_just_1_edge(city_count - 1, mpi::LimitedRangeIntegerSet::InitSet::Empty);
+
     auto cities_having_2_edges_ptr = LRIS_pool.acquire_unique();
     auto cities_having_just_1_edge_ptr = LRIS_pool.acquire_unique();
-    auto& cities_having_2_edges = *cities_having_2_edges_ptr;
-    auto& cities_having_just_1_edge = *cities_having_just_1_edge_ptr;
+    mpi::LimitedRangeIntegerSet& cities_having_2_edges = *cities_having_2_edges_ptr;
+    mpi::LimitedRangeIntegerSet& cities_having_just_1_edge = *cities_having_just_1_edge_ptr;
+
     cities_having_2_edges.reset(mpi::LimitedRangeIntegerSet::InitSet::Universal);
     cities_having_just_1_edge.reset(mpi::LimitedRangeIntegerSet::InitSet::Empty);
+
     struct connections {
         // edge_pair[0]が least recently used edge
         // edge_pair[1]が最近通ったエッジ or すでにABサイクルを構成しているエッジ
@@ -122,8 +123,8 @@ std::vector<mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr> find_AB_cyc
 
     auto parent1_copy_ptr = doubly_linked_list_pool.acquire_unique();
     auto parent2_copy_ptr = doubly_linked_list_pool.acquire_unique();
-    auto& parent1_copy = *parent1_copy_ptr;
-    auto& parent2_copy = *parent2_copy_ptr;
+    std::vector<std::array<size_t, 2>>& parent1_copy = *parent1_copy_ptr;
+    std::vector<std::array<size_t, 2>>& parent2_copy = *parent2_copy_ptr;
     for (size_t i = 0; i < city_count; ++i) {
         parent1_copy[i] = parent1[i];
         parent2_copy[i] = parent2[i];
@@ -148,12 +149,10 @@ std::vector<mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr> find_AB_cyc
 
     uniform_int_distribution<size_t> dist_01(0, 1);
     
-    // vector<size_t> visited;
-    // vector<size_t> first_visited(city_count, 0);
     auto visited_ptr = any_size_vector_pool.acquire_unique();
     auto first_visited_ptr = vector_of_tsp_size_pool.acquire_unique();
-    auto& visited = *visited_ptr;
-    auto& first_visited = *first_visited_ptr;
+    std::vector<size_t>& visited = *visited_ptr;
+    std::vector<size_t>& first_visited = *first_visited_ptr;
     visited.clear();
     first_visited.assign(city_count, 0);
     size_t current_city = numeric_limits<size_t>::max();
