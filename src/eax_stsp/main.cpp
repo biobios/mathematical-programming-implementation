@@ -63,33 +63,95 @@ int main(int argc, char* argv[])
 {
     using namespace std;
     // TSPファイルの読み込み
-    // string file_name = "rat575.tsp";
     string file_name = "att532.tsp";
-    if (argc > 1) {
-        file_name = argv[1];
+
+    // seed値
+    mt19937::result_type seed = mt19937::default_seed;
+    // 試行回数
+    size_t trials = 1;
+    // 世代数
+    size_t generations = 300;
+    // 集団サイズ
+    size_t population_size = 0;
+    for (size_t i = 1; i < argc; ++i) {
+        if (string(argv[i]) == "--file" && i + 1 < argc) {
+            // TSPファイル名を指定する
+            file_name = argv[++i];
+        } else if (string(argv[i]) == "--ps" && i + 1 < argc) {
+            // 集団サイズを指定する
+            try {
+                population_size = stoul(argv[++i]);
+                if (population_size == 0) {
+                    throw invalid_argument("Population size must be greater than 0.");
+                }
+            } catch (const invalid_argument& e) {
+                cerr << "Invalid population size: " << argv[i] << endl;
+                return 1;
+            } catch (const out_of_range& e) {
+                cerr << "Population size out of range: " << argv[i] << endl;
+                return 1;
+            }
+        } else if (string(argv[i]) == "--trials" && i + 1 < argc) {
+            // 試行回数を指定する
+            try {
+                size_t trials_input = stoul(argv[++i]);
+                if (trials_input == 0) {
+                    throw invalid_argument("Number of trials must be greater than 0.");
+                }
+            } catch (const invalid_argument& e) {
+                cerr << "Invalid number of trials: " << argv[i] << endl;
+                return 1;
+            } catch (const out_of_range& e) {
+                cerr << "Number of trials out of range: " << argv[i] << endl;
+                return 1;
+            }
+        } else if (string(argv[i]) == "--generations" && i + 1 < argc) {
+            // 世代数を指定する
+            try {
+                size_t generations_input = stoul(argv[++i]);
+                if (generations_input == 0) {
+                    throw invalid_argument("Number of generations must be greater than 0.");
+                }
+            } catch (const invalid_argument& e) {
+                cerr << "Invalid number of generations: " << argv[i] << endl;
+                return 1;
+            } catch (const out_of_range& e) {
+                cerr << "Number of generations out of range: " << argv[i] << endl;
+                return 1;
+            }
+        } else if (string(argv[i]) == "--seed" && i + 1 < argc) {
+            // 乱数生成器のシード値を指定する
+            try {
+                seed = stoul(argv[++i]);
+            } catch (const invalid_argument& e) {
+                cerr << "Invalid seed value: " << argv[i] << endl;
+                return 1;
+            } catch (const out_of_range& e) {
+                cerr << "Seed value out of range: " << argv[i] << endl;
+                return 1;
+            }
+        } else {
+            cerr << "Unknown option: " << argv[i] << endl;
+            return 1;
+        }
     }
     tsp::TSP tsp = tsp::TSP_Loader::load_tsp(file_name);
     cout << "TSP Name: " << tsp.name << endl;
     cout << "Distance Type: " << tsp.distance_type << endl;
     cout << "Number of Cities: " << tsp.city_count << endl;
     
-    // 試行回数
-    constexpr size_t trials = 3;
-    // 世代数
-    constexpr size_t generations = 300;
     // 乱数生成器(グローバル)
-    // mt19937 rng;
-    mt19937 rng(545404204);
-    // 集団サイズ
-    size_t population_size = 0;
-    if (tsp.name == "rat575") {
-        population_size = 300;
-    } else if (tsp.name == "att532") {
+    mt19937 rng(seed);
+    
+    if (tsp.name == "att532" && population_size == 0) {
         population_size = 250;
-    } else {
-        cerr << "Unsupported TSP file: " << tsp.name << endl;
+    } else if(tsp.name == "rat575" && population_size == 0) {
+        population_size = 300;
+    } else if(population_size == 0) {
+        cerr << "Population size must be specified with --ps option." << endl;
         return 1;
     }
+
     // 初期集団生成器
     tsp::PopulationInitializer population_initializer(population_size, tsp.city_count, 
     [&tsp](vector<size_t>& individual) {
@@ -108,10 +170,10 @@ int main(int argc, char* argv[])
     
     for (size_t trial = 0; trial < trials; ++trial) {
         cout << "Trial " << trial + 1 << " of " << trials << endl;
-        // 乱数生成器(ローカル)
-        // グローバルで初期化
-        mt19937::result_type seed = rng();
-        vector<Individual> population = population_initializer.initialize_population(seed, "initial_population_cache_" + to_string(seed) + "_for_" + file_name);
+
+        mt19937::result_type local_seed = rng();
+        string cache_file = "init_pop_cache_" + to_string(local_seed) + "_for_" + file_name + "_" + to_string(population_size) + ".txt";
+        vector<Individual> population = population_initializer.initialize_population(local_seed, cache_file);
         cout << "Initial population created." << endl;
         
         using Env = tsp::TSP;
@@ -119,7 +181,7 @@ int main(int argc, char* argv[])
         // 終了判定関数
         // 世代数に達するか、収束するまで実行
         struct {
-            size_t max_generations = generations;
+            size_t max_generations;
 
             bool operator()([[maybe_unused]]const vector<Individual>& population, const vector<double>& fitness_values, [[maybe_unused]]const Env& tsp, size_t generation) {
 
@@ -133,7 +195,7 @@ int main(int argc, char* argv[])
                 // 終了条件を満たすかどうかを判定
                 return generation > max_generations || max_fitness == min_fitness;
             }
-        } end_condition;
+        } end_condition = {.max_generations = generations};
         
         // ロガー
         struct {
@@ -154,8 +216,8 @@ int main(int argc, char* argv[])
             return calc_fitness(individual, tsp.adjacency_matrix);
         };
         
-        // // 乱数生成器再初期化
-        mt19937 local_rng(seed);
+        // 乱数生成器初期化
+        mt19937 local_rng(local_seed);
         
         // 計測開始
         auto start_time = chrono::high_resolution_clock::now();
