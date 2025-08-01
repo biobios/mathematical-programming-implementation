@@ -64,129 +64,6 @@ void step_1(const std::vector<size_t>& parent1, const std::vector<size_t>& paren
     times[0] += std::chrono::duration<double>(end_time - start_time).count();
 }
 
-void step_2(std::vector<std::array<size_t, 2>> adjacency_list_parent1,
-            std::vector<std::array<size_t, 2>> adjacency_list_parent2,
-            std::vector<std::vector<std::pair<edge, bool>>>& AB_cycles,
-            std::mt19937& rng,
-            size_t n)
-{
-    auto start_time = std::chrono::high_resolution_clock::now();
-    using namespace std;
-    using edge_with_parent = pair<edge, bool>; // from_parent1 : bool
-    size_t rest_edge_count = n;
-    // vector<size_t> prob(n, 1);
-    vector<size_t> rest_cities(n);
-    vector<size_t> city_indices(n);
-    iota(rest_cities.begin(), rest_cities.end(), 0);
-    iota(city_indices.begin(), city_indices.end(), 0);
-    do {
-
-        // size_t current_city = discrete_distribution<size_t>(prob.begin(), prob.end())(rng);
-        size_t current_city = rest_cities[uniform_int_distribution<size_t>(0, rest_cities.size() - 1)(rng)];
-        vector<size_t> visited_parent1;
-        vector<size_t> visited_parent2;
-        visited_parent2.push_back(current_city);
-        do {
-            if (visited_parent1.size() < visited_parent2.size()) {
-                size_t selected_index = uniform_int_distribution<size_t>(0, 1)(rng);
-                if (adjacency_list_parent1[current_city][selected_index] == n) {
-                    selected_index = 1 - selected_index; // 反転
-                }
-
-                size_t prev_city = current_city;
-                current_city = adjacency_list_parent1[current_city][selected_index];
-                visited_parent1.push_back(current_city);
-                adjacency_list_parent1[prev_city][selected_index] = n;
-                if (adjacency_list_parent1[current_city][0] == prev_city) {
-                    adjacency_list_parent1[current_city][0] = n;
-                } else {
-                    adjacency_list_parent1[current_city][1] = n;
-                }
-                
-                rest_edge_count -= 1;
-                if (adjacency_list_parent1[current_city][0] == n && adjacency_list_parent1[current_city][1] == n) {
-                    // prob[current_city] = 0; // この都市はもう訪問しない
-                    size_t back = rest_cities.back();
-                    rest_cities[city_indices[current_city]] = back;
-                    city_indices[back] = city_indices[current_city];
-                    rest_cities.pop_back();
-                }
-
-                if (adjacency_list_parent1[prev_city][0] == n && adjacency_list_parent1[prev_city][1] == n) {
-                    // prob[prev_city] = 0; // 前の都市も訪問しない
-                    size_t back = rest_cities.back();
-                    rest_cities[city_indices[prev_city]] = back;
-                    city_indices[back] = city_indices[prev_city];
-                    rest_cities.pop_back();
-                }
-
-                size_t found_loop_index = visited_parent1.size();
-                for (size_t i = 0; i < visited_parent1.size() - 1; ++i) {
-                    if (visited_parent1[i] == current_city) {
-                        found_loop_index = i;
-                        break;
-                    }
-                }
-
-                if (found_loop_index == visited_parent1.size()) {
-                    continue;
-                }
-
-                vector<edge_with_parent> AB_cycle;
-                AB_cycle.reserve((visited_parent1.size() - found_loop_index) * 2);
-                for (size_t i = found_loop_index + 1; i < visited_parent1.size(); ++i) {
-                    AB_cycle.push_back({{visited_parent1[i - 1], visited_parent2[i]}, false});
-                    AB_cycle.push_back({{visited_parent2[i], visited_parent1[i]}, true});
-                }
-                visited_parent1.resize(found_loop_index + 1);
-                visited_parent2.resize(found_loop_index + 1);
-                if (AB_cycle.size() > 2)
-                    AB_cycles.emplace_back(move(AB_cycle));
-            }else {
-                size_t selected_index = uniform_int_distribution<size_t>(0, 1)(rng);
-                if (adjacency_list_parent2[current_city][selected_index] == n) {
-                    selected_index = 1 - selected_index; // 反転
-                }
-
-                size_t prev_city = current_city;
-                current_city = adjacency_list_parent2[current_city][selected_index];
-                visited_parent2.push_back(current_city);
-                adjacency_list_parent2[prev_city][selected_index] = n;
-                if (adjacency_list_parent2[current_city][0] == prev_city) {
-                    adjacency_list_parent2[current_city][0] = n;
-                } else {
-                    adjacency_list_parent2[current_city][1] = n;
-                }
-
-                size_t found_loop_index = visited_parent2.size();
-                for (size_t i = 0; i < visited_parent2.size() - 1; ++i) {
-                    if (visited_parent2[i] == current_city) {
-                        found_loop_index = i;
-                        break;
-                    }
-                }
-                if (found_loop_index == visited_parent2.size()) {
-                    continue;
-                }
-                vector<edge_with_parent> AB_cycle;
-                AB_cycle.reserve((visited_parent2.size() - found_loop_index) * 2);
-                for (size_t i = found_loop_index + 1; i < visited_parent2.size(); ++i) {
-                    AB_cycle.push_back({{visited_parent2[i - 1], visited_parent1[i - 1]}, true});
-                    AB_cycle.push_back({{visited_parent1[i - 1], visited_parent2[i]}, false});
-                }
-                visited_parent1.resize(found_loop_index);
-                visited_parent2.resize(found_loop_index + 1);
-                if (AB_cycle.size() > 2)
-                    AB_cycles.emplace_back(move(AB_cycle));
-            }
-        }while (!visited_parent1.empty());
-    }while (rest_edge_count > 0);
-    
-    auto end_time = std::chrono::high_resolution_clock::now();
-    times[1] += std::chrono::duration<double>(end_time - start_time).count();
-    
-}
-
 void step_3_and_4(std::vector<std::array<size_t, 2>>& child_adjacency_list,
                   const std::vector<AB_cycle_ptr>& AB_cycles,
                   std::mt19937& rng)
@@ -475,7 +352,10 @@ std::vector<std::vector<size_t>> edge_assembly_crossover(const std::vector<size_
     vector<array<size_t, 2>> prototype_child(n);
     step_1(parent1, parent2, adjacency_list_parent1, adjacency_list_parent2, prototype_child, n);
     
+    auto start_time = chrono::high_resolution_clock::now();
     auto AB_cycles = find_AB_cycles(std::numeric_limits<size_t>::max(), adjacency_list_parent1, adjacency_list_parent2, rng, env.object_pools.any_size_vector_pool, env.object_pools.vector_of_tsp_size_pool, env.object_pools.doubly_linked_list_pool, env.object_pools.LRIS_pool);
+    auto end_time = chrono::high_resolution_clock::now();
+    times[1] += chrono::duration<double>(end_time - start_time).count();
     
     vector<vector<size_t>> children(children_size);
     for (size_t child_index = 0; child_index < children_size; ++child_index) {
