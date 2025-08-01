@@ -14,6 +14,8 @@
 #include <unordered_map>
 #include <list>
 
+#include <time.h>
+
 #include "simple_ga.hpp"
 #include "elitist_recombination.hpp"
 #include "tsp_loader.hpp"
@@ -114,6 +116,8 @@ int main(int argc, char* argv[])
     
     // 1試行にかかった時間
     vector<double> trial_times(trials, 0.0);
+    // 1試行にかかったCPU時間
+    vector<double> cpu_trial_times(trials, 0.0);
     // 各試行のベストの経路長
     vector<double> best_path_lengths(trials, 0.0);
     // 各試行のベストに到達した最初の世代
@@ -181,12 +185,15 @@ int main(int argc, char* argv[])
         
         // 計測開始
         auto start_time = chrono::high_resolution_clock::now();
+        auto start_cpu_time = clock();
 
         // 世代交代モデル ElitistRecombinationを使用して、遺伝的アルゴリズムを実行
         vector<Individual> result = mpi::genetic_algorithm::ElitistRecombination<100>(population, end_condition, calc_fitness_lambda, eax::edge_assembly_crossover, env, local_rng, logging);
         // vector<Individual> result = mpi::genetic_algorithm::SimpleGA(population, end_condition, calc_fitness, eax::edge_assembly_crossover, adjacency_matrix, local_rng);
         
+        auto end_cpu_time = clock();
         auto end_time = chrono::high_resolution_clock::now();
+        cpu_trial_times[trial] = static_cast<double>(end_cpu_time - start_cpu_time) / CLOCKS_PER_SEC;
         trial_times[trial] = chrono::duration<double>(end_time - start_time).count();
         
         best_path_lengths[trial] = 1.0 / logging.best_fitness;
@@ -219,6 +226,18 @@ int main(int argc, char* argv[])
     
     double average_trial_time = sum_trial_times / trials;
     cout << "Average trial time: " << average_trial_time << " seconds" << endl;
+
+    // 各試行のCPU時間を出力
+    cout << "Trial CPU times (seconds): ";
+    double sum_cpu_trial_times = 0;
+    for (const auto& cpu_time : cpu_trial_times) {
+        sum_cpu_trial_times += cpu_time;
+        cout << cpu_time << " ";
+    }
+    cout << endl;
+
+    double average_cpu_trial_time = sum_cpu_trial_times / trials;
+    cout << "Average CPU trial time: " << average_cpu_trial_time << " seconds" << endl;
 
     eax::print_time();
     return 0;
