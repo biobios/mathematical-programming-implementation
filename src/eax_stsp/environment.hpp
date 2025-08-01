@@ -7,6 +7,7 @@
 
 namespace eax {
     class ObjectPools {
+    public:
         const size_t city_count;
         mpi::ObjectPool<mpi::LimitedRangeIntegerSet> LRIS_pool;
         // TSPの都市数と同じサイズのvectorを生成するためのプール

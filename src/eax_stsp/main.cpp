@@ -21,6 +21,7 @@
 #include "eax.hpp"
 #include "command_line_argument_parser.hpp"
 #include "two_opt.hpp"
+#include "environment.hpp"
 
 double calc_fitness(const std::vector<size_t>& path, const std::vector<std::vector<int64_t>>& adjacency_matrix){
     double distance = 0.0;
@@ -129,7 +130,7 @@ int main(int argc, char* argv[])
         });
         cout << "Initial population created." << endl;
         
-        using Env = tsp::TSP;
+        using Env = eax::Environment;
 
         // 終了判定関数
         // 世代数に達するか、収束するまで実行
@@ -165,18 +166,24 @@ int main(int argc, char* argv[])
         } logging;
 
         // 適応度関数
-        auto calc_fitness_lambda = [](const Individual& individual, const Env& tsp) {
-            return calc_fitness(individual, tsp.adjacency_matrix);
+        auto calc_fitness_lambda = [](const Individual& individual, const Env& env) {
+            return calc_fitness(individual, env.tsp.adjacency_matrix);
         };
         
         // 乱数生成器初期化
         mt19937 local_rng(local_seed);
         
+        // 環境情報の設定
+        Env env {
+            .tsp = tsp,
+            .object_pools = eax::ObjectPools(tsp.city_count)
+        };
+        
         // 計測開始
         auto start_time = chrono::high_resolution_clock::now();
 
         // 世代交代モデル ElitistRecombinationを使用して、遺伝的アルゴリズムを実行
-        vector<Individual> result = mpi::genetic_algorithm::ElitistRecombination<100>(population, end_condition, calc_fitness_lambda, eax::edge_assembly_crossover, tsp, local_rng, logging);
+        vector<Individual> result = mpi::genetic_algorithm::ElitistRecombination<100>(population, end_condition, calc_fitness_lambda, eax::edge_assembly_crossover, env, local_rng, logging);
         // vector<Individual> result = mpi::genetic_algorithm::SimpleGA(population, end_condition, calc_fitness, eax::edge_assembly_crossover, adjacency_matrix, local_rng);
         
         auto end_time = chrono::high_resolution_clock::now();

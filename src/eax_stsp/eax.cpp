@@ -474,10 +474,10 @@ struct std::hash<edge> {
 
 namespace eax {
 std::vector<std::vector<size_t>> edge_assembly_crossover(const std::vector<size_t>& parent1, const std::vector<size_t>& parent2, size_t children_size,
-                                            const tsp::TSP& tsp, std::mt19937& rng) {
+                                            eax::Environment& env, std::mt19937& rng) {
 
-    auto& adjacency_matrix = tsp.adjacency_matrix;
-    auto& NN_list = tsp.NN_list;
+    auto& adjacency_matrix = env.tsp.adjacency_matrix;
+    auto& NN_list = env.tsp.NN_list;
     using namespace std;
     
     using edge_with_parent = pair<edge, bool>; // from_parent1 : bool
