@@ -328,6 +328,7 @@ int main(int argc, char* argv[])
         tsp_env.tsp = tsp;
         tsp_env.population_size = population_size;
         tsp_env.N_parameter = 1;
+        tsp_env.num_children = 30; // 子の数
         if (use_local_eax) {
             tsp_env.eax_type = eax::EAXType::N_AB;
         } else {

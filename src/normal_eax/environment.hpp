@@ -13,6 +13,7 @@ namespace eax {
     enum class EAXType {
         Rand,
         N_AB,
+        Block2,
     };
 
     enum class SelectionType {
@@ -80,6 +81,7 @@ namespace eax {
         tsp::TSP tsp;
         size_t N_parameter;
         size_t population_size;
+        size_t num_children;
         EAXType eax_type;
         SelectionType selection_type;
         std::vector<std::vector<size_t>> pop_edge_counts; // 各エッジの個数

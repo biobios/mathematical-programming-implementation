@@ -409,110 +409,181 @@ void IntermediateIndividual::apply_AB_cycles(const ABCycles& AB_cycles,
     segments.resize(forcused_segment_id + 1);
     end_timer("construct_segments");
 }
+namespace {
+    std::vector<Child> edge_assembly_crossover_N_AB(const Individual& parent1, const Individual& parent2, size_t children_size,
+                                            eax::Environment& env, std::mt19937& rng) {
+        auto& tsp = env.tsp;
+        auto& adjacency_matrix = tsp.adjacency_matrix;
+        auto& NN_list = tsp.NN_list;
+        using namespace std;
+                                                
+        const size_t n = parent1.size();
+
+        auto path_ptr = env.object_pools.vector_of_tsp_size_pool.acquire_unique();
+        auto pos_ptr = env.object_pools.vector_of_tsp_size_pool.acquire_unique();
+        vector<size_t>& path = *path_ptr;
+        vector<size_t>& pos = *pos_ptr;
+        for (size_t i = 0, prev = 0, current = 0; i < n; ++i) {
+            path[i] = current;
+            pos[current] = i;
+            size_t next = parent1[current][0];
+            if (next == prev) {
+                next = parent1[current][1];
+            }
+            prev = current;
+            current = next;
+        }
+
+        start_timer("find_AB_cycles");
+        vector<ABCycle_ptr> AB_cycles = find_AB_cycles(env.N_parameter * children_size, parent1, parent2, rng, env.object_pools.any_size_vector_pool, env.object_pools.vector_of_tsp_size_pool, env.object_pools.doubly_linked_list_pool, env.object_pools.LRIS_pool);
+        end_timer("find_AB_cycles");
+
+        auto AB_cycle_indices_ptr = env.object_pools.any_size_vector_pool.acquire_unique();
+        auto& AB_cycle_indices = *AB_cycle_indices_ptr;
+        AB_cycle_indices.resize(AB_cycles.size());
+        iota(AB_cycle_indices.begin(), AB_cycle_indices.end(), 0);
+        shuffle(AB_cycle_indices.begin(), AB_cycle_indices.end(), rng);
+
+        vector<Child> children;
+        auto working_individual = env.object_pools.intermediate_individual_pool.acquire_unique();
+        working_individual->assign(parent1);
+
+        children_size = min(children_size, (AB_cycles.size() + env.N_parameter - 1) / env.N_parameter);
+
+        for (size_t child_index = 0; child_index < children_size; ++child_index) {
+
+            // 緩和個体を作成
+            start_timer("create_relaxed_individual");
+
+            auto selected_AB_cycles_indices_ptr = env.object_pools.any_size_vector_pool.acquire_unique();
+            auto& selected_AB_cycles_indices = *selected_AB_cycles_indices_ptr;
+            selected_AB_cycles_indices.clear();
+
+            for (size_t i = 0; i < env.N_parameter && i < AB_cycles.size(); ++i) {
+                size_t index = (child_index * env.N_parameter + i) % AB_cycles.size();
+                selected_AB_cycles_indices.push_back(AB_cycle_indices[index]);
+            }
+
+            auto selected_AB_cycles_view = selected_AB_cycles_indices | views::transform([&AB_cycles](size_t index) -> const ABCycle& {
+                return *AB_cycles[index];
+            });
+
+            working_individual->apply_AB_cycles(selected_AB_cycles_view, pos, env);
+
+            end_timer("create_relaxed_individual");
+
+            start_timer("merge_sub_tours");
+
+            merge_sub_tours(adjacency_matrix, *working_individual, path, pos, NN_list, env);
+
+            end_timer("merge_sub_tours");
+
+            children.emplace_back(working_individual->convert_to_child_and_revert());
+
+        }
+
+        if (children.empty()) {
+            children.emplace_back(working_individual->convert_to_child_and_revert());
+        }
+        return children;
+
+    }
+    
+    std::vector<Child> edge_assembly_crossover_Rand(const Individual& parent1, const Individual& parent2, size_t children_size,
+                                            eax::Environment& env, std::mt19937& rng) {
+        auto& tsp = env.tsp;
+        auto& adjacency_matrix = tsp.adjacency_matrix;
+        auto& NN_list = tsp.NN_list;
+        using namespace std;
+                                                
+        const size_t n = parent1.size();
+                                                
+        auto path_ptr = env.object_pools.vector_of_tsp_size_pool.acquire_unique();
+        auto pos_ptr = env.object_pools.vector_of_tsp_size_pool.acquire_unique();
+        vector<size_t>& path = *path_ptr;
+        vector<size_t>& pos = *pos_ptr;
+        for (size_t i = 0, prev = 0, current = 0; i < n; ++i) {
+            path[i] = current;
+            pos[current] = i;
+            size_t next = parent1[current][0];
+            if (next == prev) {
+                next = parent1[current][1];
+            }
+            prev = current;
+            current = next;
+        }
+
+        start_timer("find_AB_cycles");
+        vector<ABCycle_ptr> AB_cycles = find_AB_cycles(numeric_limits<size_t>::max(), parent1, parent2, rng, env.object_pools.any_size_vector_pool, env.object_pools.vector_of_tsp_size_pool, env.object_pools.doubly_linked_list_pool, env.object_pools.LRIS_pool);
+        end_timer("find_AB_cycles");
+
+        vector<Child> children;
+        auto working_individual = env.object_pools.intermediate_individual_pool.acquire_unique();
+        working_individual->assign(parent1);
+
+        if (env.eax_type == eax::EAXType::N_AB) {
+            children_size = min(children_size, (AB_cycles.size() + env.N_parameter - 1) / env.N_parameter);
+        }
+        for (size_t child_index = 0; child_index < children_size; ++child_index) {
+
+            // 緩和個体を作成
+            start_timer("create_relaxed_individual");
+
+            auto selected_AB_cycles_indices_ptr = env.object_pools.any_size_vector_pool.acquire_unique();
+            auto& selected_AB_cycles_indices = *selected_AB_cycles_indices_ptr;
+            selected_AB_cycles_indices.clear();
+
+            uniform_int_distribution<size_t> dist_01(0, 1);
+            for (size_t i = 0; i < AB_cycles.size(); ++i) {
+                if (dist_01(rng) == 0) {
+                    selected_AB_cycles_indices.push_back(i);
+                }
+            }
+
+            auto selected_AB_cycles_view = selected_AB_cycles_indices | views::transform([&AB_cycles](size_t index) -> const ABCycle& {
+                return *AB_cycles[index];
+            });
+
+            working_individual->apply_AB_cycles(selected_AB_cycles_view, pos, env);
+
+            end_timer("create_relaxed_individual");
+
+            start_timer("merge_sub_tours");
+
+            merge_sub_tours(adjacency_matrix, *working_individual, path, pos, NN_list, env);
+
+            end_timer("merge_sub_tours");
+
+            children.emplace_back(working_individual->convert_to_child_and_revert());
+
+        }
+        if (children.empty()) {
+            children.emplace_back(working_individual->convert_to_child_and_revert());
+        }
+        return children;
+    }
+    
+    std::vector<Child> edge_assembly_crossover_block2(const Individual& parent1, const Individual& parent2, size_t children_size,
+                                            eax::Environment& env, std::mt19937& rng) {
+        // Implement Block2 crossover logic here
+        throw std::runtime_error("Block2 crossover is not implemented yet");
+    }
+
+}
+
 std::vector<Child> edge_assembly_crossover(const Individual& parent1, const Individual& parent2, size_t children_size,
                                             eax::Environment& env, std::mt19937& rng) {
-
-    auto& tsp = env.tsp;
-    auto& adjacency_matrix = tsp.adjacency_matrix;
-    auto& NN_list = tsp.NN_list;
-    using namespace std;
     
-    const size_t n = parent1.size();
-    
-    // vector<size_t> path(n);
-    // vector<size_t> pos(n);
-    auto path_ptr = env.object_pools.vector_of_tsp_size_pool.acquire_unique();
-    auto pos_ptr = env.object_pools.vector_of_tsp_size_pool.acquire_unique();
-    auto& path = *path_ptr;
-    auto& pos = *pos_ptr;
-    for (size_t i = 0, prev = 0, current = 0; i < n; ++i) {
-        path[i] = current;
-        pos[current] = i;
-        size_t next = parent1[current][0];
-        if (next == prev) {
-            next = parent1[current][1];
-        }
-        prev = current;
-        current = next;
-    }
-    
-    vector<ABCycle_ptr> AB_cycles;
-    start_timer("find_AB_cycles");
-    switch (env.eax_type) {
+    switch(env.eax_type) {
         case eax::EAXType::Rand:
-            AB_cycles = find_AB_cycles(numeric_limits<size_t>::max(), parent1, parent2, rng, env.object_pools.any_size_vector_pool, env.object_pools.vector_of_tsp_size_pool, env.object_pools.doubly_linked_list_pool, env.object_pools.LRIS_pool);
-            break;
+            return edge_assembly_crossover_Rand(parent1, parent2, children_size, env, rng);
         case eax::EAXType::N_AB:
-            AB_cycles = find_AB_cycles(env.N_parameter * children_size, parent1, parent2, rng, env.object_pools.any_size_vector_pool, env.object_pools.vector_of_tsp_size_pool, env.object_pools.doubly_linked_list_pool, env.object_pools.LRIS_pool);
-            break;
+            return edge_assembly_crossover_N_AB(parent1, parent2, children_size, env, rng);
+        case eax::EAXType::Block2:
+            return edge_assembly_crossover_block2(parent1, parent2, children_size, env, rng);
         default:
-            cerr << "Error: Unknown EAX type." << endl;
-            exit(1);
+            throw std::runtime_error("Unknown EAX type");
     }
-    end_timer("find_AB_cycles");
-    auto AB_cycle_indices_ptr = env.object_pools.any_size_vector_pool.acquire_unique();
-    auto& AB_cycle_indices = *AB_cycle_indices_ptr;
-    AB_cycle_indices.resize(AB_cycles.size());
-    iota(AB_cycle_indices.begin(), AB_cycle_indices.end(), 0);
-    shuffle(AB_cycle_indices.begin(), AB_cycle_indices.end(), rng);
-    
-    vector<Child> children;
-    auto working_individual = env.object_pools.intermediate_individual_pool.acquire_unique();
-    working_individual->assign(parent1);
-
-    if (env.eax_type == eax::EAXType::N_AB) {
-        children_size = min(children_size, (AB_cycles.size() + env.N_parameter - 1) / env.N_parameter);
-    }
-    for (size_t child_index = 0; child_index < children_size; ++child_index) {
-        
-        // 緩和個体を作成
-        start_timer("create_relaxed_individual");
-        
-        auto selected_AB_cycles_indices_ptr = env.object_pools.any_size_vector_pool.acquire_unique();
-        auto& selected_AB_cycles_indices = *selected_AB_cycles_indices_ptr;
-        selected_AB_cycles_indices.clear();
-        
-        uniform_int_distribution<size_t> dist_01(0, 1);
-        switch (env.eax_type) {
-            case eax::EAXType::Rand:
-                for (auto index : AB_cycle_indices) {
-                    if (dist_01(rng) == 0) {
-                        selected_AB_cycles_indices.push_back(index);
-                    }
-                }
-                break;
-            case eax::EAXType::N_AB:
-                for (size_t i = 0; i < env.N_parameter && i < AB_cycles.size(); ++i) {
-                    size_t index = (child_index * env.N_parameter + i) % AB_cycles.size();
-                    selected_AB_cycles_indices.push_back(AB_cycle_indices[index]);
-                }
-                break;
-            default:
-                cerr << "Error: Unknown EAX type." << endl;
-                exit(1);
-        }
-        
-        auto selected_AB_cycles_view = selected_AB_cycles_indices | views::transform([&AB_cycles](size_t index) -> const ABCycle& {
-            return *AB_cycles[index];
-        });
-        
-        working_individual->apply_AB_cycles(selected_AB_cycles_view, pos, env);
-
-        end_timer("create_relaxed_individual");
-
-        start_timer("merge_sub_tours");
-
-        merge_sub_tours(adjacency_matrix, *working_individual, path, pos, NN_list, env);
-
-        end_timer("merge_sub_tours");
-
-        children.emplace_back(working_individual->convert_to_child_and_revert());
-
-    }
-    if (children.empty()) {
-        children.emplace_back(working_individual->convert_to_child_and_revert());
-    }
-    return children;
 }
 
 void print_time() {
