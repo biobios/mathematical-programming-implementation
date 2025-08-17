@@ -853,6 +853,9 @@ namespace {
         auto pos_ptr = env.object_pools.vector_of_tsp_size_pool.acquire_unique();
         vector<size_t>& path = *path_ptr;
         vector<size_t>& pos = *pos_ptr;
+        
+        // 親間で異なる枝の本数
+        size_t different_edges_count = 0;
         for (size_t i = 0, prev = 0, current = 0; i < n; ++i) {
             path[i] = current;
             pos[current] = i;
@@ -860,6 +863,9 @@ namespace {
             if (next == prev) {
                 next = parent1[current][1];
             }
+            
+            if (parent2[current][0] != next && parent2[current][1] != next)
+                ++different_edges_count;
             prev = current;
             current = next;
         }
@@ -883,9 +889,9 @@ namespace {
             auto selected_AB_cycles_indices_ptr = block2_strategy.search_e_set_with_tabu_search(child_index, env.object_pools.any_size_vector_pool, rng);
             auto& selected_AB_cycles_indices = *selected_AB_cycles_indices_ptr;
             
-            // if (selected_AB_cycles_indices.size() == AB_cycles.size()) {
-            //     continue; // 全てのABサイクルを選択している場合はスキップ
-            // }
+            if (selected_AB_cycles_indices.size() == AB_cycles.size()) {
+                continue; // 全てのABサイクルを選択している場合はスキップ
+            }
             
             auto selected_AB_cycles_view = selected_AB_cycles_indices | views::transform([&AB_cycles](size_t index) -> const ABCycle& {
                 return *AB_cycles[index];
@@ -897,6 +903,21 @@ namespace {
             start_timer("merge_sub_tours");
             merge_sub_tours(adjacency_matrix, *working_individual, path, pos, NN_list, env);
             end_timer("merge_sub_tours");
+            
+            // 削除された親1の枝の数(追加された親２の枝の数)
+            size_t swapped_edges_count = 0;
+            for (size_t i = 0; i < selected_AB_cycles_indices.size(); ++i) {
+                const ABCycle& cycle = *AB_cycles[selected_AB_cycles_indices[i]];
+                swapped_edges_count += cycle.size() / 2;
+            }
+            
+            if (swapped_edges_count * 2 >= different_edges_count &&
+                parent1.get_distance() + working_individual->calc_delta_distance(adjacency_matrix) == parent2.get_distance()) {
+                // 交換された枝の数が親間で異なる枝の数の半分以上であり、
+                // 子供の距離が親2と同じ場合は、子供を追加しない
+                working_individual->discard();
+                continue;
+            }
 
             children.emplace_back(working_individual->convert_to_child_and_revert());
         }
