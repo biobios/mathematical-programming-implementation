@@ -26,6 +26,7 @@ public:
     IntermediateIndividual() = default;
     IntermediateIndividual(const eax::Individual& parent) : working_individual(parent) {}
     eax::Child convert_to_child_and_revert();
+    void discard();
     void assign(const eax::Individual& parent);
     void swap_edges(std::pair<size_t, size_t> edge1, std::pair<size_t, size_t> edge2);    
     void change_connection(size_t v1, size_t v2, size_t new_v2);
@@ -41,6 +42,7 @@ public:
     void merge_sub_tour(size_t sub_tour_id1, size_t sub_tour_id2);    
     const std::array<size_t, 2>& operator[](size_t index);    
     const std::array<size_t, 2>& operator[](size_t index) const;
+    int64_t calc_delta_distance(const std::vector<std::vector<int64_t>>& adjacency_matrix) const;
 private:
     void revert();    
     void reset();
@@ -49,6 +51,8 @@ private:
     std::vector<eax::Child::Modification> modifications;
     std::vector<Segment> segments;
     std::vector<size_t> sub_tour_sizes;
+    mutable bool is_dirty = false;
+    mutable int64_t distance = 0;
 };
     
 std::vector<Child> edge_assembly_crossover(const Individual& parent1, const Individual& parent2, size_t children_size,

@@ -152,6 +152,11 @@ eax::Child IntermediateIndividual::convert_to_child_and_revert() {
     return child;
 }
 
+void IntermediateIndividual::discard() {
+    revert();
+    reset();
+}
+
 void IntermediateIndividual::assign(const eax::Individual& parent) {
     working_individual = parent;
     reset();
@@ -171,6 +176,7 @@ void IntermediateIndividual::swap_edges(std::pair<size_t, size_t> edge1, std::pa
 }
 
 void IntermediateIndividual::change_connection(size_t v1, size_t v2, size_t new_v2) {
+    is_dirty = true;
     eax::Child::Modification modification{
         {v1, v2},
         new_v2
@@ -259,6 +265,8 @@ void IntermediateIndividual::reset() {
     modifications.clear();
     segments.clear();
     sub_tour_sizes.clear();
+    is_dirty = false;
+    distance = 0;
 }
 
 void IntermediateIndividual::undo(const eax::Child::Modification& modification) {
@@ -409,6 +417,25 @@ void IntermediateIndividual::apply_AB_cycles(const ABCycles& AB_cycles,
     segments.resize(forcused_segment_id + 1);
     end_timer("construct_segments");
 }
+
+int64_t IntermediateIndividual::calc_delta_distance(const std::vector<std::vector<int64_t>>& adjacency_matrix) const {
+    if (!is_dirty) {
+        return distance;
+    }
+    
+    distance = 0;
+    for (auto& modification : modifications) {
+        auto [v1, v2] = modification.edge1;
+        size_t new_v2 = modification.new_v2;
+        distance -= adjacency_matrix[v1][v2];
+        distance += adjacency_matrix[v1][new_v2];
+    }
+    
+    distance /= 2;
+    is_dirty = false;
+    return distance;
+}
+
 namespace {
     std::vector<Child> edge_assembly_crossover_N_AB(const Individual& parent1, const Individual& parent2, size_t children_size,
                                             eax::Environment& env, std::mt19937& rng) {
