@@ -34,6 +34,7 @@ namespace eax {
         mpi::ObjectPool<std::vector<uint8_t>> in_min_sub_tour_pool;
         mpi::ObjectPool<std::vector<std::tuple<size_t, size_t, size_t>>> cut_positions_pool;
         mpi::ObjectPool<std::vector<std::array<size_t, 2>>> doubly_linked_list_pool;
+        mpi::ObjectPool<std::vector<std::vector<size_t>>> any_size_2d_vector_pool;
 
         ObjectPools(size_t city_count) : city_count(city_count), 
             LRIS_pool([city_count]() {
@@ -69,6 +70,10 @@ namespace eax {
             doubly_linked_list_pool([city_count]() {
                 std::cout << "Creating doubly linked list pool with size: " << city_count << std::endl;
                 return new std::vector<std::array<size_t, 2>>(city_count);
+            }),
+            any_size_2d_vector_pool([]() {
+                std::cout << "Creating any size 2D vector pool" << std::endl;
+                return new std::vector<std::vector<size_t>>();
             })
         {}
         
