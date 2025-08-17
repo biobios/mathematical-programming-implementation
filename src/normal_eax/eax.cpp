@@ -148,7 +148,7 @@ namespace eax {
 eax::Child IntermediateIndividual::convert_to_child_and_revert() {
     revert();
     eax::Child child(std::move(modifications));
-    modifications.clear();
+    reset();
     return child;
 }
 
