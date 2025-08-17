@@ -207,7 +207,7 @@ int main(int argc, char* argv[])
         struct {
             size_t best_length = 1e18;
             size_t generation_of_reached_best = 0;
-            size_t generation_of_change_to_5AB = 0;
+            size_t generation_of_transition_to_stage2 = 0;
             size_t G_devided_by_10 = 0;
             eax::EAXType eax_type;
             eax::SelectionType selection_type;
@@ -249,33 +249,49 @@ int main(int argc, char* argv[])
                 average_length /= population.size();
                 return (average_length - best_length) > 0.1;
             }
+            
+            enum class GA_Stage {
+                Stage1,
+                Stage2,
+            };
+            
+            GA_Stage stage = GA_Stage::Stage1;
 
             bool continue_condition_local(const vector<Individual>& population, Env& env, size_t generation) {
                 double best_length = std::numeric_limits<double>::max();
+                double average_length = 0.0;
                 for (size_t i = 0; i < population.size(); ++i) {
                     double length = population[i].get_distance();
                     best_length = std::min(best_length, length);
+                    average_length += length;
                 }
+                average_length /= population.size();
                 
                 if (best_length < this->best_length) {
                     this->best_length = best_length;
                     this->generation_of_reached_best = generation;
                 }
                 
-                if (env.eax_type == eax::EAXType::N_AB && env.N_parameter == 1) {
-                    if (G_devided_by_10 == 0 && generation - this->generation_of_reached_best >= 50) {
+                if (average_length - best_length < 0.001)
+                    return false; // 収束条件
+                
+                const size_t N_child = env.num_children;
+                
+                if (stage == GA_Stage::Stage1) {
+                    if (G_devided_by_10 == 0 && generation - generation_of_reached_best >= (1500 / N_child)) {
                         G_devided_by_10 = generation / 10;
+                    } else if (G_devided_by_10 > 0 && generation - generation_of_reached_best >= G_devided_by_10) {
+                        stage = GA_Stage::Stage2;
+                        env.eax_type = eax::EAXType::Block2;
+                        generation_of_reached_best = generation;
+                        generation_of_transition_to_stage2 = generation;
+                        G_devided_by_10 = 0;
                     }
-                    
-                    if (G_devided_by_10 > 0 && generation - this->generation_of_reached_best >= G_devided_by_10) {
-                        env.N_parameter = 5;
-                        this->generation_of_change_to_5AB = generation;
-                        cout << "Changing N_parameter to 5 at generation " << generation << endl;
-                    }
-                } else if (env.eax_type == eax::EAXType::N_AB && env.N_parameter == 5) {
-                    size_t last_new_record_generation = max(this->generation_of_reached_best, this->generation_of_change_to_5AB);
-                    if (generation - last_new_record_generation >= 50) {
-                        return false; // 5ABで50世代以上新記録が出なければ終了
+                } else {
+                    if (G_devided_by_10 == 0 && generation - generation_of_reached_best >= (1500 / N_child)) {
+                        G_devided_by_10 = (generation - generation_of_transition_to_stage2) / 10;
+                    } else if (G_devided_by_10 > 0 && generation - generation_of_reached_best >= G_devided_by_10) {
+                        return false; // 収束条件
                     }
                 }
                 
