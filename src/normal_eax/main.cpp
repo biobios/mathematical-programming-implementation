@@ -182,6 +182,8 @@ int main(int argc, char* argv[])
     vector<double> best_path_lengths(trials, 0.0);
     // 各試行のベストに到達した最初の世代
     vector<size_t> generation_of_best(trials, 0);
+    // 各試行の最終世代
+    vector<size_t> final_generations(trials, 0);
     
     for (size_t trial = 0; trial < trials; ++trial) {
         cout << "Trial " << trial + 1 << " of " << trials << endl;
@@ -306,8 +308,10 @@ int main(int argc, char* argv[])
         struct {
             double best_length = 1e18;
             size_t generation_of_reached_best = 0;
+            size_t final_generation = 0;
 
             void operator()([[maybe_unused]]const vector<Individual>& population, [[maybe_unused]]const Env& tsp, size_t generation) {
+                this->final_generation = generation;
                 std::vector<double> lengths(population.size());
                 for (size_t i = 0; i < population.size(); ++i) {
                     lengths[i] = population[i].get_distance();
@@ -374,6 +378,7 @@ int main(int argc, char* argv[])
         
         best_path_lengths[trial] = logging.best_length;
         generation_of_best[trial] = logging.generation_of_reached_best;
+        final_generations[trial] = logging.final_generation;
         
         cout << "Trial " << trial + 1 << " completed." << endl;
     }
@@ -392,6 +397,10 @@ int main(int argc, char* argv[])
     // ベストに到達した最初の世代の平均を出力
     double average_generation_of_best = accumulate(generation_of_best.begin(), generation_of_best.end(), 0.0) / trials;
     cout << "Average generation of best path: " << average_generation_of_best << endl;
+    
+    // 最終世代の平均を出力
+    double average_final_generation = accumulate(final_generations.begin(), final_generations.end(), 0.0) / trials;
+    cout << "Average final generation: " << average_final_generation << endl;
 
     // 各試行の経過時間を出力
     cout << "Trial times (seconds): ";
