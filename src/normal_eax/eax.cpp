@@ -416,7 +416,7 @@ namespace {
         auto& adjacency_matrix = tsp.adjacency_matrix;
         auto& NN_list = tsp.NN_list;
         using namespace std;
-                                                
+
         const size_t n = parent1.size();
 
         auto path_ptr = env.object_pools.vector_of_tsp_size_pool.acquire_unique();
@@ -495,7 +495,7 @@ namespace {
         auto& adjacency_matrix = tsp.adjacency_matrix;
         auto& NN_list = tsp.NN_list;
         using namespace std;
-                                                
+
         const size_t n = parent1.size();
                                                 
         auto path_ptr = env.object_pools.vector_of_tsp_size_pool.acquire_unique();
@@ -563,10 +563,321 @@ namespace {
         return children;
     }
     
+    class Block2Strategy {
+    public:
+        Block2Strategy(const eax::Individual& parent1,
+                        const eax::Individual& parent2,
+                        const std::vector<ABCycle_ptr>& AB_cycles,
+                        size_t city_count,
+                        mpi::ObjectPool<std::vector<size_t>>& vector_of_tsp_size_pool,
+                        mpi::ObjectPool<std::vector<size_t>>& any_size_vector_pool,
+                        mpi::ObjectPool<std::vector<std::vector<size_t>>>& shared_vertex_count_pool)
+                        : city_count(city_count),
+                          cycle_count(AB_cycles.size()),
+                          c_vertex_count_ptr(any_size_vector_pool.acquire_unique()),
+                          shared_vertex_count_ptr(shared_vertex_count_pool.acquire_unique()) {
+            using namespace std;
+            auto belongs_to_AB_cycle1_ptr = vector_of_tsp_size_pool.acquire_unique();
+            auto belongs_to_AB_cycle2_ptr = vector_of_tsp_size_pool.acquire_unique();
+            vector<size_t>& belongs_to_AB_cycle1 = *belongs_to_AB_cycle1_ptr;
+            vector<size_t>& belongs_to_AB_cycle2 = *belongs_to_AB_cycle2_ptr;
+            
+            const size_t NULL_CYCLE = std::numeric_limits<size_t>::max();
+            for (size_t i = 0; i < city_count; ++i) {
+                belongs_to_AB_cycle1[i] = NULL_CYCLE;
+                belongs_to_AB_cycle2[i] = NULL_CYCLE;
+            }
+            
+            // 各頂点が属するABサイクルを記録
+            for (size_t i = 0; i < cycle_count; ++i) {
+                const ABCycle& cycle = *AB_cycles[i];
+                for (auto city : cycle) {
+                    if (belongs_to_AB_cycle1[city] == NULL_CYCLE) {
+                        belongs_to_AB_cycle1[city] = i;
+                    } else if (belongs_to_AB_cycle2[city] == NULL_CYCLE) {
+                        belongs_to_AB_cycle2[city] = i;
+                    } else {
+                        throw std::runtime_error("City belongs to more than 2 AB cycles");
+                    }
+                }
+            }
+            
+            // 無効ABサイクルを隣接する有効ABサイクルと統合する
+            for (size_t i = 0; i < city_count; ++i) {
+                if (belongs_to_AB_cycle1[i] != NULL_CYCLE && belongs_to_AB_cycle2[i] == NULL_CYCLE) {
+                    // AB_cyclesには、すべての有効ABサイクルが含まれているので、
+                    // 一方しか記録されていないならば、もう一方は無効ABサイクルである
+                    size_t AB_cycle_index = belongs_to_AB_cycle1[i];
+                    size_t v1 = i;
+                    
+                    // 有効ABサイクルに属している方の頂点
+                    size_t v_belonging_to_AB_cycle = 0;
+                    // 無効ABサイクルは親間で一致している辺で構成されるので
+                    // そうではない方を見ればよい
+                    if (parent1[v1][0] != parent2[v1][0] && parent1[v1][0] != parent2[v1][1]) {
+                        v_belonging_to_AB_cycle = parent1[v1][0];
+                    } else if (parent1[v1][1] != parent2[v1][0] && parent1[v1][1] != parent2[v1][1]) {
+                        v_belonging_to_AB_cycle = parent1[v1][1];
+                    } else {
+                        throw std::runtime_error("Invalid AB cycle");
+                    }
+                    
+                    // 無効ABサイクルをたどって、その頂点を有効ABサイクルAB_cycle_indexに追加する
+                    while (true) {
+                        belongs_to_AB_cycle2[v1] = AB_cycle_index;
+                        size_t next_v1 = parent1[v1][0];
+                        if (next_v1 == v_belonging_to_AB_cycle) {
+                            next_v1 = parent1[v1][1];
+                        }
+                        
+                        if (belongs_to_AB_cycle1[next_v1] == NULL_CYCLE) {
+                            belongs_to_AB_cycle1[next_v1] = AB_cycle_index;
+                        } else if (belongs_to_AB_cycle2[next_v1] == NULL_CYCLE) {
+                            belongs_to_AB_cycle2[next_v1] = AB_cycle_index;
+                            break; // 無効ABサイクルの系列の終端に到達した
+                        } else {
+                            throw std::runtime_error("Invalid AB cycle");
+                        }
+                        
+                        v_belonging_to_AB_cycle = v1;
+                        v1 = next_v1;
+                    }
+                }
+            }
+            
+            // 初期化
+            auto& c_vertex_count = *c_vertex_count_ptr;
+            c_vertex_count.resize(cycle_count, 0);
+
+            auto& shared_vertex_count = *shared_vertex_count_ptr;
+            shared_vertex_count.resize(cycle_count);
+            for (size_t i = 0; i < cycle_count; ++i) {
+                shared_vertex_count[i].resize(cycle_count, 0);
+            }
+            
+            // C頂点の数と共有頂点の数をカウント
+            for (size_t i = 0; i < city_count; ++i) {
+                if (belongs_to_AB_cycle1[i] != belongs_to_AB_cycle2[i]) {
+                    ++c_vertex_count[belongs_to_AB_cycle1[i]];
+                    ++c_vertex_count[belongs_to_AB_cycle2[i]];
+                    if (belongs_to_AB_cycle1[i] != NULL_CYCLE && belongs_to_AB_cycle2[i] != NULL_CYCLE) {
+                        ++shared_vertex_count[belongs_to_AB_cycle1[i]][belongs_to_AB_cycle2[i]];
+                        ++shared_vertex_count[belongs_to_AB_cycle2[i]][belongs_to_AB_cycle1[i]];
+                    }
+                }
+            }
+        }
+        
+        using e_set_index_vector_ptr = mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr;
+        
+        e_set_index_vector_ptr search_e_set_with_tabu_search(size_t center_ab_cycle_index,
+                                            mpi::ObjectPool<std::vector<size_t>>& any_size_vector_pool,
+                                            std::mt19937& rng) {
+
+            using namespace std;
+            
+            auto best_e_set_ptr = any_size_vector_pool.acquire_unique();
+            vector<size_t>& best_e_set = *best_e_set_ptr;
+            set_initial_e_set(best_e_set, center_ab_cycle_index, rng);
+
+            vector<size_t> const& c_vertex_count = *c_vertex_count_ptr;
+            vector<vector<size_t>> const& shared_vertex_count = *shared_vertex_count_ptr;
+
+            auto shared_vertex_count_with_e_set_ptr = any_size_vector_pool.acquire_unique();
+            vector<size_t>& shared_vertex_count_with_e_set = *shared_vertex_count_with_e_set_ptr;
+            auto included_in_e_set_ptr = any_size_vector_pool.acquire_unique();
+            vector<size_t>& included_in_e_set = *included_in_e_set_ptr;
+            auto tabu_list_ptr = any_size_vector_pool.acquire_unique();
+            vector<size_t>& tabu_list = *tabu_list_ptr;
+
+            shared_vertex_count_with_e_set.resize(cycle_count, 0);
+            included_in_e_set.resize(cycle_count, false);
+            tabu_list.resize(cycle_count, 0);
+
+            size_t current_num_c = 0;
+            // ABサイクルを追加する関数
+            auto add_cycle = [&c_vertex_count, &shared_vertex_count,
+                                &shared_vertex_count_with_e_set, &included_in_e_set,
+                                &current_num_c, this](size_t cycle_index){
+                current_num_c += c_vertex_count[cycle_index] - 2 * shared_vertex_count_with_e_set[cycle_index];
+                included_in_e_set[cycle_index] = true;
+
+                for (size_t i = 0; i < cycle_count; ++i) {
+                    shared_vertex_count_with_e_set[i] += shared_vertex_count[cycle_index][i];
+                }
+            };
+
+            // ABサイクルを削除する関数
+            auto remove_cycle = [&c_vertex_count, &shared_vertex_count,
+                                &shared_vertex_count_with_e_set, &included_in_e_set,
+                                &current_num_c, this](size_t cycle_index) {
+                current_num_c -= c_vertex_count[cycle_index] - 2 * shared_vertex_count_with_e_set[cycle_index];
+                included_in_e_set[cycle_index] = false;
+
+                for (size_t i = 0; i < cycle_count; ++i) {
+                    shared_vertex_count_with_e_set[i] -= shared_vertex_count[cycle_index][i];
+                }
+            };
+            
+            for (auto cycle_index : best_e_set) {
+                add_cycle(cycle_index);
+            }
+            size_t best_num_c = current_num_c;
+            
+            uniform_int_distribution<size_t> tabu_dist(1, 10);
+            
+            size_t iteration = 0;
+            size_t last_best_update_iteration = 0;
+            while (true) {
+                ++iteration;
+                
+                size_t min_num_c = numeric_limits<size_t>::max();
+                size_t selected_cycle_index = 0;
+                bool add = false;
+                bool found = false;
+                for (size_t i = 0; i < cycle_count; ++i) {
+                    bool is_tabu = tabu_list[i] >= iteration;
+                    if (!included_in_e_set[i] && shared_vertex_count_with_e_set[i] > 0) {
+                        size_t num_c = current_num_c + c_vertex_count[i] - 2 * shared_vertex_count_with_e_set[i];
+
+                        if ((num_c < best_num_c || !is_tabu) && num_c < min_num_c) {
+                            min_num_c = num_c;
+                            selected_cycle_index = i;
+                            add = true;
+                            found = true;
+                        }
+                    } else if (included_in_e_set[i] && i != center_ab_cycle_index) {
+                        size_t num_c = current_num_c - c_vertex_count[i] + 2 * shared_vertex_count_with_e_set[i];
+                        
+                        if ((num_c < best_num_c || !is_tabu) && num_c < min_num_c) {
+                            min_num_c = num_c;
+                            selected_cycle_index = i;
+                            add = false;
+                            found = true;
+                        }
+                    }
+                    
+                }
+
+                if (found) {
+                    if (add) {
+                        add_cycle(selected_cycle_index);
+                    } else {
+                        remove_cycle(selected_cycle_index);
+                    }
+                    
+                    tabu_list[selected_cycle_index] = iteration + tabu_dist(rng);
+                    
+                    if (current_num_c < best_num_c) { // 最良解が更新された
+                        best_num_c = current_num_c;
+                        last_best_update_iteration = iteration;
+                        best_e_set.clear();
+                        for (size_t i = 0; i < cycle_count; ++i) {
+                            if (included_in_e_set[i]) {
+                                best_e_set.push_back(i);
+                            }
+                        }
+                    }
+                }
+                
+                if (iteration - last_best_update_iteration >= 20) {
+                    break;
+                }
+            }
+            
+            return best_e_set_ptr;
+        }
+    private:
+        void set_initial_e_set(std::vector<size_t>& e_set,
+                                size_t center_ab_cycle_index,
+                                std::mt19937& rng) {
+            using namespace std;
+            vector<vector<size_t>> const& shared_vertex_count = *shared_vertex_count_ptr;
+
+            uniform_int_distribution<size_t> dist01(0, 1);
+
+            e_set.clear();
+            e_set.reserve(cycle_count);
+            e_set.push_back(center_ab_cycle_index);
+            for (size_t i = 0; i < cycle_count; ++i) {
+                if (shared_vertex_count[center_ab_cycle_index][i] > 0) {
+                    if (dist01(rng) == 0) {
+                        e_set.push_back(i);
+                    }
+                }
+            }
+        }
+        size_t city_count;
+        size_t cycle_count;
+        mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr c_vertex_count_ptr;
+        mpi::ObjectPool<std::vector<std::vector<size_t>>>::pooled_unique_ptr shared_vertex_count_ptr;
+    };
+    
     std::vector<Child> edge_assembly_crossover_block2(const Individual& parent1, const Individual& parent2, size_t children_size,
                                             eax::Environment& env, std::mt19937& rng) {
-        // Implement Block2 crossover logic here
-        throw std::runtime_error("Block2 crossover is not implemented yet");
+        auto& tsp = env.tsp;
+        auto& adjacency_matrix = tsp.adjacency_matrix;
+        auto& NN_list = tsp.NN_list;
+        using namespace std;
+
+        const size_t n = parent1.size();
+
+        auto path_ptr = env.object_pools.vector_of_tsp_size_pool.acquire_unique();
+        auto pos_ptr = env.object_pools.vector_of_tsp_size_pool.acquire_unique();
+        vector<size_t>& path = *path_ptr;
+        vector<size_t>& pos = *pos_ptr;
+        for (size_t i = 0, prev = 0, current = 0; i < n; ++i) {
+            path[i] = current;
+            pos[current] = i;
+            size_t next = parent1[current][0];
+            if (next == prev) {
+                next = parent1[current][1];
+            }
+            prev = current;
+            current = next;
+        }
+
+        start_timer("find_AB_cycles");
+        vector<ABCycle_ptr> AB_cycles = find_AB_cycles(numeric_limits<size_t>::max(), parent1, parent2, rng, env.object_pools.any_size_vector_pool, env.object_pools.vector_of_tsp_size_pool, env.object_pools.doubly_linked_list_pool, env.object_pools.LRIS_pool);
+        end_timer("find_AB_cycles");
+        
+        sort(AB_cycles.begin(), AB_cycles.end(), [](const ABCycle_ptr& a, const ABCycle_ptr& b) {
+            return a->size() > b->size();
+        });
+        
+        Block2Strategy block2_strategy(parent1, parent2, AB_cycles, n, env.object_pools.vector_of_tsp_size_pool, env.object_pools.any_size_vector_pool, env.object_pools.any_size_2d_vector_pool);
+        
+        children_size = min(children_size, AB_cycles.size());
+
+        vector<Child> children;
+        auto working_individual = env.object_pools.intermediate_individual_pool.acquire_unique();
+        working_individual->assign(parent1);
+        for (size_t child_index = 0; child_index < children_size; ++child_index) {
+            auto selected_AB_cycles_indices_ptr = block2_strategy.search_e_set_with_tabu_search(child_index, env.object_pools.any_size_vector_pool, rng);
+            auto& selected_AB_cycles_indices = *selected_AB_cycles_indices_ptr;
+            
+            // if (selected_AB_cycles_indices.size() == AB_cycles.size()) {
+            //     continue; // 全てのABサイクルを選択している場合はスキップ
+            // }
+            
+            auto selected_AB_cycles_view = selected_AB_cycles_indices | views::transform([&AB_cycles](size_t index) -> const ABCycle& {
+                return *AB_cycles[index];
+            });
+            start_timer("create_relaxed_individual");
+            working_individual->apply_AB_cycles(selected_AB_cycles_view, pos, env);
+            end_timer("create_relaxed_individual");
+
+            start_timer("merge_sub_tours");
+            merge_sub_tours(adjacency_matrix, *working_individual, path, pos, NN_list, env);
+            end_timer("merge_sub_tours");
+
+            children.emplace_back(working_individual->convert_to_child_and_revert());
+        }
+        
+        if (children.empty()) {
+            children.emplace_back(working_individual->convert_to_child_and_revert());
+        }
+        return children;
     }
 
 }
