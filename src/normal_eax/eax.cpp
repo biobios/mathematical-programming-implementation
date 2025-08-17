@@ -601,6 +601,7 @@ namespace {
                         mpi::ObjectPool<std::vector<std::vector<size_t>>>& shared_vertex_count_pool)
                         : city_count(city_count),
                           cycle_count(AB_cycles.size()),
+                          AB_cycle_size_ptr(any_size_vector_pool.acquire_unique()),
                           c_vertex_count_ptr(any_size_vector_pool.acquire_unique()),
                           shared_vertex_count_ptr(shared_vertex_count_pool.acquire_unique()) {
             using namespace std;
@@ -613,6 +614,14 @@ namespace {
             for (size_t i = 0; i < city_count; ++i) {
                 belongs_to_AB_cycle1[i] = NULL_CYCLE;
                 belongs_to_AB_cycle2[i] = NULL_CYCLE;
+            }
+
+            // 各ABサイクルのサイズを記録
+            AB_cycle_size_ptr->resize(cycle_count, 0);
+            vector<size_t>& AB_cycle_size = *AB_cycle_size_ptr;
+            for (size_t i = 0; i < cycle_count; ++i) {
+                const ABCycle& cycle = *AB_cycles[i];
+                AB_cycle_size[i] = cycle.size();
             }
             
             // 各頂点が属するABサイクルを記録
@@ -820,6 +829,7 @@ namespace {
                                 std::mt19937& rng) {
             using namespace std;
             vector<vector<size_t>> const& shared_vertex_count = *shared_vertex_count_ptr;
+            vector<size_t> const& AB_cycle_size = *AB_cycle_size_ptr;
 
             uniform_int_distribution<size_t> dist01(0, 1);
 
@@ -827,7 +837,8 @@ namespace {
             e_set.reserve(cycle_count);
             e_set.push_back(center_ab_cycle_index);
             for (size_t i = 0; i < cycle_count; ++i) {
-                if (shared_vertex_count[center_ab_cycle_index][i] > 0) {
+                if (shared_vertex_count[center_ab_cycle_index][i] > 0 &&
+                    AB_cycle_size[i] < AB_cycle_size[center_ab_cycle_index]) {
                     if (dist01(rng) == 0) {
                         e_set.push_back(i);
                     }
@@ -836,6 +847,7 @@ namespace {
         }
         size_t city_count;
         size_t cycle_count;
+        mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr AB_cycle_size_ptr;
         mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr c_vertex_count_ptr;
         mpi::ObjectPool<std::vector<std::vector<size_t>>>::pooled_unique_ptr shared_vertex_count_ptr;
     };
