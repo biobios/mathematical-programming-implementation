@@ -5,6 +5,8 @@
 #include "object_pool.hpp"
 #include "limited_range_integer_set.hpp"
 
+#include "eaxdef.hpp"
+
 namespace eax {
 
 using PooledVectorPtr = mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr;
@@ -279,4 +281,31 @@ std::vector<PooledVectorPtr> find_AB_cycles(size_t needs,
     
     return AB_cycles;
 }
+
+class ABCycleFinder {
+public:
+    ABCycleFinder(
+        std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> any_size_vector_pool,
+        std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> vector_of_tsp_size_pool,
+        std::shared_ptr<mpi::ObjectPool<std::vector<std::array<size_t, 2>>>> doubly_linked_list_pool,
+        std::shared_ptr<mpi::ObjectPool<mpi::LimitedRangeIntegerSet>> LRIS_pool)
+        : any_size_vector_pool(std::move(any_size_vector_pool)),
+          vector_of_tsp_size_pool(std::move(vector_of_tsp_size_pool)),
+          doubly_linked_list_pool(std::move(doubly_linked_list_pool)),
+          LRIS_pool(std::move(LRIS_pool)) {}
+
+    template <doubly_linked_list_like Individual>
+    std::vector<PooledVectorPtr> operator()(size_t needs,
+            const Individual& parent1,
+            const Individual& parent2,
+            std::mt19937& rng)
+    {
+        return find_AB_cycles(needs, parent1, parent2, rng, *any_size_vector_pool, *vector_of_tsp_size_pool, *doubly_linked_list_pool, *LRIS_pool);
+    }
+private:
+    std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> any_size_vector_pool;
+    std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> vector_of_tsp_size_pool;
+    std::shared_ptr<mpi::ObjectPool<std::vector<std::array<size_t, 2>>>> doubly_linked_list_pool;
+    std::shared_ptr<mpi::ObjectPool<mpi::LimitedRangeIntegerSet>> LRIS_pool;
+};
 }
