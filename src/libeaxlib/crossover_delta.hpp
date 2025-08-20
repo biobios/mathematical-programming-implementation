@@ -13,6 +13,7 @@ public:
         std::pair<size_t, size_t> edge1;
         size_t new_v2; // new vertex connected to v1
     };
+    CrossoverDelta() = default;
     
     CrossoverDelta(std::vector<Modification>&& modifications)
         : modifications(std::move(modifications)) {}
