@@ -14,6 +14,17 @@
             "cwd": "${workspaceFolder}/debug/fast_eax",
             "environment": [],
             "externalConsole": false,
+        },
+        {
+            "name": "debug stsp",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/debug/eax_stsp",
+            "args": ["--file", "att532.tsp"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/debug/eax_stsp",
+            "environment": [],
+            "externalConsole": false,
         }
     ]
 }
