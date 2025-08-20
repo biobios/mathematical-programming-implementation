@@ -6,6 +6,7 @@
 #include "limited_range_integer_set.hpp"
 
 #include "eaxdef.hpp"
+#include "object_pools.hpp"
 
 namespace eax {
 
@@ -284,6 +285,12 @@ std::vector<PooledVectorPtr> find_AB_cycles(size_t needs,
 
 class ABCycleFinder {
 public:
+    ABCycleFinder(ObjectPools& object_pools)
+        : any_size_vector_pool(object_pools.any_size_vector_pool),
+          vector_of_tsp_size_pool(object_pools.vector_of_tsp_size_pool),
+          doubly_linked_list_pool(object_pools.doubly_linked_list_pool),
+          LRIS_pool(object_pools.LRIS_pool) {}
+
     ABCycleFinder(
         std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> any_size_vector_pool,
         std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> vector_of_tsp_size_pool,
