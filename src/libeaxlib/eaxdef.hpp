@@ -9,6 +9,7 @@ using adjacency_matrix_t = std::vector<std::vector<int64_t>>;
 using NN_list_t = std::vector<std::vector<size_t>>;
 using ab_cycle_t = std::vector<size_t>;
 using doubly_linked_list_t = std::vector<std::array<size_t, 2>>;
+using edge_counts_t = std::vector<std::vector<size_t>>;
 
 template <typename T>
 concept doubly_linked_list_like = requires(T t) {
