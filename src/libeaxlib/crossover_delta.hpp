@@ -13,6 +13,7 @@ public:
         std::pair<size_t, size_t> edge1;
         size_t new_v2; // new vertex connected to v1
     };
+    CrossoverDelta() = default;
     
     CrossoverDelta(std::vector<Modification>&& modifications)
         : modifications(std::move(modifications)) {}
@@ -29,6 +30,12 @@ public:
             }
         }
     }
+    
+    int64_t get_delta_distance(const adjacency_matrix_t& adjacency_matrix) const;
+    const std::vector<Modification>& get_modifications() const {
+        return modifications;
+    }
+
 private:
     std::vector<Modification> modifications;
 };
