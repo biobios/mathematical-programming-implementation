@@ -18,12 +18,13 @@
 
 #include "simple_ga.hpp"
 #include "elitist_recombination.hpp"
+#include "command_line_argument_parser.hpp"
+
 #include "tsp_loader.hpp"
 #include "population_initializer.hpp"
-#include "eax.hpp"
-#include "command_line_argument_parser.hpp"
 #include "two_opt.hpp"
-#include "environment.hpp"
+#include "object_pools.hpp"
+#include "eax_rand.hpp"
 
 double calc_fitness(const std::vector<size_t>& path, const std::vector<std::vector<int64_t>>& adjacency_matrix){
     double distance = 0.0;
@@ -32,6 +33,18 @@ double calc_fitness(const std::vector<size_t>& path, const std::vector<std::vect
     }
     // 最後の都市から最初の都市への距離を加算
     distance += adjacency_matrix[path.back()][path.front()];
+    return 1.0 / distance;
+}
+
+double calc_fitness(const std::vector<std::array<size_t, 2>>& adjacency_list, const std::vector<std::vector<int64_t>>& adjacency_matrix) {
+    double distance = 0.0;
+    for (size_t i = 0; i < adjacency_list.size(); ++i) {
+        size_t next1 = adjacency_list[i][0];
+        size_t next2 = adjacency_list[i][1];
+        distance += adjacency_matrix[i][next1];
+        distance += adjacency_matrix[i][next2];
+    }
+    distance /= 2.0;
     return 1.0 / distance;
 }
 
@@ -112,7 +125,7 @@ int main(int argc, char* argv[])
     // 初期集団生成器
     tsp::PopulationInitializer population_initializer(population_size, tsp.city_count);
     
-    using Individual = vector<size_t>;
+    using Individual = vector<array<size_t, 2>>;
     
     // 1試行にかかった時間
     vector<double> trial_times(trials, 0.0);
@@ -128,13 +141,39 @@ int main(int argc, char* argv[])
 
         mt19937::result_type local_seed = rng();
         string cache_file = "init_pop_cache_" + to_string(local_seed) + "_for_" + file_name + "_" + to_string(population_size) + ".txt";
-        vector<Individual> population = population_initializer.initialize_population(local_seed, cache_file, [&two_opt, local_seed](vector<size_t>& path) {
+        vector<vector<size_t>> paths = population_initializer.initialize_population(local_seed, cache_file, [&two_opt, local_seed](vector<size_t>& path) {
             // 2-optを適用
             two_opt.apply(path, local_seed);
         });
+        
+        vector<Individual> population;
+        population.reserve(population_size);
+        for (const auto& path : paths) {
+            Individual individual;
+            individual.resize(path.size());
+            for (size_t i = 1; i < path.size() - 1; ++i) {
+                individual[path[i]] = {path[i - 1], path[i + 1]};
+            }
+            individual[path[0]] = {path.back(), path[1]};
+            individual[path.back()] = {path[path.size() - 2], path[0]};
+            population.push_back(std::move(individual));
+        }
         cout << "Initial population created." << endl;
         
-        using Env = eax::Environment;
+        using Env = tsp::TSP;
+        
+        eax::ObjectPools object_pools(tsp.city_count);
+        eax::EAX_Rand eax_rand(object_pools);
+        
+        auto crossover = [&eax_rand](const Individual& parent1, const Individual& parent2, size_t children_size,
+                                            Env& env, mt19937& rng) {
+            auto deltas = eax_rand(parent1, parent2, children_size, env, rng);
+            std::vector<Individual> children(deltas.size(), parent1);
+            for (size_t i = 0; i < deltas.size(); ++i) {
+                deltas[i].apply_to(children[i]);
+            }
+            return children;
+        };
 
         // 終了判定関数
         // 世代数に達するか、収束するまで実行
@@ -171,24 +210,21 @@ int main(int argc, char* argv[])
 
         // 適応度関数
         auto calc_fitness_lambda = [](const Individual& individual, const Env& env) {
-            return calc_fitness(individual, env.tsp.adjacency_matrix);
+            return calc_fitness(individual, env.adjacency_matrix);
         };
         
         // 乱数生成器初期化
         mt19937 local_rng(local_seed);
         
         // 環境情報の設定
-        Env env {
-            .tsp = tsp,
-            .object_pools = eax::ObjectPools(tsp.city_count)
-        };
-        
+        Env& env = tsp;       
+
         // 計測開始
         auto start_time = chrono::high_resolution_clock::now();
         auto start_cpu_time = clock();
 
         // 世代交代モデル ElitistRecombinationを使用して、遺伝的アルゴリズムを実行
-        vector<Individual> result = mpi::genetic_algorithm::ElitistRecombination<100>(population, end_condition, calc_fitness_lambda, eax::edge_assembly_crossover, env, local_rng, logging);
+        vector<Individual> result = mpi::genetic_algorithm::ElitistRecombination<100>(population, end_condition, calc_fitness_lambda, crossover, env, local_rng, logging);
         // vector<Individual> result = mpi::genetic_algorithm::SimpleGA(population, end_condition, calc_fitness, eax::edge_assembly_crossover, adjacency_matrix, local_rng);
         
         auto end_cpu_time = clock();
@@ -239,6 +275,5 @@ int main(int argc, char* argv[])
     double average_cpu_trial_time = sum_cpu_trial_times / trials;
     cout << "Average CPU trial time: " << average_cpu_trial_time << " seconds" << endl;
 
-    eax::print_time();
     return 0;
 }
