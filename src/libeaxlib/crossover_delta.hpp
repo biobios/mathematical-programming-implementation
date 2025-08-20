@@ -32,6 +32,10 @@ public:
     }
     
     int64_t get_delta_distance(const adjacency_matrix_t& adjacency_matrix) const;
+    const std::vector<Modification>& get_modifications() const {
+        return modifications;
+    }
+
 private:
     std::vector<Modification> modifications;
 };
