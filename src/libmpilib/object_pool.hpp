@@ -76,4 +76,10 @@ namespace mpi {
         std::function<T*()> factory;
         std::shared_ptr<std::vector<std::unique_ptr<T>>> pool;
     };
+    
+    template <typename T>
+    using pooled_unique_ptr = typename ObjectPool<T>::pooled_unique_ptr;
+
+    template <typename T>
+    using pooled_ptr = typename ObjectPool<T>::pooled_ptr;
 }
