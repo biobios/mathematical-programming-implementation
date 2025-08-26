@@ -10,7 +10,7 @@
 
 namespace eax {
 
-using PooledVectorPtr = mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr;
+using PooledVectorPtr = mpi::pooled_unique_ptr<std::vector<size_t>>;
 
 inline PooledVectorPtr create_AB_cycle(std::vector<size_t>& finding_path,
                         size_t end_index,
@@ -150,7 +150,7 @@ std::vector<PooledVectorPtr> find_AB_cycles(size_t needs,
         }
     } parents = {{parent1_copy}, {parent2_copy}};
 
-    vector<mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr> AB_cycles;
+    vector<mpi::pooled_unique_ptr<ab_cycle_t>> AB_cycles;
 
     uniform_int_distribution<size_t> dist_01(0, 1);
     

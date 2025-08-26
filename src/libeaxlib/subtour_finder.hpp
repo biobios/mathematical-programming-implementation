@@ -12,7 +12,7 @@
 namespace eax {
 class SubtourFinder {
 public:
-    using subtour_list_pooled_ptr = mpi::ObjectPool<SubtourList>::pooled_unique_ptr;
+    using subtour_list_pooled_ptr = mpi::pooled_unique_ptr<SubtourList>;
 
     SubtourFinder(ObjectPools& object_pools)
         : cut_positions_pool(object_pools.cut_positions_pool),

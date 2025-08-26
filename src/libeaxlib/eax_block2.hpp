@@ -54,7 +54,7 @@ public:
 
         auto AB_cycles = ab_cycle_finder(numeric_limits<size_t>::max(), parent1, parent2, rng);
         
-        sort(AB_cycles.begin(), AB_cycles.end(), [](const mpi::ObjectPool<vector<size_t>>::pooled_unique_ptr& a, const mpi::ObjectPool<vector<size_t>>::pooled_unique_ptr& b) {
+        sort(AB_cycles.begin(), AB_cycles.end(), [](const mpi::pooled_unique_ptr<ab_cycle_t>& a, const mpi::pooled_unique_ptr<ab_cycle_t>& b) {
             return a->size() > b->size();
         });
         

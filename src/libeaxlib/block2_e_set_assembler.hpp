@@ -13,9 +13,9 @@ namespace eax {
 class Block2ESetAssembler {
 public:
     Block2ESetAssembler(size_t city_count,
-                        mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr&& AB_cycle_size_ptr,
-                        mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr&& c_vertex_count_ptr,
-                        mpi::ObjectPool<std::vector<std::vector<size_t>>>::pooled_unique_ptr&& shared_vertex_count_ptr,
+                        mpi::pooled_unique_ptr<std::vector<size_t>>&& AB_cycle_size_ptr,
+                        mpi::pooled_unique_ptr<std::vector<size_t>>&& c_vertex_count_ptr,
+                        mpi::pooled_unique_ptr<std::vector<std::vector<size_t>>>&& shared_vertex_count_ptr,
                         std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> any_size_vector_pool)
         : city_count(city_count),
           cycle_count(AB_cycle_size_ptr->size()),
@@ -24,14 +24,14 @@ public:
           shared_vertex_count_ptr(std::move(shared_vertex_count_ptr)),
           any_size_vector_pool(std::move(any_size_vector_pool)) {}
     
-    mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr operator()(size_t center_ab_cycle_index,
+    mpi::pooled_unique_ptr<std::vector<size_t>> operator()(size_t center_ab_cycle_index,
                                                                         std::mt19937& rng);
 private:
     size_t city_count;
     size_t cycle_count;
-    mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr AB_cycle_size_ptr;
-    mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr c_vertex_count_ptr;
-    mpi::ObjectPool<std::vector<std::vector<size_t>>>::pooled_unique_ptr shared_vertex_count_ptr;
+    mpi::pooled_unique_ptr<std::vector<size_t>> AB_cycle_size_ptr;
+    mpi::pooled_unique_ptr<std::vector<size_t>> c_vertex_count_ptr;
+    mpi::pooled_unique_ptr<std::vector<std::vector<size_t>>> shared_vertex_count_ptr;
     std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> any_size_vector_pool;
 };
 
@@ -44,7 +44,7 @@ public:
 
     template <doubly_linked_list_like Individual>
     Block2ESetAssembler create(const Individual& parent1, const Individual& parent2,
-                               const std::vector<mpi::ObjectPool<ab_cycle_t>::pooled_unique_ptr>& AB_cycles) {
+                               const std::vector<mpi::pooled_unique_ptr<ab_cycle_t>>& AB_cycles) {
         using namespace std;
         
         size_t city_count = parent1.size();

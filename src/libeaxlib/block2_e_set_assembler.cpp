@@ -27,7 +27,7 @@ void set_initial_e_set(std::vector<size_t>& e_set,
 
 namespace eax {
 
-mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr Block2ESetAssembler::operator()(size_t center_ab_cycle_index,
+mpi::pooled_unique_ptr<std::vector<size_t>> Block2ESetAssembler::operator()(size_t center_ab_cycle_index,
                                                                         std::mt19937& rng) {
     using namespace std;
 
