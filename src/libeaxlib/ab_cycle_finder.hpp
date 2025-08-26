@@ -10,7 +10,7 @@
 
 namespace eax {
 
-using PooledVectorPtr = mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr;
+using PooledVectorPtr = mpi::pooled_unique_ptr<std::vector<size_t>>;
 
 inline PooledVectorPtr create_AB_cycle(std::vector<size_t>& finding_path,
                         size_t end_index,
@@ -150,7 +150,7 @@ std::vector<PooledVectorPtr> find_AB_cycles(size_t needs,
         }
     } parents = {{parent1_copy}, {parent2_copy}};
 
-    vector<mpi::ObjectPool<std::vector<size_t>>::pooled_unique_ptr> AB_cycles;
+    vector<mpi::pooled_unique_ptr<ab_cycle_t>> AB_cycles;
 
     uniform_int_distribution<size_t> dist_01(0, 1);
     
@@ -286,16 +286,16 @@ std::vector<PooledVectorPtr> find_AB_cycles(size_t needs,
 class ABCycleFinder {
 public:
     ABCycleFinder(ObjectPools& object_pools)
-        : any_size_vector_pool(object_pools.any_size_vector_pool),
-          vector_of_tsp_size_pool(object_pools.vector_of_tsp_size_pool),
-          doubly_linked_list_pool(object_pools.doubly_linked_list_pool),
-          LRIS_pool(object_pools.LRIS_pool) {}
+        : any_size_vector_pool(object_pools.any_size_vector_pool.share()),
+          vector_of_tsp_size_pool(object_pools.vector_of_tsp_size_pool.share()),
+          doubly_linked_list_pool(object_pools.doubly_linked_list_pool.share()),
+          LRIS_pool(object_pools.LRIS_pool.share()) {}
 
     ABCycleFinder(
-        std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> any_size_vector_pool,
-        std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> vector_of_tsp_size_pool,
-        std::shared_ptr<mpi::ObjectPool<std::vector<std::array<size_t, 2>>>> doubly_linked_list_pool,
-        std::shared_ptr<mpi::ObjectPool<mpi::LimitedRangeIntegerSet>> LRIS_pool)
+        mpi::ObjectPool<std::vector<size_t>> any_size_vector_pool,
+        mpi::ObjectPool<std::vector<size_t>> vector_of_tsp_size_pool,
+        mpi::ObjectPool<std::vector<std::array<size_t, 2>>> doubly_linked_list_pool,
+        mpi::ObjectPool<mpi::LimitedRangeIntegerSet> LRIS_pool)
         : any_size_vector_pool(std::move(any_size_vector_pool)),
           vector_of_tsp_size_pool(std::move(vector_of_tsp_size_pool)),
           doubly_linked_list_pool(std::move(doubly_linked_list_pool)),
@@ -307,12 +307,12 @@ public:
             const Individual& parent2,
             std::mt19937& rng)
     {
-        return find_AB_cycles(needs, parent1, parent2, rng, *any_size_vector_pool, *vector_of_tsp_size_pool, *doubly_linked_list_pool, *LRIS_pool);
+        return find_AB_cycles(needs, parent1, parent2, rng, any_size_vector_pool, vector_of_tsp_size_pool, doubly_linked_list_pool, LRIS_pool);
     }
 private:
-    std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> any_size_vector_pool;
-    std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> vector_of_tsp_size_pool;
-    std::shared_ptr<mpi::ObjectPool<std::vector<std::array<size_t, 2>>>> doubly_linked_list_pool;
-    std::shared_ptr<mpi::ObjectPool<mpi::LimitedRangeIntegerSet>> LRIS_pool;
+    mpi::ObjectPool<std::vector<size_t>> any_size_vector_pool;
+    mpi::ObjectPool<std::vector<size_t>> vector_of_tsp_size_pool;
+    mpi::ObjectPool<std::vector<std::array<size_t, 2>>> doubly_linked_list_pool;
+    mpi::ObjectPool<mpi::LimitedRangeIntegerSet> LRIS_pool;
 };
 }

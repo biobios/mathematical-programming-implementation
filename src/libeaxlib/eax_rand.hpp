@@ -20,18 +20,18 @@ public:
     EAX_Rand(size_t city_size);
     
     EAX_Rand(ObjectPools& object_pools)
-        : vector_of_tsp_size_pool(object_pools.vector_of_tsp_size_pool),
-          any_size_vector_pool(object_pools.any_size_vector_pool),
-          intermediate_individual_pool(object_pools.intermediate_individual_pool),
-          ab_cycle_finder(std::make_shared<ABCycleFinder>(object_pools)),
-          subtour_merger(std::make_shared<SubtourMerger>(object_pools)) {}
+        : vector_of_tsp_size_pool(object_pools.vector_of_tsp_size_pool.share()),
+          any_size_vector_pool(object_pools.any_size_vector_pool.share()),
+          intermediate_individual_pool(object_pools.intermediate_individual_pool.share()),
+          ab_cycle_finder(object_pools),
+          subtour_merger(object_pools) {}
 
     EAX_Rand(
-        std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> vector_of_tsp_size_pool,
-        std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> any_size_vector_pool,
-        std::shared_ptr<mpi::ObjectPool<IntermediateIndividual>> intermediate_individual_pool,
-        std::shared_ptr<ABCycleFinder> ab_cycle_finder,
-        std::shared_ptr<SubtourMerger> subtour_merger)
+        mpi::ObjectPool<std::vector<size_t>> vector_of_tsp_size_pool,
+        mpi::ObjectPool<std::vector<size_t>> any_size_vector_pool,
+        mpi::ObjectPool<IntermediateIndividual> intermediate_individual_pool,
+        ABCycleFinder ab_cycle_finder,
+        SubtourMerger subtour_merger)
         : vector_of_tsp_size_pool(std::move(vector_of_tsp_size_pool)),
           any_size_vector_pool(std::move(any_size_vector_pool)),
           intermediate_individual_pool(std::move(intermediate_individual_pool)),
@@ -45,8 +45,8 @@ public:
 
         const size_t n = parent1.size();
 
-        auto path_ptr = vector_of_tsp_size_pool->acquire_unique();
-        auto pos_ptr = vector_of_tsp_size_pool->acquire_unique();
+        auto path_ptr = vector_of_tsp_size_pool.acquire_unique();
+        auto pos_ptr = vector_of_tsp_size_pool.acquire_unique();
         vector<size_t>& path = *path_ptr;
         vector<size_t>& pos = *pos_ptr;
 
@@ -61,16 +61,16 @@ public:
             current = next;
         }
 
-        auto AB_cycles = (*ab_cycle_finder)(numeric_limits<size_t>::max(), parent1, parent2, rng);
+        auto AB_cycles = ab_cycle_finder(numeric_limits<size_t>::max(), parent1, parent2, rng);
 
         vector<CrossoverDelta> children;
-        auto working_individual = intermediate_individual_pool->acquire_unique();
+        auto working_individual = intermediate_individual_pool.acquire_unique();
         working_individual->assign(parent1);
 
         for (size_t child_index = 0; child_index < children_size; ++child_index) {
 
             // 緩和個体を作成
-            auto selected_AB_cycles_indices_ptr = any_size_vector_pool->acquire_unique();
+            auto selected_AB_cycles_indices_ptr = any_size_vector_pool.acquire_unique();
             auto& selected_AB_cycles_indices = *selected_AB_cycles_indices_ptr;
             selected_AB_cycles_indices.clear();
 
@@ -87,7 +87,7 @@ public:
 
             working_individual->apply_AB_cycles(selected_AB_cycles_view);
 
-            (*subtour_merger)(*working_individual, tsp, selected_AB_cycles_view);
+            subtour_merger(*working_individual, tsp, selected_AB_cycles_view);
 
             children.emplace_back(working_individual->get_delta_and_revert());
 
@@ -99,10 +99,10 @@ public:
     }
 
 private:
-    std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> vector_of_tsp_size_pool;
-    std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> any_size_vector_pool;
-    std::shared_ptr<mpi::ObjectPool<IntermediateIndividual>> intermediate_individual_pool;
-    std::shared_ptr<ABCycleFinder> ab_cycle_finder;
-    std::shared_ptr<SubtourMerger> subtour_merger;
+    mpi::ObjectPool<std::vector<size_t>> vector_of_tsp_size_pool;
+    mpi::ObjectPool<std::vector<size_t>> any_size_vector_pool;
+    mpi::ObjectPool<IntermediateIndividual> intermediate_individual_pool;
+    ABCycleFinder ab_cycle_finder;
+    SubtourMerger subtour_merger;
 };
 }

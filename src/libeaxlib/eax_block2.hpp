@@ -16,12 +16,12 @@ namespace eax {
 class EAX_Block2 {
 public:
     EAX_Block2(ObjectPools& object_pools)
-        : vector_of_tsp_size_pool(object_pools.vector_of_tsp_size_pool),
-          any_size_vector_pool(object_pools.any_size_vector_pool),
-          intermediate_individual_pool(object_pools.intermediate_individual_pool),
-          ab_cycle_finder(std::make_shared<ABCycleFinder>(object_pools)),
-          block2_e_set_assembler_builder(std::make_shared<Block2ESetAssemblerBuilder>(object_pools)),
-          subtour_merger(std::make_shared<SubtourMerger>(object_pools)) {}
+        : vector_of_tsp_size_pool(object_pools.vector_of_tsp_size_pool.share()),
+          any_size_vector_pool(object_pools.any_size_vector_pool.share()),
+          intermediate_individual_pool(object_pools.intermediate_individual_pool.share()),
+          ab_cycle_finder(object_pools),
+          block2_e_set_assembler_builder(object_pools),
+          subtour_merger(object_pools) {}
 
     template <doubly_linked_list_like Individual>
     std::vector<CrossoverDelta> operator()(const Individual& parent1, const Individual& parent2, size_t children_size,
@@ -31,8 +31,8 @@ public:
 
         const size_t n = parent1.size();
 
-        auto path_ptr = vector_of_tsp_size_pool->acquire_unique();
-        auto pos_ptr = vector_of_tsp_size_pool->acquire_unique();
+        auto path_ptr = vector_of_tsp_size_pool.acquire_unique();
+        auto pos_ptr = vector_of_tsp_size_pool.acquire_unique();
         vector<size_t>& path = *path_ptr;
         vector<size_t>& pos = *pos_ptr;
         
@@ -52,19 +52,19 @@ public:
             current = next;
         }
 
-        auto AB_cycles = (*ab_cycle_finder)(numeric_limits<size_t>::max(), parent1, parent2, rng);
+        auto AB_cycles = ab_cycle_finder(numeric_limits<size_t>::max(), parent1, parent2, rng);
         
-        sort(AB_cycles.begin(), AB_cycles.end(), [](const mpi::ObjectPool<vector<size_t>>::pooled_unique_ptr& a, const mpi::ObjectPool<vector<size_t>>::pooled_unique_ptr& b) {
+        sort(AB_cycles.begin(), AB_cycles.end(), [](const mpi::pooled_unique_ptr<ab_cycle_t>& a, const mpi::pooled_unique_ptr<ab_cycle_t>& b) {
             return a->size() > b->size();
         });
         
         // Block2Strategy block2_strategy(parent1, parent2, AB_cycles, n, env.object_pools.vector_of_tsp_size_pool, env.object_pools.any_size_vector_pool, env.object_pools.any_size_2d_vector_pool);
-        auto block2_e_set_assembler = block2_e_set_assembler_builder->create(parent1, parent2, AB_cycles);
+        auto block2_e_set_assembler = block2_e_set_assembler_builder.create(parent1, parent2, AB_cycles);
         
         children_size = min(children_size, AB_cycles.size());
 
         vector<CrossoverDelta> children;
-        auto working_individual = intermediate_individual_pool->acquire_unique();
+        auto working_individual = intermediate_individual_pool.acquire_unique();
         working_individual->assign(parent1);
         for (size_t child_index = 0; child_index < children_size; ++child_index) {
             // auto selected_AB_cycles_indices_ptr = block2_strategy.search_e_set_with_tabu_search(child_index, env.object_pools.any_size_vector_pool, rng);
@@ -82,7 +82,7 @@ public:
             working_individual->apply_AB_cycles(selected_AB_cycles_view);
 
             // merge_sub_tours(adjacency_matrix, *working_individual, path, pos, NN_list, env);
-            (*subtour_merger)(*working_individual, tsp, selected_AB_cycles_view);
+            subtour_merger(*working_individual, tsp, selected_AB_cycles_view);
             
             // 削除された親1の枝の数(追加された親２の枝の数)
             size_t swapped_edges_count = 0;
@@ -108,11 +108,11 @@ public:
         return children;
     }
 private:
-    std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> vector_of_tsp_size_pool;
-    std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> any_size_vector_pool;
-    std::shared_ptr<mpi::ObjectPool<IntermediateIndividual>> intermediate_individual_pool;
-    std::shared_ptr<ABCycleFinder> ab_cycle_finder;
-    std::shared_ptr<Block2ESetAssemblerBuilder> block2_e_set_assembler_builder;
-    std::shared_ptr<SubtourMerger> subtour_merger;
+    mpi::ObjectPool<std::vector<size_t>> vector_of_tsp_size_pool;
+    mpi::ObjectPool<std::vector<size_t>> any_size_vector_pool;
+    mpi::ObjectPool<IntermediateIndividual> intermediate_individual_pool;
+    ABCycleFinder ab_cycle_finder;
+    Block2ESetAssemblerBuilder block2_e_set_assembler_builder;
+    SubtourMerger subtour_merger;
 };
 }
