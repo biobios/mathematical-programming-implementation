@@ -54,7 +54,14 @@ namespace mpi {
         
         ObjectPool(const ObjectPool&) = delete; // コピーコンストラクタは削除
         ObjectPool& operator=(const ObjectPool&) = delete; // コピー代入演算子は削除
+
+        ObjectPool(ObjectPool&&) noexcept = default; // ムーブコンストラクタはデフォルト
+        ObjectPool& operator=(ObjectPool&&) noexcept = default; // ムーブ代入演算子はデフォルト
         
+        ObjectPool share() const {
+            return ObjectPool(*this, shallow_copy_tag{});
+        }
+
     private:
         class ObjectDeleter {
         public:
@@ -72,6 +79,10 @@ namespace mpi {
             
             friend class ObjectPool;
         };
+        
+        struct shallow_copy_tag {};
+        ObjectPool(const ObjectPool& other, shallow_copy_tag)
+            : factory(other.factory), pool(other.pool) {}
 
         std::function<T*()> factory;
         std::shared_ptr<std::vector<std::unique_ptr<T>>> pool;
