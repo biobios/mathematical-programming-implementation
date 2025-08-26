@@ -16,12 +16,12 @@ public:
     SubtourMerger(ObjectPools& object_pools)
         : any_size_vector_pool(object_pools.any_size_vector_pool),
           in_min_sub_tour_pool(object_pools.in_min_sub_tour_pool),
-          subtour_finder(std::make_shared<SubtourFinder>(object_pools)) {}
+          subtour_finder(object_pools) {}
 
     SubtourMerger(
         std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> any_size_vector_pool,
         std::shared_ptr<mpi::ObjectPool<std::vector<uint8_t>>> in_min_sub_tour_pool,
-        std::shared_ptr<SubtourFinder> subtour_finder)
+        SubtourFinder subtour_finder)
         : any_size_vector_pool(std::move(any_size_vector_pool)),
           in_min_sub_tour_pool(std::move(in_min_sub_tour_pool)),
           subtour_finder(std::move(subtour_finder)) {}
@@ -37,7 +37,7 @@ public:
         auto& path = working_individual.get_path();
         auto& pos = working_individual.get_pos();
                                     
-        auto subtour_list_ptr = (*subtour_finder)(pos, applied_ab_cycles);
+        auto subtour_list_ptr = subtour_finder(pos, applied_ab_cycles);
         SubtourList& subtour_list = *subtour_list_ptr;
 
         using namespace std;
@@ -129,6 +129,6 @@ public:
 private:
     std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> any_size_vector_pool;
     std::shared_ptr<mpi::ObjectPool<std::vector<uint8_t>>> in_min_sub_tour_pool;
-    std::shared_ptr<SubtourFinder> subtour_finder;
+    SubtourFinder subtour_finder;
 };
 }

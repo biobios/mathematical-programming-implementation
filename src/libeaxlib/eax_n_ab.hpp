@@ -21,15 +21,15 @@ public:
         : vector_of_tsp_size_pool(object_pools.vector_of_tsp_size_pool),
           any_size_vector_pool(object_pools.any_size_vector_pool),
           intermediate_individual_pool(object_pools.intermediate_individual_pool),
-          ab_cycle_finder(std::make_shared<ABCycleFinder>(object_pools)),
-          subtour_merger(std::make_shared<SubtourMerger>(object_pools)) {}
+          ab_cycle_finder(object_pools),
+          subtour_merger(object_pools) {}
     
     EAX_N_AB(
         std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> vector_of_tsp_size_pool,
         std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> any_size_vector_pool,
         std::shared_ptr<mpi::ObjectPool<IntermediateIndividual>> intermediate_individual_pool,
-        std::shared_ptr<ABCycleFinder> ab_cycle_finder,
-        std::shared_ptr<SubtourMerger> subtour_merger)
+        ABCycleFinder ab_cycle_finder,
+        SubtourMerger subtour_merger)
         : vector_of_tsp_size_pool(std::move(vector_of_tsp_size_pool)),
           any_size_vector_pool(std::move(any_size_vector_pool)),
           intermediate_individual_pool(std::move(intermediate_individual_pool)),
@@ -58,7 +58,7 @@ public:
             current = next;
         }
 
-        auto AB_cycles = (*ab_cycle_finder)(N_parameter * children_size, parent1, parent2, rng);
+        auto AB_cycles = ab_cycle_finder(N_parameter * children_size, parent1, parent2, rng);
 
         auto AB_cycle_indices_ptr = any_size_vector_pool->acquire_unique();
         auto& AB_cycle_indices = *AB_cycle_indices_ptr;
@@ -90,7 +90,7 @@ public:
 
             working_individual->apply_AB_cycles(selected_AB_cycles_view);
 
-            (*subtour_merger)(*working_individual, tsp, selected_AB_cycles_view);
+            subtour_merger(*working_individual, tsp, selected_AB_cycles_view);
 
             children.emplace_back(working_individual->get_delta_and_revert());
 
@@ -106,7 +106,7 @@ private:
     std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> vector_of_tsp_size_pool;
     std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> any_size_vector_pool;
     std::shared_ptr<mpi::ObjectPool<IntermediateIndividual>> intermediate_individual_pool;
-    std::shared_ptr<ABCycleFinder> ab_cycle_finder;
-    std::shared_ptr<SubtourMerger> subtour_merger;
+    ABCycleFinder ab_cycle_finder;
+    SubtourMerger subtour_merger;
 };
 }
