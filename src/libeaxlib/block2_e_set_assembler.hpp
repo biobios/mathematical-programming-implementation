@@ -16,7 +16,7 @@ public:
                         mpi::pooled_unique_ptr<std::vector<size_t>>&& AB_cycle_size_ptr,
                         mpi::pooled_unique_ptr<std::vector<size_t>>&& c_vertex_count_ptr,
                         mpi::pooled_unique_ptr<std::vector<std::vector<size_t>>>&& shared_vertex_count_ptr,
-                        std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> any_size_vector_pool)
+                        mpi::ObjectPool<std::vector<size_t>>&& any_size_vector_pool)
         : city_count(city_count),
           cycle_count(AB_cycle_size_ptr->size()),
           AB_cycle_size_ptr(std::move(AB_cycle_size_ptr)),
@@ -32,15 +32,15 @@ private:
     mpi::pooled_unique_ptr<std::vector<size_t>> AB_cycle_size_ptr;
     mpi::pooled_unique_ptr<std::vector<size_t>> c_vertex_count_ptr;
     mpi::pooled_unique_ptr<std::vector<std::vector<size_t>>> shared_vertex_count_ptr;
-    std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> any_size_vector_pool;
+    mpi::ObjectPool<std::vector<size_t>> any_size_vector_pool;
 };
 
 class Block2ESetAssemblerBuilder {
 public:
     Block2ESetAssemblerBuilder(ObjectPools& object_pools)
-        : vector_of_tsp_size_pool(object_pools.vector_of_tsp_size_pool),
-          any_size_vector_pool(object_pools.any_size_vector_pool),
-          shared_vertex_count_pool(object_pools.any_size_2d_vector_pool) {}
+        : vector_of_tsp_size_pool(object_pools.vector_of_tsp_size_pool.share()),
+          any_size_vector_pool(object_pools.any_size_vector_pool.share()),
+          shared_vertex_count_pool(object_pools.any_size_2d_vector_pool.share()) {}
 
     template <doubly_linked_list_like Individual>
     Block2ESetAssembler create(const Individual& parent1, const Individual& parent2,
@@ -50,8 +50,8 @@ public:
         size_t city_count = parent1.size();
         size_t cycle_count = AB_cycles.size();
 
-        auto belongs_to_AB_cycle1_ptr = vector_of_tsp_size_pool->acquire_unique();
-        auto belongs_to_AB_cycle2_ptr = vector_of_tsp_size_pool->acquire_unique();
+        auto belongs_to_AB_cycle1_ptr = vector_of_tsp_size_pool.acquire_unique();
+        auto belongs_to_AB_cycle2_ptr = vector_of_tsp_size_pool.acquire_unique();
         vector<size_t>& belongs_to_AB_cycle1 = *belongs_to_AB_cycle1_ptr;
         vector<size_t>& belongs_to_AB_cycle2 = *belongs_to_AB_cycle2_ptr;
         
@@ -62,7 +62,7 @@ public:
         }
 
         // 各ABサイクルのサイズを記録
-        auto AB_cycle_size_ptr = any_size_vector_pool->acquire_unique();
+        auto AB_cycle_size_ptr = any_size_vector_pool.acquire_unique();
         vector<size_t>& AB_cycle_size = *AB_cycle_size_ptr;
         AB_cycle_size.resize(cycle_count, 0);
         for (size_t i = 0; i < cycle_count; ++i) {
@@ -128,11 +128,11 @@ public:
         }
         
         // 初期化
-        auto c_vertex_count_ptr = vector_of_tsp_size_pool->acquire_unique();
+        auto c_vertex_count_ptr = vector_of_tsp_size_pool.acquire_unique();
         auto& c_vertex_count = *c_vertex_count_ptr;
         c_vertex_count.resize(cycle_count, 0);
 
-        auto shared_vertex_count_ptr = shared_vertex_count_pool->acquire_unique();
+        auto shared_vertex_count_ptr = shared_vertex_count_pool.acquire_unique();
         auto& shared_vertex_count = *shared_vertex_count_ptr;
         shared_vertex_count.resize(cycle_count);
         for (size_t i = 0; i < cycle_count; ++i) {
@@ -155,11 +155,11 @@ public:
                                   std::move(AB_cycle_size_ptr),
                                   std::move(c_vertex_count_ptr),
                                   std::move(shared_vertex_count_ptr),
-                                  any_size_vector_pool);
+                                  any_size_vector_pool.share());
     }
 private:
-    std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> vector_of_tsp_size_pool;
-    std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> any_size_vector_pool;
-    std::shared_ptr<mpi::ObjectPool<std::vector<std::vector<size_t>>>> shared_vertex_count_pool;
+    mpi::ObjectPool<std::vector<size_t>> vector_of_tsp_size_pool;
+    mpi::ObjectPool<std::vector<size_t>> any_size_vector_pool;
+    mpi::ObjectPool<std::vector<std::vector<size_t>>> shared_vertex_count_pool;
 };
 }

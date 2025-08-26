@@ -16,9 +16,9 @@ namespace eax {
 class EAX_Block2 {
 public:
     EAX_Block2(ObjectPools& object_pools)
-        : vector_of_tsp_size_pool(object_pools.vector_of_tsp_size_pool),
-          any_size_vector_pool(object_pools.any_size_vector_pool),
-          intermediate_individual_pool(object_pools.intermediate_individual_pool),
+        : vector_of_tsp_size_pool(object_pools.vector_of_tsp_size_pool.share()),
+          any_size_vector_pool(object_pools.any_size_vector_pool.share()),
+          intermediate_individual_pool(object_pools.intermediate_individual_pool.share()),
           ab_cycle_finder(object_pools),
           block2_e_set_assembler_builder(object_pools),
           subtour_merger(object_pools) {}
@@ -31,8 +31,8 @@ public:
 
         const size_t n = parent1.size();
 
-        auto path_ptr = vector_of_tsp_size_pool->acquire_unique();
-        auto pos_ptr = vector_of_tsp_size_pool->acquire_unique();
+        auto path_ptr = vector_of_tsp_size_pool.acquire_unique();
+        auto pos_ptr = vector_of_tsp_size_pool.acquire_unique();
         vector<size_t>& path = *path_ptr;
         vector<size_t>& pos = *pos_ptr;
         
@@ -64,7 +64,7 @@ public:
         children_size = min(children_size, AB_cycles.size());
 
         vector<CrossoverDelta> children;
-        auto working_individual = intermediate_individual_pool->acquire_unique();
+        auto working_individual = intermediate_individual_pool.acquire_unique();
         working_individual->assign(parent1);
         for (size_t child_index = 0; child_index < children_size; ++child_index) {
             // auto selected_AB_cycles_indices_ptr = block2_strategy.search_e_set_with_tabu_search(child_index, env.object_pools.any_size_vector_pool, rng);
@@ -108,9 +108,9 @@ public:
         return children;
     }
 private:
-    std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> vector_of_tsp_size_pool;
-    std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> any_size_vector_pool;
-    std::shared_ptr<mpi::ObjectPool<IntermediateIndividual>> intermediate_individual_pool;
+    mpi::ObjectPool<std::vector<size_t>> vector_of_tsp_size_pool;
+    mpi::ObjectPool<std::vector<size_t>> any_size_vector_pool;
+    mpi::ObjectPool<IntermediateIndividual> intermediate_individual_pool;
     ABCycleFinder ab_cycle_finder;
     Block2ESetAssemblerBuilder block2_e_set_assembler_builder;
     SubtourMerger subtour_merger;

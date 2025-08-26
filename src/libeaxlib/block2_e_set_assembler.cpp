@@ -35,15 +35,15 @@ mpi::pooled_unique_ptr<std::vector<size_t>> Block2ESetAssembler::operator()(size
     vector<size_t> const& c_vertex_count = *c_vertex_count_ptr;
     vector<vector<size_t>> const& shared_vertex_count = *shared_vertex_count_ptr;
     
-    auto best_e_set_ptr = any_size_vector_pool->acquire_unique();
+    auto best_e_set_ptr = any_size_vector_pool.acquire_unique();
     vector<size_t>& best_e_set = *best_e_set_ptr;
     set_initial_e_set(best_e_set, center_ab_cycle_index, rng, cycle_count, shared_vertex_count, AB_cycle_size);
 
-    auto shared_vertex_count_with_e_set_ptr = any_size_vector_pool->acquire_unique();
+    auto shared_vertex_count_with_e_set_ptr = any_size_vector_pool.acquire_unique();
     vector<size_t>& shared_vertex_count_with_e_set = *shared_vertex_count_with_e_set_ptr;
-    auto included_in_e_set_ptr = any_size_vector_pool->acquire_unique();
+    auto included_in_e_set_ptr = any_size_vector_pool.acquire_unique();
     vector<size_t>& included_in_e_set = *included_in_e_set_ptr;
-    auto tabu_list_ptr = any_size_vector_pool->acquire_unique();
+    auto tabu_list_ptr = any_size_vector_pool.acquire_unique();
     vector<size_t>& tabu_list = *tabu_list_ptr;
 
     shared_vertex_count_with_e_set.resize(cycle_count, 0);

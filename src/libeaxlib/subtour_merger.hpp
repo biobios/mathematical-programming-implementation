@@ -14,13 +14,13 @@ namespace eax {
 class SubtourMerger {
 public:
     SubtourMerger(ObjectPools& object_pools)
-        : any_size_vector_pool(object_pools.any_size_vector_pool),
-          in_min_sub_tour_pool(object_pools.in_min_sub_tour_pool),
+        : any_size_vector_pool(object_pools.any_size_vector_pool.share()),
+          in_min_sub_tour_pool(object_pools.in_min_sub_tour_pool.share()),
           subtour_finder(object_pools) {}
 
     SubtourMerger(
-        std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> any_size_vector_pool,
-        std::shared_ptr<mpi::ObjectPool<std::vector<uint8_t>>> in_min_sub_tour_pool,
+        mpi::ObjectPool<std::vector<size_t>> any_size_vector_pool,
+        mpi::ObjectPool<std::vector<uint8_t>> in_min_sub_tour_pool,
         SubtourFinder subtour_finder)
         : any_size_vector_pool(std::move(any_size_vector_pool)),
           in_min_sub_tour_pool(std::move(in_min_sub_tour_pool)),
@@ -44,8 +44,8 @@ public:
         using distance_type = std::remove_cvref_t<decltype(adjacency_matrix)>::value_type::value_type;
         using edge = pair<size_t, size_t>;
 
-        auto elem_of_min_sub_tour_ptr = any_size_vector_pool->acquire_unique();
-        auto in_min_sub_tour_ptr = in_min_sub_tour_pool->acquire_unique();
+        auto elem_of_min_sub_tour_ptr = any_size_vector_pool.acquire_unique();
+        auto in_min_sub_tour_ptr = in_min_sub_tour_pool.acquire_unique();
         vector<size_t>& elem_of_min_sub_tour = *elem_of_min_sub_tour_ptr;
         vector<uint8_t>& in_min_sub_tour = *in_min_sub_tour_ptr;
 
@@ -127,8 +127,8 @@ public:
 
     }
 private:
-    std::shared_ptr<mpi::ObjectPool<std::vector<size_t>>> any_size_vector_pool;
-    std::shared_ptr<mpi::ObjectPool<std::vector<uint8_t>>> in_min_sub_tour_pool;
+    mpi::ObjectPool<std::vector<size_t>> any_size_vector_pool;
+    mpi::ObjectPool<std::vector<uint8_t>> in_min_sub_tour_pool;
     SubtourFinder subtour_finder;
 };
 }
