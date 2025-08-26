@@ -14,51 +14,23 @@
 #include <unordered_map>
 #include <list>
 
+#include "object_pools.hpp"
+#include "eax_rand.hpp"
+#include "eax_n_ab.hpp"
+#include "eax_block2.hpp"
+#include "greedy_evaluator.hpp"
+#include "entropy_evaluator.hpp"
+
 #include "simple_ga.hpp"
 #include "elitist_recombination.hpp"
 #include "tsp_loader.hpp"
 #include "population_initializer.hpp"
-#include "eax.hpp"
 #include "individual.hpp"
 #include "generational_model.hpp"
 #include "environment.hpp"
 #include "two_opt.hpp"
 #include "command_line_argument_parser.hpp"
 #include <time.h>
-
-std::array<double, 2> eax::Child::calc_times;
-
-double calc_entropy(double molecule, double denominator) {
-    double ratio = molecule / denominator;
-    if (ratio == 0.0) {
-        return 0.0;
-    }
-    return -ratio * std::log2(ratio);
-}
-
-// 評価値
-double eval_ent(const eax::Child& child, eax::Environment& env) {
-    constexpr double epsilon = 1e-9;
-    double delta_L = child.get_delta_distance(env.tsp.adjacency_matrix);
-    if (delta_L >= 0.0) {
-        return 0.0; // 子の距離が親より長い場合は評価値は0
-    }
-    double delta_H = child.get_delta_entropy(env.pop_edge_counts, env.population_size);
-    
-    // 多様性が増すならば
-    if (delta_H >= 0) {
-        return -1.0 * delta_L / epsilon;
-    }
-
-    // 多様性が減るならば
-    // 減少多様性当たりの距離の減少量を評価値とする
-    return delta_L / delta_H;
-    
-}
-
-double eval_greedy(const eax::Child& child, const eax::Environment& env) {
-    return -1.0 * child.get_delta_distance(env.tsp.adjacency_matrix);
-}
 
 int main(int argc, char* argv[])
 {
@@ -204,6 +176,26 @@ int main(int argc, char* argv[])
         cout << "Initial population created." << endl;
         
         using Env = eax::Environment;
+        // オブジェクトプール
+        eax::ObjectPools object_pools(tsp.city_count);
+        
+        // 交叉関数
+        eax::EAX_Rand eax_rand(object_pools);
+        eax::EAX_N_AB eax_n_ab(object_pools);
+        eax::EAX_Block2 eax_block2(object_pools);
+        auto crossover_func = [&eax_rand, &eax_n_ab, &eax_block2](const Individual& parent1, const Individual& parent2, size_t children_size,
+                                    Env& env, mt19937& rng) {
+            switch (env.eax_type) {
+                case eax::EAXType::Rand:
+                    return eax_rand(parent1, parent2, children_size, env.tsp, rng);
+                case eax::EAXType::N_AB:
+                    return eax_n_ab(parent1, parent2, children_size, env.tsp, rng, env.N_parameter);
+                case eax::EAXType::Block2:
+                    return eax_block2(parent1, parent2, children_size, env.tsp, rng);
+                default:
+                    throw std::runtime_error("Unknown EAX type.");
+            }
+        };
 
         // 更新処理関数
         struct {
@@ -236,7 +228,14 @@ int main(int argc, char* argv[])
             
             void update_entropy(vector<Individual>& population, Env& env) {
                 for (auto& individual : population) {
-                    individual.update(env.tsp.adjacency_matrix).update_edge_counts(env.pop_edge_counts);
+                    auto delta = individual.update(env.tsp.adjacency_matrix);
+                    for (const auto& mod : delta.get_modifications()) {
+                        size_t v1 = mod.edge1.first;
+                        size_t v2 = mod.edge1.second;
+                        size_t new_v2 = mod.new_v2;
+                        env.pop_edge_counts[v1][v2] -= 1;
+                        env.pop_edge_counts[v1][new_v2] += 1;
+                    }
                 }
             }
             
@@ -329,12 +328,12 @@ int main(int argc, char* argv[])
         } logging;
 
         // 適応度関数
-        auto calc_fitness_lambda = [](const eax::Child& child, Env& env) {
+        auto calc_fitness_lambda = [](const eax::CrossoverDelta& child, Env& env) {
             switch (env.selection_type) {
                 case eax::SelectionType::Greedy:
-                    return eval_greedy(child, env);
+                    return eax::eval::delta::Greedy()(child, env.tsp.adjacency_matrix);
                 case eax::SelectionType::Ent:
-                    return eval_ent(child, env);
+                    return eax::eval::delta::Entropy()(child, env.tsp.adjacency_matrix, env.pop_edge_counts, env.population_size);
                 default:
                     throw std::runtime_error("Unknown selection type");
             }
@@ -344,7 +343,7 @@ int main(int argc, char* argv[])
         mt19937 local_rng(local_seed);
 
         // 環境
-        Env tsp_env(tsp.city_count);
+        Env tsp_env;
         tsp_env.tsp = tsp;
         tsp_env.population_size = population_size;
         tsp_env.N_parameter = 1;
@@ -369,7 +368,7 @@ int main(int argc, char* argv[])
         // 世代交代モデル ElitistRecombinationを使用して、遺伝的アルゴリズムを実行
         // vector<Individual> result = mpi::genetic_algorithm::ElitistRecombination<100>(population, end_condition, calc_fitness_lambda, eax::edge_assembly_crossover, tsp, local_rng, logging);
         // vector<Individual> result = mpi::genetic_algorithm::SimpleGA(population, end_condition, calc_fitness, eax::edge_assembly_crossover, adjacency_matrix, local_rng);
-        vector<Individual> result = eax::GenerationalModel<30>(population, update_func, calc_fitness_lambda, eax::edge_assembly_crossover, tsp_env, local_rng, logging);
+        vector<Individual> result = eax::GenerationalModel<30>(population, update_func, calc_fitness_lambda, crossover_func, tsp_env, local_rng, logging);
 
         auto end_clock = clock();
         auto end_time = chrono::high_resolution_clock::now();
@@ -426,8 +425,6 @@ int main(int argc, char* argv[])
     double average_trial_cpu_time = sum_trial_cpu_times / trials;
     cout << "Average trial CPU time: " << average_trial_cpu_time << " seconds" << endl;
 
-    eax::print_time();
-    eax::Child::print_times();
     eax::print_2opt_time();
     return 0;
 }
