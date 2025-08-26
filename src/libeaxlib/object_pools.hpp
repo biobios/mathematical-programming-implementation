@@ -23,6 +23,7 @@ struct ObjectPools {
     std::shared_ptr<mpi::ObjectPool<std::vector<uint8_t>>> in_min_sub_tour_pool;
     std::shared_ptr<mpi::ObjectPool<std::vector<std::tuple<size_t, size_t, size_t>>>> cut_positions_pool;
     std::shared_ptr<mpi::ObjectPool<SubtourList>> subtour_list_pool;
+    std::shared_ptr<mpi::ObjectPool<std::vector<std::vector<size_t>>>> any_size_2d_vector_pool;
     
     ObjectPools(size_t city_size)
         : vector_of_tsp_size_pool(std::make_shared<mpi::ObjectPool<std::vector<size_t>>>([city_size]() {
@@ -48,6 +49,9 @@ struct ObjectPools {
         })),
           subtour_list_pool(std::make_shared<mpi::ObjectPool<SubtourList>>([]() {
             return new SubtourList();
+        })),
+          any_size_2d_vector_pool(std::make_shared<mpi::ObjectPool<std::vector<std::vector<size_t>>>>([]() {
+            return new std::vector<std::vector<size_t>>();
         })) {}
 };
 }
