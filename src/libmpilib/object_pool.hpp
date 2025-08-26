@@ -54,6 +54,9 @@ namespace mpi {
         
         ObjectPool(const ObjectPool&) = delete; // コピーコンストラクタは削除
         ObjectPool& operator=(const ObjectPool&) = delete; // コピー代入演算子は削除
+
+        ObjectPool(ObjectPool&&) noexcept = default; // ムーブコンストラクタはデフォルト
+        ObjectPool& operator=(ObjectPool&&) noexcept = default; // ムーブ代入演算子はデフォルト
         
     private:
         class ObjectDeleter {
