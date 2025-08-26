@@ -14,7 +14,7 @@ MAKEFILE_TEMPLATE_FOR_APP=makefiles/Makefile_app.mk
 MAKEFILE_TEMPLATE_FOR_LIB=makefiles/Makefile_lib.mk
 
 export ROOT_DIR=$(shell pwd)
-export CXXFLAGS=-std=c++23 -O3 -Wall -Wextra -pedantic -mtune=native -march=native
+export CXXFLAGS=-std=c++23 -O3 -Wall -Wextra -pedantic -mtune=native -march=native -flto
 
 all: $(APP_TARGETS) $(LIB_TARGETS)
 
