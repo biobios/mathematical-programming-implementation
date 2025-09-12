@@ -49,7 +49,9 @@ int main(int argc, char* argv[])
     bool use_local_eax = true; // trueならば局所EAX, falseならばグローバルEAXを使用
     // 評価関数の種類
     bool use_greedy_selection = false; // trueならば貪欲選択, falseならばエントロピー選択を使用
-    
+    // 出力ファイル名
+    string output_file_name = "result.md";
+
     // コマンドライン引数の解析
     mpi::CommandLineArgumentParser parser;
     
@@ -100,6 +102,11 @@ int main(int argc, char* argv[])
     selection_spec.set_description("--greedy-selection \t:Use greedy selection (default)."
                                     "\n--ent-selection \t:Use entropy selection.");
     parser.add_argument(selection_spec);
+    
+    mpi::ArgumentSpec output_spec(output_file_name);
+    output_spec.add_argument_name("--output");
+    output_spec.set_description("--output <filename> \t:Output file name (default: result.md).");
+    parser.add_argument(output_spec);
     
     bool help_requested = false;
     mpi::ArgumentSpec help_spec(help_requested);
@@ -426,5 +433,41 @@ int main(int argc, char* argv[])
     cout << "Average trial CPU time: " << average_trial_cpu_time << " seconds" << endl;
 
     eax::print_2opt_time();
+    
+    // 結果をMarkdown形式でファイルに追記保存
+    ofstream output_file(output_file_name, ios::app);
+    if (output_file.is_open()) {
+        output_file << "# Genetic Algorithm Results\n\n";
+        output_file << "## Summary\n";
+        output_file << "- TSP Name: " << tsp.name << "\n";
+        output_file << "- Distance Type: " << tsp.distance_type << "\n";
+        output_file << "- Number of Cities: " << tsp.city_count << "\n";
+        output_file << "- Population Size: " << population_size << "\n";
+        output_file << "- Trials: " << trials << "\n";
+        output_file << "- 2-opt Type: " << (use_neighbor_2opt ? "Neighbor 2-opt" : "Global 2-opt") << "\n";
+        output_file << "- EAX Type: " << (use_local_eax ? "Local EAX" : "Global EAX") << "\n";
+        output_file << "- Selection Type: " << (use_greedy_selection ? "Greedy Selection" : "Entropy Selection") << "\n";
+        output_file << "- Seed: " << seed << "\n\n";
+        output_file << "## Results\n";
+        output_file << "- Best Path Length: " << best_path_length << "\n";
+        output_file << "- Number of Trials that Reached Best Path: " << best_path_reached_count << "\n";
+        output_file << "- Average Best Path Length: " << average_best_path_length << "\n";
+        output_file << "- Average Generation of Best Path: " << average_generation_of_best << "\n";
+        output_file << "- Average Final Generation: " << average_final_generation << "\n";
+        output_file << "- Average Trial Time: " << average_trial_time << " seconds\n";
+        output_file << "- Average Trial CPU Time: " << average_trial_cpu_time << " seconds\n\n";
+        output_file << "## Individual Trial Results\n";
+        output_file << "| Trial | Best Path Length | Generation of Best | Final Generation | Trial Time (s) | Trial CPU Time (s) |\n";
+        output_file << "|-------|------------------|--------------------|------------------|----------------|--------------------|\n";
+        for (size_t i = 0; i < trials; ++i) {
+            output_file << "| " << (i + 1) << " | " << best_path_lengths[i] << " | " << generation_of_best[i] << " | " << final_generations[i]
+                        << " | " << trial_times[i] << " | " << trial_cpu_times[i] << " |\n";
+        }
+        output_file.close();
+        cout << "Results saved to " << output_file_name << endl;
+    } else {
+        cerr << "Error: Unable to open output file: " << output_file_name << endl;
+    }
+
     return 0;
 }
