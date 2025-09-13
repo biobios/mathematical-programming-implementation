@@ -20,6 +20,7 @@
 #include "eax_block2.hpp"
 #include "greedy_evaluator.hpp"
 #include "entropy_evaluator.hpp"
+#include "distance_preserving_evaluator.hpp"
 
 #include "simple_ga.hpp"
 #include "elitist_recombination.hpp"
@@ -48,7 +49,7 @@ int main(int argc, char* argv[])
     // EAXの種類
     bool use_local_eax = true; // trueならば局所EAX, falseならばグローバルEAXを使用
     // 評価関数の種類
-    bool use_greedy_selection = false; // trueならば貪欲選択, falseならばエントロピー選択を使用
+    string selection_type_str = "ent"; // "greedy", "ent", or "distance"
     // 出力ファイル名
     string output_file_name = "result.md";
 
@@ -94,13 +95,10 @@ int main(int argc, char* argv[])
                              "\n--global-eax \t\t:Use global EAX.");
     parser.add_argument(eax_spec);
 
-    mpi::ArgumentSpec selection_spec(use_greedy_selection);
-    selection_spec.add_set_argument_name("--greedy-selection");
-    selection_spec.add_set_argument_name("--no-ent-selection");
-    selection_spec.add_unset_argument_name("--ent-selection");
-    selection_spec.add_unset_argument_name("--no-greedy-selection");
-    selection_spec.set_description("--greedy-selection \t:Use greedy selection (default)."
-                                    "\n--ent-selection \t:Use entropy selection.");
+    mpi::ArgumentSpec selection_spec(selection_type_str);
+    selection_spec.add_argument_name("--selection");
+    selection_spec.set_description("--selection <type> \t:Selection type for the genetic algorithm. "
+                                   "Options are 'greedy' for Greedy Selection, 'ent' for Entropy Selection (default), and 'distance' for Distance-preserving Selection.");
     parser.add_argument(selection_spec);
     
     mpi::ArgumentSpec output_spec(output_file_name);
@@ -130,6 +128,19 @@ int main(int argc, char* argv[])
     if (population_size == 0) {
         cerr << "Error: Population size must be greater than 0." << endl;
         cerr << "--ps <size> to specify the population size." << endl;
+        return 1;
+    }
+    
+    eax::SelectionType selection_type = eax::SelectionType::Ent;
+    if (selection_type_str == "greedy") {
+        selection_type = eax::SelectionType::Greedy;
+    } else if (selection_type_str == "ent") {
+        selection_type = eax::SelectionType::Ent;
+    } else if (selection_type_str == "distance") {
+        selection_type = eax::SelectionType::DistancePreserving;
+    } else {
+        cerr << "Error: Unknown selection type '" << selection_type_str << "'." << endl;
+        cerr << "Options are 'greedy', 'ent', or 'distance'." << endl;
         return 1;
     }
 
@@ -211,13 +222,13 @@ int main(int argc, char* argv[])
             size_t generation_of_transition_to_stage2 = 0;
             size_t G_devided_by_10 = 0;
             eax::EAXType eax_type;
-            eax::SelectionType selection_type;
+            bool need_to_update_edge_counts;
 
             bool operator()(vector<Individual>& population, Env& env, size_t generation) {
-                if (selection_type == eax::SelectionType::Greedy) {
-                    update_greedy(population, env);
+                if (need_to_update_edge_counts) {
+                    update_individual_and_edge_counts(population, env);
                 } else {
-                    update_entropy(population, env);
+                    update(population, env);
                 }
 
                 if (eax_type == eax::EAXType::Rand) {
@@ -227,13 +238,13 @@ int main(int argc, char* argv[])
                 }
             }
             
-            void update_greedy(vector<Individual>& population, Env& env) {
+            void update(vector<Individual>& population, Env& env) {
                 for (auto& individual : population) {
                     individual.update(env.tsp.adjacency_matrix);
                 }
             }
             
-            void update_entropy(vector<Individual>& population, Env& env) {
+            void update_individual_and_edge_counts(vector<Individual>& population, Env& env) {
                 for (auto& individual : population) {
                     auto delta = individual.update(env.tsp.adjacency_matrix);
                     for (const auto& mod : delta.get_modifications()) {
@@ -307,7 +318,7 @@ int main(int argc, char* argv[])
             }
         } update_func {
             .eax_type = use_local_eax ? eax::EAXType::N_AB : eax::EAXType::Rand,
-            .selection_type = use_greedy_selection ? eax::SelectionType::Greedy : eax::SelectionType::Ent
+            .need_to_update_edge_counts = selection_type_str != "greedy"
         };
         
         // ロガー
@@ -341,6 +352,8 @@ int main(int argc, char* argv[])
                     return eax::eval::delta::Greedy()(child, env.tsp.adjacency_matrix);
                 case eax::SelectionType::Ent:
                     return eax::eval::delta::Entropy()(child, env.tsp.adjacency_matrix, env.pop_edge_counts, env.population_size);
+                case eax::SelectionType::DistancePreserving:
+                    return eax::eval::delta::DistancePreserving()(child, env.tsp.adjacency_matrix, env.pop_edge_counts);
                 default:
                     throw std::runtime_error("Unknown selection type");
             }
@@ -360,11 +373,7 @@ int main(int argc, char* argv[])
         } else {
             tsp_env.eax_type = eax::EAXType::Rand;
         }
-        if (use_greedy_selection) {
-            tsp_env.selection_type = eax::SelectionType::Greedy;
-        } else {
-            tsp_env.selection_type = eax::SelectionType::Ent;
-        }
+        tsp_env.selection_type = selection_type;
         tsp_env.set_initial_edge_counts(population);
         
         cout << "Starting genetic algorithm..." << endl;
@@ -446,7 +455,7 @@ int main(int argc, char* argv[])
         output_file << "- Trials: " << trials << "\n";
         output_file << "- 2-opt Type: " << (use_neighbor_2opt ? "Neighbor 2-opt" : "Global 2-opt") << "\n";
         output_file << "- EAX Type: " << (use_local_eax ? "Local EAX" : "Global EAX") << "\n";
-        output_file << "- Selection Type: " << (use_greedy_selection ? "Greedy Selection" : "Entropy Selection") << "\n";
+        output_file << "- Selection Type: " << selection_type_str << "\n";
         output_file << "- Seed: " << seed << "\n\n";
         output_file << "## Results\n";
         output_file << "- Best Path Length: " << best_path_length << "\n";
