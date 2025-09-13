@@ -18,8 +18,8 @@ namespace eax {
 
     enum class SelectionType {
         Greedy,
-        LDL,
         Ent,
+        DistancePreserving,
     };
 
     struct Environment {
