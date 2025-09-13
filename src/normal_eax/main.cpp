@@ -44,10 +44,6 @@ int main(int argc, char* argv[])
     size_t trials = 1;
     // 集団サイズ
     size_t population_size = 0;
-    // 2-optの種類
-    bool use_neighbor_2opt = true; // trueならば近傍2-opt, falseならばグローバル2-optを使用
-    // EAXの種類
-    bool use_local_eax = true; // trueならば局所EAX, falseならばグローバルEAXを使用
     // 評価関数の種類
     string selection_type_str = "ent"; // "greedy", "ent", or "distance"
     // 出力ファイル名
@@ -76,24 +72,6 @@ int main(int argc, char* argv[])
     seed_spec.add_argument_name("--seed");
     seed_spec.set_description("--seed <value> \t\t:Seed value for random number generation.");
     parser.add_argument(seed_spec);
-    
-    mpi::ArgumentSpec two_opt_spec(use_neighbor_2opt);
-    two_opt_spec.add_set_argument_name("--neighbor-2opt");
-    two_opt_spec.add_set_argument_name("--no-global-2opt");
-    two_opt_spec.add_unset_argument_name("--global-2opt");
-    two_opt_spec.add_unset_argument_name("--no-neighbor-2opt");
-    two_opt_spec.set_description("--neighbor-2opt \t:Use neighbor 2-opt (default)."
-                                 "\n--global-2opt \t\t:Use global 2-opt.");
-    parser.add_argument(two_opt_spec);
-    
-    mpi::ArgumentSpec eax_spec(use_local_eax);
-    eax_spec.add_set_argument_name("--local-eax");
-    eax_spec.add_set_argument_name("--no-global-eax");
-    eax_spec.add_unset_argument_name("--global-eax");
-    eax_spec.add_unset_argument_name("--no-local-eax");
-    eax_spec.set_description("--local-eax \t\t:Use local EAX (default)."
-                             "\n--global-eax \t\t:Use global EAX.");
-    parser.add_argument(eax_spec);
 
     mpi::ArgumentSpec selection_spec(selection_type_str);
     selection_spec.add_argument_name("--selection");
@@ -153,10 +131,7 @@ int main(int argc, char* argv[])
     mt19937 rng(seed);
     
     // neighbor_range
-    size_t near_range = 50; // デフォルトの近傍範囲
-    if (!use_neighbor_2opt) {
-        near_range = std::numeric_limits<size_t>::max(); // グローバル2-optの場合は無制限
-    }
+    size_t near_range = 50; // 近傍範囲
     // 2opt
     eax::TwoOpt two_opt(tsp.adjacency_matrix, tsp.NN_list, near_range);
     // 初期集団生成器
@@ -204,8 +179,6 @@ int main(int argc, char* argv[])
         auto crossover_func = [&eax_rand, &eax_n_ab, &eax_block2](const Individual& parent1, const Individual& parent2, size_t children_size,
                                     Env& env, mt19937& rng) {
             switch (env.eax_type) {
-                case eax::EAXType::Rand:
-                    return eax_rand(parent1, parent2, children_size, env.tsp, rng);
                 case eax::EAXType::N_AB:
                     return eax_n_ab(parent1, parent2, children_size, env.tsp, rng, env.N_parameter);
                 case eax::EAXType::Block2:
@@ -221,7 +194,6 @@ int main(int argc, char* argv[])
             size_t generation_of_reached_best = 0;
             size_t generation_of_transition_to_stage2 = 0;
             size_t G_devided_by_10 = 0;
-            eax::EAXType eax_type;
             bool need_to_update_edge_counts;
 
             bool operator()(vector<Individual>& population, Env& env, size_t generation) {
@@ -231,11 +203,7 @@ int main(int argc, char* argv[])
                     update(population, env);
                 }
 
-                if (eax_type == eax::EAXType::Rand) {
-                    return continue_condition_global(population);
-                } else {
-                    return continue_condition_local(population, env, generation);
-                }
+                return continue_condition(population, env, generation);
             }
             
             void update(vector<Individual>& population, Env& env) {
@@ -257,18 +225,6 @@ int main(int argc, char* argv[])
                 }
             }
             
-            bool continue_condition_global(const vector<Individual>& population) {
-                double best_length = std::numeric_limits<double>::max();
-                double average_length = 0.0;
-                for (const auto& individual : population) {
-                    double length = individual.get_distance();
-                    best_length = std::min(best_length, length);
-                    average_length += length;
-                }
-                average_length /= population.size();
-                return (average_length - best_length) > 0.1;
-            }
-            
             enum class GA_Stage {
                 Stage1,
                 Stage2,
@@ -276,7 +232,7 @@ int main(int argc, char* argv[])
             
             GA_Stage stage = GA_Stage::Stage1;
 
-            bool continue_condition_local(const vector<Individual>& population, Env& env, size_t generation) {
+            bool continue_condition(const vector<Individual>& population, Env& env, size_t generation) {
                 double best_length = std::numeric_limits<double>::max();
                 double average_length = 0.0;
                 for (size_t i = 0; i < population.size(); ++i) {
@@ -317,7 +273,6 @@ int main(int argc, char* argv[])
                 return true;
             }
         } update_func {
-            .eax_type = use_local_eax ? eax::EAXType::N_AB : eax::EAXType::Rand,
             .need_to_update_edge_counts = selection_type_str != "greedy"
         };
         
@@ -368,11 +323,7 @@ int main(int argc, char* argv[])
         tsp_env.population_size = population_size;
         tsp_env.N_parameter = 1;
         tsp_env.num_children = 30; // 子の数
-        if (use_local_eax) {
-            tsp_env.eax_type = eax::EAXType::N_AB;
-        } else {
-            tsp_env.eax_type = eax::EAXType::Rand;
-        }
+        tsp_env.eax_type = eax::EAXType::N_AB;
         tsp_env.selection_type = selection_type;
         tsp_env.set_initial_edge_counts(population);
         
@@ -453,8 +404,6 @@ int main(int argc, char* argv[])
         output_file << "- Number of Cities: " << tsp.city_count << "\n";
         output_file << "- Population Size: " << population_size << "\n";
         output_file << "- Trials: " << trials << "\n";
-        output_file << "- 2-opt Type: " << (use_neighbor_2opt ? "Neighbor 2-opt" : "Global 2-opt") << "\n";
-        output_file << "- EAX Type: " << (use_local_eax ? "Local EAX" : "Global EAX") << "\n";
         output_file << "- Selection Type: " << selection_type_str << "\n";
         output_file << "- Seed: " << seed << "\n\n";
         output_file << "## Results\n";
