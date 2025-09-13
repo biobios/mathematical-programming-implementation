@@ -11,7 +11,6 @@
 
 namespace eax {
     enum class EAXType {
-        Rand,
         N_AB,
         Block2,
     };
