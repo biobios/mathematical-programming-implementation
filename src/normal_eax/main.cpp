@@ -173,10 +173,9 @@ int main(int argc, char* argv[])
         eax::ObjectPools object_pools(tsp.city_count);
         
         // 交叉関数
-        eax::EAX_Rand eax_rand(object_pools);
         eax::EAX_N_AB eax_n_ab(object_pools);
         eax::EAX_Block2 eax_block2(object_pools);
-        auto crossover_func = [&eax_rand, &eax_n_ab, &eax_block2](const Individual& parent1, const Individual& parent2, size_t children_size,
+        auto crossover_func = [&eax_n_ab, &eax_block2](const Individual& parent1, const Individual& parent2, size_t children_size,
                                     Env& env, mt19937& rng) {
             switch (env.eax_type) {
                 case eax::EAXType::N_AB:
@@ -333,8 +332,6 @@ int main(int argc, char* argv[])
         auto start_clock = clock();
 
         // 世代交代モデル ElitistRecombinationを使用して、遺伝的アルゴリズムを実行
-        // vector<Individual> result = mpi::genetic_algorithm::ElitistRecombination<100>(population, end_condition, calc_fitness_lambda, eax::edge_assembly_crossover, tsp, local_rng, logging);
-        // vector<Individual> result = mpi::genetic_algorithm::SimpleGA(population, end_condition, calc_fitness, eax::edge_assembly_crossover, adjacency_matrix, local_rng);
         vector<Individual> result = eax::GenerationalModel<30>(population, update_func, calc_fitness_lambda, crossover_func, tsp_env, local_rng, logging);
 
         auto end_clock = clock();
