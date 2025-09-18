@@ -7,8 +7,7 @@
 
 namespace eax {
     
-    template <size_t N_cross>
-    struct GenerationalModelImpl
+    struct GenerationalModel
     {
         /**
         * @brief 世代交代モデルを実装する関数オブジェクト
@@ -24,13 +23,13 @@ namespace eax {
         template <typename Individual, typename UpdateFunc, typename FitnessFunc, typename Environment, typename CrossOverFunc, std::uniform_random_bit_generator RandomGen, typename LoggingFunc = mpi::NOP_Function>
             requires(requires(std::vector<Individual> population, UpdateFunc update_func, FitnessFunc fitness_func, CrossOverFunc cross_over, Environment env, RandomGen rng, size_t generation, LoggingFunc logging) {
                 { update_func(population, env, generation) } -> std::convertible_to<bool>;
-                { fitness_func(cross_over(population[0], population[1], 1, env, rng)[0], env) } -> std::convertible_to<double>;
-                population[0] = cross_over(population[0], population[1], 1, env, rng)[0];
+                { fitness_func(cross_over(population[0], population[1], env, rng)[0], env) } -> std::convertible_to<double>;
+                population[0] = cross_over(population[0], population[1], env, rng)[0];
                 { logging(population, env, generation) } -> std::convertible_to<void>;
             })
-        constexpr std::vector<Individual> operator()(std::vector<Individual> population, UpdateFunc update_func, FitnessFunc fitness_func, CrossOverFunc cross_over, Environment env, RandomGen rng, LoggingFunc&& logging = {}) const
+        static constexpr std::vector<Individual> operator()(std::vector<Individual> population, UpdateFunc update_func, FitnessFunc fitness_func, CrossOverFunc cross_over, Environment env, RandomGen rng, LoggingFunc&& logging = {})
         {
-            using Child = std::invoke_result_t<CrossOverFunc, Individual&, Individual&, size_t, Environment&, RandomGen&>::value_type;
+            using Child = std::invoke_result_t<CrossOverFunc, Individual&, Individual&, Environment&, RandomGen&>::value_type;
             auto calc_all_fitness = [&fitness_func](const std::vector<Child>& children, Environment& env) {
                 std::vector<double> fitness_values(children.size());
                 for (size_t i = 0; i < children.size(); ++i) {
@@ -57,7 +56,7 @@ namespace eax {
                     size_t parent_B_index = indices[(i + 1) % population_size];
                     Individual& parent_A = population[parent_A_index];
                     Individual& parent_B = population[parent_B_index];
-                    std::vector<Child> children = cross_over(parent_A, parent_B, N_cross, env, rng);
+                    std::vector<Child> children = cross_over(parent_A, parent_B, env, rng);
 
                     if (children.empty()) {
                         continue; // 子供が生成されなかった場合はスキップ
@@ -92,7 +91,4 @@ namespace eax {
             return population;
         }
     };
-    
-    template <size_t N_cross>
-    constexpr GenerationalModelImpl<N_cross> GenerationalModel;
 }
