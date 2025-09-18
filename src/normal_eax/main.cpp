@@ -162,7 +162,7 @@ int main(int argc, char* argv[])
         // 乱数生成器(ローカル)
         // グローバルで初期化
         mt19937::result_type local_seed = rng();
-        string cache_file = "init_pop_cache_" + to_string(local_seed) + "_for_" + file_name + "_" + to_string(population_size) + ".txt";
+        string cache_file = "init_pop_cache_" + to_string(local_seed) + "_for_" + tsp.name + "_" + to_string(population_size) + ".txt";
         vector<vector<size_t>> initial_paths = population_initializer.initialize_population(local_seed, cache_file, [&two_opt, local_seed](vector<size_t>& path) {
             // 2-optを適用
             two_opt.apply(path, local_seed);
