@@ -44,6 +44,8 @@ int main(int argc, char* argv[])
     size_t trials = 1;
     // 集団サイズ
     size_t population_size = 0;
+    // １度の交叉で生成する子の数
+    size_t num_children = 30;
     // 評価関数の種類
     string selection_type_str = "ent"; // "greedy", "ent", or "distance"
     // 出力ファイル名
@@ -62,6 +64,11 @@ int main(int argc, char* argv[])
     ps_spec.add_argument_name("--population-size");
     ps_spec.set_description("--ps <size> \t\t:Population size for the genetic algorithm.");
     parser.add_argument(ps_spec);
+    
+    mpi::ArgumentSpec num_children_spec(num_children);
+    num_children_spec.add_argument_name("--children");
+    num_children_spec.set_description("--children <number> \t:Number of children to produce per crossover (default: 30).");
+    parser.add_argument(num_children_spec);
     
     mpi::ArgumentSpec trials_spec(trials);
     trials_spec.add_argument_name("--trials");
@@ -175,13 +182,13 @@ int main(int argc, char* argv[])
         // 交叉関数
         eax::EAX_N_AB eax_n_ab(object_pools);
         eax::EAX_Block2 eax_block2(object_pools);
-        auto crossover_func = [&eax_n_ab, &eax_block2](const Individual& parent1, const Individual& parent2, size_t children_size,
+        auto crossover_func = [&eax_n_ab, &eax_block2](const Individual& parent1, const Individual& parent2,
                                     Env& env, mt19937& rng) {
             switch (env.eax_type) {
                 case eax::EAXType::N_AB:
-                    return eax_n_ab(parent1, parent2, children_size, env.tsp, rng, env.N_parameter);
+                    return eax_n_ab(parent1, parent2, env.num_children, env.tsp, rng, env.N_parameter);
                 case eax::EAXType::Block2:
-                    return eax_block2(parent1, parent2, children_size, env.tsp, rng);
+                    return eax_block2(parent1, parent2, env.num_children, env.tsp, rng);
                 default:
                     throw std::runtime_error("Unknown EAX type.");
             }
@@ -321,7 +328,7 @@ int main(int argc, char* argv[])
         tsp_env.tsp = tsp;
         tsp_env.population_size = population_size;
         tsp_env.N_parameter = 1;
-        tsp_env.num_children = 30; // 子の数
+        tsp_env.num_children = num_children;
         tsp_env.eax_type = eax::EAXType::N_AB;
         tsp_env.selection_type = selection_type;
         tsp_env.set_initial_edge_counts(population);
@@ -332,7 +339,7 @@ int main(int argc, char* argv[])
         auto start_clock = clock();
 
         // 世代交代モデル ElitistRecombinationを使用して、遺伝的アルゴリズムを実行
-        vector<Individual> result = eax::GenerationalModel<30>(population, update_func, calc_fitness_lambda, crossover_func, tsp_env, local_rng, logging);
+        vector<Individual> result = eax::GenerationalModel{}(population, update_func, calc_fitness_lambda, crossover_func, tsp_env, local_rng, logging);
 
         auto end_clock = clock();
         auto end_time = chrono::high_resolution_clock::now();
