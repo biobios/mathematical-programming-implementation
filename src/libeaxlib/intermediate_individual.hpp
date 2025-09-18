@@ -13,7 +13,8 @@ public:
     template <doubly_linked_list_like T>
     IntermediateIndividual(const T& individual)
         : individual_being_edited(individual.size()),
-        modifications(),
+        modification_pool(),
+        modifications(modification_pool.acquire()),
         path(individual.size()),
         pos(individual.size()) {
         assign(individual);
@@ -84,7 +85,8 @@ private:
     void reset();
     void undo(const CrossoverDelta::Modification& modification);
     doubly_linked_list_t individual_being_edited;
-    std::vector<CrossoverDelta::Modification> modifications;
+    mpi::ObjectPool<std::vector<CrossoverDelta::Modification>> modification_pool;
+    mpi::pooled_ptr<std::vector<CrossoverDelta::Modification>> modifications;
     std::vector<size_t> path;
     std::vector<size_t> pos;
 };

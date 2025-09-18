@@ -8,7 +8,8 @@
 namespace eax {
 IntermediateIndividual::IntermediateIndividual(size_t size)
     : individual_being_edited(size),
-      modifications(),
+      modification_pool(),
+      modifications(modification_pool.acquire()),
       path(size),
       pos(size) {
     
@@ -42,7 +43,7 @@ const std::array<size_t, 2>& IntermediateIndividual::operator[](size_t index) co
 }
 
 void IntermediateIndividual::change_connection(size_t v1, size_t v2, size_t new_v2) {
-    modifications.emplace_back(std::pair{v1, v2}, new_v2);
+    (*modifications).emplace_back(std::pair{v1, v2}, new_v2);
 
     if (individual_being_edited[v1][0] == v2) {
         individual_being_edited[v1][0] = new_v2;
@@ -74,7 +75,7 @@ const std::vector<size_t>& IntermediateIndividual::get_pos() const {
 
 int64_t IntermediateIndividual::calc_delta_distance(const std::vector<std::vector<int64_t>>& adjacency_matrix) const {
     int64_t delta_distance = 0;
-    for (auto& modification : modifications) {
+    for (auto& modification : *modifications) {
         auto [v1, v2] = modification.edge1;
         size_t new_v2 = modification.new_v2;
         delta_distance -= adjacency_matrix[v1][v2];
@@ -86,7 +87,7 @@ int64_t IntermediateIndividual::calc_delta_distance(const std::vector<std::vecto
 }
 
 void IntermediateIndividual::revert() {
-    for (auto it = modifications.crbegin(); it != modifications.crend(); ++it) {
+    for (auto it = modifications->crbegin(); it != modifications->crend(); ++it) {
         undo(*it);
     }
 }
@@ -96,7 +97,8 @@ void IntermediateIndividual::revert() {
  * @note この関数は、revert()が呼び出された後、change_connection()やswap_edges()が呼び出される前に呼び出されることを想定している。
  */
 void IntermediateIndividual::reset() {
-    modifications.clear();
+    modifications = modification_pool.acquire();
+    modifications->clear();
 }
 
 void IntermediateIndividual::undo(const CrossoverDelta::Modification& modification) {
