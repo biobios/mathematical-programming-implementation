@@ -28,7 +28,7 @@
 #include "population_initializer.hpp"
 #include "individual.hpp"
 #include "generational_model.hpp"
-#include "environment.hpp"
+#include "context.hpp"
 #include "two_opt.hpp"
 #include "command_line_argument_parser.hpp"
 #include <time.h>
@@ -175,7 +175,7 @@ int main(int argc, char* argv[])
 
         cout << "Initial population created." << endl;
         
-        using Env = eax::Environment;
+        using Context = eax::Context;
         // オブジェクトプール
         eax::ObjectPools object_pools(tsp.city_count);
         
@@ -183,62 +183,63 @@ int main(int argc, char* argv[])
         eax::EAX_N_AB eax_n_ab(object_pools);
         eax::EAX_Block2 eax_block2(object_pools);
         auto crossover_func = [&eax_n_ab, &eax_block2](const Individual& parent1, const Individual& parent2,
-                                    Env& env, mt19937& rng) {
-            switch (env.eax_type) {
+                                    Context& context) {
+            switch (context.eax_type) {
                 case eax::EAXType::N_AB:
-                    return eax_n_ab(parent1, parent2, env.num_children, env.tsp, rng, env.N_parameter);
+                    return eax_n_ab(parent1, parent2, context.num_children, context.tsp, context.random_gen, context.N_parameter);
                 case eax::EAXType::Block2:
-                    return eax_block2(parent1, parent2, env.num_children, env.tsp, rng);
+                    return eax_block2(parent1, parent2, context.num_children, context.tsp, context.random_gen);
                 default:
                     throw std::runtime_error("Unknown EAX type.");
             }
         };
 
+        // 適応度関数
+        auto calc_fitness_lambda = [](const eax::CrossoverDelta& child, Context& context) {
+            switch (context.selection_type) {
+                case eax::SelectionType::Greedy:
+                    return eax::eval::delta::Greedy()(child, context.tsp.adjacency_matrix);
+                case eax::SelectionType::Ent:
+                    return eax::eval::delta::Entropy()(child, context.tsp.adjacency_matrix, context.pop_edge_counts, context.population_size);
+                case eax::SelectionType::DistancePreserving:
+                    return eax::eval::delta::DistancePreserving()(child, context.tsp.adjacency_matrix, context.pop_edge_counts);
+                default:
+                    throw std::runtime_error("Unknown selection type");
+            }
+        };
+        
         // 更新処理関数
         struct {
-            size_t best_length = 1e18;
-            size_t generation_of_reached_best = 0;
-            size_t generation_of_transition_to_stage2 = 0;
-            size_t G_devided_by_10 = 0;
-            bool need_to_update_edge_counts;
-
-            bool operator()(vector<Individual>& population, Env& env, size_t generation) {
-                if (need_to_update_edge_counts) {
-                    update_individual_and_edge_counts(population, env);
+            mpi::genetic_algorithm::TerminationReason operator()(vector<Individual>& population, Context& context, size_t generation) {
+                if (context.need_to_update_edge_counts) {
+                    update_individual_and_edge_counts(population, context);
                 } else {
-                    update(population, env);
+                    update(population, context);
                 }
 
-                return continue_condition(population, env, generation);
+                return continue_condition(population, context, generation);
             }
             
-            void update(vector<Individual>& population, Env& env) {
+            void update(vector<Individual>& population, Context& context) {
                 for (auto& individual : population) {
-                    individual.update(env.tsp.adjacency_matrix);
+                    individual.update(context.tsp.adjacency_matrix);
                 }
             }
             
-            void update_individual_and_edge_counts(vector<Individual>& population, Env& env) {
+            void update_individual_and_edge_counts(vector<Individual>& population, Context& context) {
                 for (auto& individual : population) {
-                    auto delta = individual.update(env.tsp.adjacency_matrix);
+                    auto delta = individual.update(context.tsp.adjacency_matrix);
                     for (const auto& mod : delta.get_modifications()) {
                         size_t v1 = mod.edge1.first;
                         size_t v2 = mod.edge1.second;
                         size_t new_v2 = mod.new_v2;
-                        env.pop_edge_counts[v1][v2] -= 1;
-                        env.pop_edge_counts[v1][new_v2] += 1;
+                        context.pop_edge_counts[v1][v2] -= 1;
+                        context.pop_edge_counts[v1][new_v2] += 1;
                     }
                 }
             }
-            
-            enum class GA_Stage {
-                Stage1,
-                Stage2,
-            };
-            
-            GA_Stage stage = GA_Stage::Stage1;
 
-            bool continue_condition(const vector<Individual>& population, Env& env, size_t generation) {
+            mpi::genetic_algorithm::TerminationReason continue_condition(const vector<Individual>& population, Context& context, size_t generation) {
                 double best_length = std::numeric_limits<double>::max();
                 double average_length = 0.0;
                 for (size_t i = 0; i < population.size(); ++i) {
@@ -248,48 +249,44 @@ int main(int argc, char* argv[])
                 }
                 average_length /= population.size();
                 
-                if (best_length < this->best_length) {
-                    this->best_length = best_length;
-                    this->generation_of_reached_best = generation;
+                if (best_length < context.best_length) {
+                    context.best_length = best_length;
+                    context.generation_of_reached_best = generation;
+                    context.stagnation_generations = 0;
+                }else {
+                    context.stagnation_generations += 1;
                 }
                 
                 if (average_length - best_length < 0.001)
-                    return false; // 収束条件
+                    return mpi::genetic_algorithm::TerminationReason::Converged; // 収束条件
                 
-                const size_t N_child = env.num_children;
+                const size_t N_child = context.num_children;
                 
-                if (stage == GA_Stage::Stage1) {
-                    if (G_devided_by_10 == 0 && generation - generation_of_reached_best >= (1500 / N_child)) {
-                        G_devided_by_10 = generation / 10;
-                    } else if (G_devided_by_10 > 0 && generation - generation_of_reached_best >= G_devided_by_10) {
-                        stage = GA_Stage::Stage2;
-                        env.eax_type = eax::EAXType::Block2;
-                        generation_of_reached_best = generation;
-                        generation_of_transition_to_stage2 = generation;
-                        G_devided_by_10 = 0;
+                if (context.stage == Context::GA_Stage::Stage1) {
+                    if (context.G_devided_by_10 == 0 && context.stagnation_generations >= (1500 / N_child)) {
+                        context.G_devided_by_10 = generation / 10;
+                    } else if (context.G_devided_by_10 > 0 && context.stagnation_generations >= context.G_devided_by_10) {
+                        context.stage = Context::GA_Stage::Stage2;
+                        context.eax_type = eax::EAXType::Block2;
+                        context.stagnation_generations = 0;
+                        context.generation_of_transition_to_stage2 = generation;
+                        context.G_devided_by_10 = 0;
                     }
                 } else {
-                    if (G_devided_by_10 == 0 && generation - generation_of_reached_best >= (1500 / N_child)) {
-                        G_devided_by_10 = (generation - generation_of_transition_to_stage2) / 10;
-                    } else if (G_devided_by_10 > 0 && generation - generation_of_reached_best >= G_devided_by_10) {
-                        return false; // 収束条件
+                    if (context.G_devided_by_10 == 0 && context.stagnation_generations >= (1500 / N_child)) {
+                        context.G_devided_by_10 = (generation - context.generation_of_transition_to_stage2) / 10;
+                    } else if (context.G_devided_by_10 > 0 && context.stagnation_generations >= context.G_devided_by_10) {
+                        return mpi::genetic_algorithm::TerminationReason::Stagnation; // 停滞条件
                     }
                 }
                 
-                return true;
+                return mpi::genetic_algorithm::TerminationReason::NotTerminated;
             }
-        } update_func {
-            .need_to_update_edge_counts = selection_type_str != "greedy"
-        };
+        } update_func;
         
         // ロガー
         struct {
-            double best_length = 1e18;
-            size_t generation_of_reached_best = 0;
-            size_t final_generation = 0;
-
-            void operator()([[maybe_unused]]const vector<Individual>& population, [[maybe_unused]]const Env& tsp, size_t generation) {
-                this->final_generation = generation;
+            void operator()([[maybe_unused]]const vector<Individual>& population, [[maybe_unused]]const Context& context, size_t generation) {
                 std::vector<double> lengths(population.size());
                 for (size_t i = 0; i < population.size(); ++i) {
                     lengths[i] = population[i].get_distance();
@@ -299,32 +296,23 @@ int main(int argc, char* argv[])
                 double worst_length = *std::max_element(lengths.begin(), lengths.end());
                 cout << "Generation " << generation << ": Best Length = " << best_length 
                      << ", Average Length = " << average_length << ", Worst Length = " << worst_length << endl;
-                if (best_length < this->best_length) {
-                    this->best_length = best_length;
-                    generation_of_reached_best = generation;
-                }
             }
         } logging;
-
-        // 適応度関数
-        auto calc_fitness_lambda = [](const eax::CrossoverDelta& child, Env& env) {
-            switch (env.selection_type) {
-                case eax::SelectionType::Greedy:
-                    return eax::eval::delta::Greedy()(child, env.tsp.adjacency_matrix);
-                case eax::SelectionType::Ent:
-                    return eax::eval::delta::Entropy()(child, env.tsp.adjacency_matrix, env.pop_edge_counts, env.population_size);
-                case eax::SelectionType::DistancePreserving:
-                    return eax::eval::delta::DistancePreserving()(child, env.tsp.adjacency_matrix, env.pop_edge_counts);
-                default:
-                    throw std::runtime_error("Unknown selection type");
-            }
-        };
         
-        // // 乱数生成器再初期化
-        mt19937 local_rng(local_seed);
+        struct {
+            void operator()([[maybe_unused]]const vector<Individual>& population, Context& context, size_t generation, [[maybe_unused]]mpi::genetic_algorithm::TerminationReason reason) {
+                context.final_generation = generation;
+            }
+        } post_process;
+
+        // 世代交代処理
+        eax::GenerationalStep generational_step(calc_fitness_lambda, crossover_func);
+        
+        // GA実行オブジェクト
+        eax::GenerationalModel genetic_algorithm(generational_step, update_func, logging, post_process);
 
         // 環境
-        Env tsp_env;
+        Context tsp_env;
         tsp_env.tsp = tsp;
         tsp_env.population_size = population_size;
         tsp_env.N_parameter = 1;
@@ -332,23 +320,25 @@ int main(int argc, char* argv[])
         tsp_env.eax_type = eax::EAXType::N_AB;
         tsp_env.selection_type = selection_type;
         tsp_env.set_initial_edge_counts(population);
+        tsp_env.random_gen = mt19937(local_seed);
+        tsp_env.need_to_update_edge_counts = selection_type != eax::SelectionType::Greedy;
         
         cout << "Starting genetic algorithm..." << endl;
         // 計測開始
         auto start_time = chrono::high_resolution_clock::now();
         auto start_clock = clock();
 
-        // 世代交代モデル ElitistRecombinationを使用して、遺伝的アルゴリズムを実行
-        vector<Individual> result = eax::GenerationalModel{}(population, update_func, calc_fitness_lambda, crossover_func, tsp_env, local_rng, logging);
+        // vector<Individual> result = eax::GenerationalModel{}(population, update_func, calc_fitness_lambda, crossover_func, tsp_env, local_rng, logging);
+        auto result = genetic_algorithm.execute(population, tsp_env);
 
         auto end_clock = clock();
         auto end_time = chrono::high_resolution_clock::now();
         trial_times[trial] = chrono::duration<double>(end_time - start_time).count();
         trial_cpu_times[trial] = static_cast<double>(end_clock - start_clock) / CLOCKS_PER_SEC;
         
-        best_path_lengths[trial] = logging.best_length;
-        generation_of_best[trial] = logging.generation_of_reached_best;
-        final_generations[trial] = logging.final_generation;
+        best_path_lengths[trial] = tsp_env.best_length;
+        generation_of_best[trial] = tsp_env.generation_of_reached_best;
+        final_generations[trial] = tsp_env.final_generation;
         
         cout << "Trial " << trial + 1 << " completed." << endl;
     }

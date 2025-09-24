@@ -3,6 +3,7 @@
 #include <vector>
 #include <functional>
 #include <chrono>
+#include <random>
 
 #include "tsp_loader.hpp"
 #include "object_pool.hpp"
@@ -21,7 +22,7 @@ namespace eax {
         DistancePreserving,
     };
 
-    struct Environment {
+    struct Context {
         tsp::TSP tsp;
         size_t N_parameter;
         size_t population_size;
@@ -29,6 +30,30 @@ namespace eax {
         EAXType eax_type;
         SelectionType selection_type;
         std::vector<std::vector<size_t>> pop_edge_counts; // 各エッジの個数
+        std::mt19937 random_gen;
+
+        // 最良解の長さ
+        size_t best_length = 1e18;
+        // 最良解に到達した世代
+        size_t generation_of_reached_best = 0;
+        // 停滞した世代数
+        size_t stagnation_generations = 0;
+        // Block2(Stage2)に移行した世代
+        size_t generation_of_transition_to_stage2 = 0;
+        // ステージ遷移に用いる変数
+        size_t G_devided_by_10 = 0;
+        // 交叉後にエッジカウントを更新する必要があるかどうか
+        bool need_to_update_edge_counts;
+        // 最終世代
+        size_t final_generation = 0;
+
+        // GAの段階
+        enum class GA_Stage {
+            Stage1,
+            Stage2,
+        };
+        GA_Stage stage = GA_Stage::Stage1;
+
 
         void set_initial_edge_counts(const std::vector<Individual>& init_pop) {
             pop_edge_counts.resize(tsp.city_count, std::vector<size_t>(tsp.city_count, 0));
