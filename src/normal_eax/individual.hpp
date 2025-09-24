@@ -40,6 +40,9 @@ namespace eax {
             distance += child.get_delta_distance(adjacency_matrix);
             return child;
         }
+        
+        void serialize(std::ostream& os) const;
+        static Individual deserialize(std::istream& is);
     private:
         std::vector<std::array<size_t, 2>> doubly_linked_list;
         CrossoverDelta prev_diff;

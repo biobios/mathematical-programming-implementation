@@ -39,4 +39,21 @@ namespace eax {
         }
         return path;
     }
+    
+    void Individual::serialize(std::ostream& os) const {
+        os << distance << " ";
+        for (size_t i = 0; i < doubly_linked_list.size(); ++i) {
+            os << doubly_linked_list[i][0] << " " << doubly_linked_list[i][1] << " ";
+        }
+    }
+    
+    Individual Individual::deserialize(std::istream& is) {
+        Individual individual;
+        is >> individual.distance;
+        size_t v1, v2;
+        while (is >> v1 >> v2) {
+            individual.doubly_linked_list.push_back({v1, v2});
+        }
+        return individual;
+    }
 }
