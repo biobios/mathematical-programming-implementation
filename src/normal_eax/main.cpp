@@ -186,9 +186,9 @@ int main(int argc, char* argv[])
                                     Context& context) {
             switch (context.eax_type) {
                 case eax::EAXType::N_AB:
-                    return eax_n_ab(parent1, parent2, context.num_children, context.tsp, context.random_gen, context.N_parameter);
+                    return eax_n_ab(parent1, parent2, env.num_children, env.tsp, context.random_gen, 1);
                 case eax::EAXType::Block2:
-                    return eax_block2(parent1, parent2, context.num_children, context.tsp, context.random_gen);
+                    return eax_block2(parent1, parent2, env.num_children, env.tsp, context.random_gen);
                 default:
                     throw std::runtime_error("Unknown EAX type.");
             }
@@ -196,13 +196,14 @@ int main(int argc, char* argv[])
 
         // 適応度関数
         auto calc_fitness_lambda = [](const eax::CrossoverDelta& child, Context& context) {
-            switch (context.selection_type) {
+            auto& env = context.env;
+            switch (env.selection_type) {
                 case eax::SelectionType::Greedy:
-                    return eax::eval::delta::Greedy()(child, context.tsp.adjacency_matrix);
+                    return eax::eval::delta::Greedy()(child, env.tsp.adjacency_matrix);
                 case eax::SelectionType::Ent:
-                    return eax::eval::delta::Entropy()(child, context.tsp.adjacency_matrix, context.pop_edge_counts, context.population_size);
+                    return eax::eval::delta::Entropy()(child, env.tsp.adjacency_matrix, context.pop_edge_counts, env.population_size);
                 case eax::SelectionType::DistancePreserving:
-                    return eax::eval::delta::DistancePreserving()(child, context.tsp.adjacency_matrix, context.pop_edge_counts);
+                    return eax::eval::delta::DistancePreserving()(child, env.tsp.adjacency_matrix, context.pop_edge_counts);
                 default:
                     throw std::runtime_error("Unknown selection type");
             }
@@ -211,7 +212,7 @@ int main(int argc, char* argv[])
         // 更新処理関数
         struct {
             mpi::genetic_algorithm::TerminationReason operator()(vector<Individual>& population, Context& context, size_t generation) {
-                if (context.need_to_update_edge_counts) {
+                if (context.env.need_to_update_edge_counts) {
                     update_individual_and_edge_counts(population, context);
                 } else {
                     update(population, context);
@@ -222,13 +223,13 @@ int main(int argc, char* argv[])
             
             void update(vector<Individual>& population, Context& context) {
                 for (auto& individual : population) {
-                    individual.update(context.tsp.adjacency_matrix);
+                    individual.update(context.env.tsp.adjacency_matrix);
                 }
             }
             
             void update_individual_and_edge_counts(vector<Individual>& population, Context& context) {
                 for (auto& individual : population) {
-                    auto delta = individual.update(context.tsp.adjacency_matrix);
+                    auto delta = individual.update(context.env.tsp.adjacency_matrix);
                     for (const auto& mod : delta.get_modifications()) {
                         size_t v1 = mod.edge1.first;
                         size_t v2 = mod.edge1.second;
@@ -260,7 +261,7 @@ int main(int argc, char* argv[])
                 if (average_length - best_length < 0.001)
                     return mpi::genetic_algorithm::TerminationReason::Converged; // 収束条件
                 
-                const size_t N_child = context.num_children;
+                const size_t N_child = context.env.num_children;
                 
                 if (context.stage == Context::GA_Stage::Stage1) {
                     if (context.G_devided_by_10 == 0 && context.stagnation_generations >= (1500 / N_child)) {

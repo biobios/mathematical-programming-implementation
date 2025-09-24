@@ -23,12 +23,16 @@ namespace eax {
     };
 
     struct Context {
-        tsp::TSP tsp;
-        size_t N_parameter;
-        size_t population_size;
-        size_t num_children;
+        struct {
+            tsp::TSP tsp;
+            size_t population_size;
+            size_t num_children;
+            SelectionType selection_type;
+            // 交叉後にエッジカウントを更新する必要があるかどうか
+            bool need_to_update_edge_counts;
+        } env;
+
         EAXType eax_type;
-        SelectionType selection_type;
         std::vector<std::vector<size_t>> pop_edge_counts; // 各エッジの個数
         std::mt19937 random_gen;
 
@@ -42,8 +46,6 @@ namespace eax {
         size_t generation_of_transition_to_stage2 = 0;
         // ステージ遷移に用いる変数
         size_t G_devided_by_10 = 0;
-        // 交叉後にエッジカウントを更新する必要があるかどうか
-        bool need_to_update_edge_counts;
         // 最終世代
         size_t final_generation = 0;
 
@@ -56,7 +58,7 @@ namespace eax {
 
 
         void set_initial_edge_counts(const std::vector<Individual>& init_pop) {
-            pop_edge_counts.resize(tsp.city_count, std::vector<size_t>(tsp.city_count, 0));
+            pop_edge_counts.resize(env.tsp.city_count, std::vector<size_t>(env.tsp.city_count, 0));
             
             for (const auto& individual : init_pop) {
                 for (size_t i = 0; i < individual.size(); ++i) {
