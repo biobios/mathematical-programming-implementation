@@ -47,6 +47,8 @@ namespace eax {
         size_t generation_of_transition_to_stage2 = 0;
         // ステージ遷移に用いる変数
         size_t G_devided_by_10 = 0;
+        // 現在の世代数
+        size_t current_generation = 0;
         // 最終世代
         size_t final_generation = 0;
 
@@ -56,6 +58,11 @@ namespace eax {
             Stage2,
         };
         GA_Stage stage = GA_Stage::Stage1;
+        
+        // 計測開始時刻 (これはシリアライズされない)
+        std::chrono::system_clock::time_point start_time;
+        // 経過時間
+        double elapsed_time = 0.0;
 
 
         void set_initial_edge_counts(const std::vector<Individual>& init_pop) {
