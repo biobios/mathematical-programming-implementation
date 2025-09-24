@@ -29,6 +29,7 @@
 #include "individual.hpp"
 #include "generational_model.hpp"
 #include "context.hpp"
+#include "ga.hpp"
 #include "two_opt.hpp"
 #include "command_line_argument_parser.hpp"
 #include <time.h>
@@ -50,6 +51,12 @@ int main(int argc, char* argv[])
     string selection_type_str = "ent"; // "greedy", "ent", or "distance"
     // 出力ファイル名
     string output_file_name = "result.md";
+    // タイムアウト時間(秒)
+    size_t timeout_seconds = 60 * 60 * 24 * 365; // 実質的に無制限
+    // 中断時の状態を保存するファイルの名前
+    string checkpoint_save_file_name = "checkpoint.dat";
+    // チェックポイントのファイル名 (指定されれば読み込む)
+    string checkpoint_load_file_name;
 
     // コマンドライン引数の解析
     mpi::CommandLineArgumentParser parser;
@@ -91,6 +98,21 @@ int main(int argc, char* argv[])
     output_spec.set_description("--output <filename> \t:Output file name (default: result.md).");
     parser.add_argument(output_spec);
     
+    mpi::ArgumentSpec timeout_spec(timeout_seconds);
+    timeout_spec.add_argument_name("--timeout");
+    timeout_spec.set_description("--timeout <seconds> \t:Timeout duration in seconds.");
+    parser.add_argument(timeout_spec);
+    
+    mpi::ArgumentSpec checkpoint_save_spec(checkpoint_save_file_name);
+    checkpoint_save_spec.add_argument_name("--checkpoint-save");
+    checkpoint_save_spec.set_description("--checkpoint-save <filename> \t:File name to save checkpoint state (default: checkpoint.dat).");
+    parser.add_argument(checkpoint_save_spec);
+
+    mpi::ArgumentSpec checkpoint_load_spec(checkpoint_load_file_name);
+    checkpoint_load_spec.add_argument_name("--checkpoint-load");
+    checkpoint_load_spec.set_description("--checkpoint-load <filename> \t:File name to load checkpoint state.");
+    parser.add_argument(checkpoint_load_spec);
+    
     bool help_requested = false;
     mpi::ArgumentSpec help_spec(help_requested);
     help_spec.add_set_argument_name("--help");
@@ -110,318 +132,191 @@ int main(int argc, char* argv[])
         return 1;
     }
     
-    if (population_size == 0) {
-        cerr << "Error: Population size must be greater than 0." << endl;
-        cerr << "--ps <size> to specify the population size." << endl;
-        return 1;
-    }
-    
-    eax::SelectionType selection_type = eax::SelectionType::Ent;
-    if (selection_type_str == "greedy") {
-        selection_type = eax::SelectionType::Greedy;
-    } else if (selection_type_str == "ent") {
-        selection_type = eax::SelectionType::Ent;
-    } else if (selection_type_str == "distance") {
-        selection_type = eax::SelectionType::DistancePreserving;
-    } else {
-        cerr << "Error: Unknown selection type '" << selection_type_str << "'." << endl;
-        cerr << "Options are 'greedy', 'ent', or 'distance'." << endl;
-        return 1;
-    }
+    // 現在の時刻を取得し、タイムアウトする時刻を計算
+    auto current_time = chrono::system_clock::now();
+    auto timeout_time = current_time + chrono::seconds(timeout_seconds);
 
-    tsp::TSP tsp = tsp::TSP_Loader::load_tsp(file_name);
-    cout << "TSP Name: " << tsp.name << endl;
-    cout << "Distance Type: " << tsp.distance_type << endl;
-    cout << "Number of Cities: " << tsp.city_count << endl;
-    
-    // 乱数成器(グローバル)
-    mt19937 rng(seed);
-    
-    // neighbor_range
-    size_t near_range = 50; // 近傍範囲
-    // 2opt
-    eax::TwoOpt two_opt(tsp.adjacency_matrix, tsp.NN_list, near_range);
-    // 初期集団生成器
-    tsp::PopulationInitializer population_initializer(population_size, tsp.city_count);
-    
-    using Individual = eax::Individual;
-    
-    // 1試行にかかった実時間
-    vector<double> trial_times(trials, 0.0);
-    // 1試行にかかったCPU時間
-    vector<double> trial_cpu_times(trials, 0.0);
-    // 各試行のベストの経路長
-    vector<double> best_path_lengths(trials, 0.0);
-    // 各試行のベストに到達した最初の世代
-    vector<size_t> generation_of_best(trials, 0);
-    // 各試行の最終世代
-    vector<size_t> final_generations(trials, 0);
-    
-    for (size_t trial = 0; trial < trials; ++trial) {
-        cout << "Trial " << trial + 1 << " of " << trials << endl;
-        // 乱数生成器(ローカル)
-        // グローバルで初期化
-        mt19937::result_type local_seed = rng();
-        string cache_file = "init_pop_cache_" + to_string(local_seed) + "_for_" + tsp.name + "_" + to_string(population_size) + ".txt";
-        vector<vector<size_t>> initial_paths = population_initializer.initialize_population(local_seed, cache_file, [&two_opt, local_seed](vector<size_t>& path) {
-            // 2-optを適用
-            two_opt.apply(path, local_seed);
-        });
-        vector<eax::Individual> population;
-        population.reserve(initial_paths.size());
-        for (const auto& path : initial_paths) {
-            population.emplace_back(path, tsp.adjacency_matrix);
+    if (!checkpoint_load_file_name.empty()) {
+        if (seed != mt19937::default_seed) {
+            cerr << "Warning: --seed is ignored when --checkpoint-load is specified." << endl;
+        }
+        if (population_size != 0) {
+            cerr << "Warning: --ps is ignored when --checkpoint-load is specified." << endl;
+        }
+        if (num_children != 30) {
+            cerr << "Warning: --children is ignored when --checkpoint-load is specified." << endl;
+        }
+        if (selection_type_str != "ent") {
+            cerr << "Warning: --selection is ignored when --checkpoint-load is specified." << endl;
+        }
+        if (trials != 1) {
+            cerr << "Warning: --trials is ignored when --checkpoint-load is specified." << endl;
         }
 
-        cout << "Initial population created." << endl;
-        
-        using Context = eax::Context;
-        // オブジェクトプール
-        eax::ObjectPools object_pools(tsp.city_count);
-        
-        // 交叉関数
-        eax::EAX_N_AB eax_n_ab(object_pools);
-        eax::EAX_Block2 eax_block2(object_pools);
-        auto crossover_func = [&eax_n_ab, &eax_block2](const Individual& parent1, const Individual& parent2,
-                                    Context& context) {
-            auto& env = context.env;
-            switch (context.eax_type) {
-                case eax::EAXType::One_AB:
-                    return eax_n_ab(parent1, parent2, env.num_children, env.tsp, context.random_gen, 1);
-                case eax::EAXType::Block2:
-                    return eax_block2(parent1, parent2, env.num_children, env.tsp, context.random_gen);
-                default:
-                    throw std::runtime_error("Unknown EAX type.");
-            }
-        };
+        // TSPファイルを読み込む
+        ifstream tsp_file(file_name);
+        if (!tsp_file.is_open()) {
+            cerr << "Error: Failed to open TSP file: " << file_name << endl;
+            return 1;
+        }
+        tsp::TSP tsp = tsp::TSP_Loader::load_tsp(file_name);
+        tsp_file.close();
 
-        // 適応度関数
-        auto calc_fitness_lambda = [](const eax::CrossoverDelta& child, Context& context) {
-            auto& env = context.env;
-            switch (env.selection_type) {
+        // チェックポイントファイルを読み込む
+        ifstream checkpoint_file(checkpoint_load_file_name);
+        if (!checkpoint_file.is_open()) {
+            cerr << "Error: Failed to open checkpoint file: " << checkpoint_load_file_name << endl;
+            return 1;
+        }
+        eax::Context context = eax::deserialize_context(checkpoint_file, std::move(tsp));
+        vector<eax::Individual> population = eax::deserialize_population(checkpoint_file);
+        checkpoint_file.close();
+
+        // 遺伝的アルゴリズムの実行
+        cout << "Resuming from checkpoint..." << endl;
+        auto result = eax::execute_ga(population, context, timeout_time);
+        
+        auto& [termination_reason, result_population] = result;
+        if (termination_reason == mpi::genetic_algorithm::TerminationReason::TimeLimit) {
+            ofstream checkpoint_out(checkpoint_save_file_name);
+            if (!checkpoint_out.is_open()) {
+                cerr << "Error: Failed to open checkpoint save file: " << checkpoint_save_file_name << endl;
+                return 1;
+            }
+            eax::serialize_context(context, checkpoint_out);
+            eax::serialize_population(result_population, checkpoint_out);
+            checkpoint_out.close();
+            cout << "Checkpoint saved to " << checkpoint_save_file_name << endl;
+        } else {
+            // 結果を出力
+            ofstream result_file(output_file_name, ios::app);
+
+            // result_fileが空であればヘッダーを書き込む
+            result_file.seekp(0, ios::end);
+            if (result_file.tellp() == 0) {
+                result_file << "# EAX Genetic Algorithm Results" << endl;
+                result_file << endl;
+                result_file << "| TSP Name | Population Size | Selection Type | Children per Crossover | Seed | Best Length | Generation Reached Best | Total Generations | Time (s) |" << endl;
+                result_file << "|----------|-----------------|----------------|-----------------------|------|-------------|------------------------|-------------------|----------|" << endl;
+            }
+            
+            result_file << "| " << context.env.tsp.name << " | " << context.env.population_size << " | ";
+            switch (context.env.selection_type) {
                 case eax::SelectionType::Greedy:
-                    return eax::eval::delta::Greedy()(child, env.tsp.adjacency_matrix);
+                    result_file << "greedy";
+                    break;
                 case eax::SelectionType::Ent:
-                    return eax::eval::delta::Entropy()(child, env.tsp.adjacency_matrix, context.pop_edge_counts, env.population_size);
+                    result_file << "ent";
+                    break;
                 case eax::SelectionType::DistancePreserving:
-                    return eax::eval::delta::DistancePreserving()(child, env.tsp.adjacency_matrix, context.pop_edge_counts);
+                    result_file << "distance";
+                    break;
                 default:
-                    throw std::runtime_error("Unknown selection type");
+                    result_file << "unknown";
+                    break;
             }
-        };
-        
-        // 更新処理関数
-        struct {
-            mpi::genetic_algorithm::TerminationReason operator()(vector<Individual>& population, Context& context, size_t generation) {
-                // Greedy Selection以外はエッジカウントを個体の評価に使用するため、個体更新時にエッジカウントも更新する
-                if (context.env.selection_type != eax::SelectionType::Greedy) {
-                    update_individual_and_edge_counts(population, context);
-                } else {
-                    update(population, context);
-                }
-
-                return continue_condition(population, context, generation);
-            }
-            
-            void update(vector<Individual>& population, Context& context) {
-                for (auto& individual : population) {
-                    individual.update(context.env.tsp.adjacency_matrix);
-                }
-            }
-            
-            void update_individual_and_edge_counts(vector<Individual>& population, Context& context) {
-                for (auto& individual : population) {
-                    auto delta = individual.update(context.env.tsp.adjacency_matrix);
-                    for (const auto& mod : delta.get_modifications()) {
-                        size_t v1 = mod.edge1.first;
-                        size_t v2 = mod.edge1.second;
-                        size_t new_v2 = mod.new_v2;
-                        context.pop_edge_counts[v1][v2] -= 1;
-                        context.pop_edge_counts[v1][new_v2] += 1;
-                    }
-                }
-            }
-
-            mpi::genetic_algorithm::TerminationReason continue_condition(const vector<Individual>& population, Context& context, size_t generation) {
-                double best_length = std::numeric_limits<double>::max();
-                double average_length = 0.0;
-                for (size_t i = 0; i < population.size(); ++i) {
-                    double length = population[i].get_distance();
-                    best_length = std::min(best_length, length);
-                    average_length += length;
-                }
-                average_length /= population.size();
-                
-                if (best_length < context.best_length) {
-                    context.best_length = best_length;
-                    context.generation_of_reached_best = generation;
-                    context.stagnation_generations = 0;
-                }else {
-                    context.stagnation_generations += 1;
-                }
-                
-                if (average_length - best_length < 0.001)
-                    return mpi::genetic_algorithm::TerminationReason::Converged; // 収束条件
-                
-                const size_t N_child = context.env.num_children;
-                
-                if (context.stage == Context::GA_Stage::Stage1) {
-                    if (context.G_devided_by_10 == 0 && context.stagnation_generations >= (1500 / N_child)) {
-                        context.G_devided_by_10 = generation / 10;
-                    } else if (context.G_devided_by_10 > 0 && context.stagnation_generations >= context.G_devided_by_10) {
-                        context.stage = Context::GA_Stage::Stage2;
-                        context.eax_type = eax::EAXType::Block2;
-                        context.stagnation_generations = 0;
-                        context.generation_of_transition_to_stage2 = generation;
-                        context.G_devided_by_10 = 0;
-                    }
-                } else {
-                    if (context.G_devided_by_10 == 0 && context.stagnation_generations >= (1500 / N_child)) {
-                        context.G_devided_by_10 = (generation - context.generation_of_transition_to_stage2) / 10;
-                    } else if (context.G_devided_by_10 > 0 && context.stagnation_generations >= context.G_devided_by_10) {
-                        return mpi::genetic_algorithm::TerminationReason::Stagnation; // 停滞条件
-                    }
-                }
-                
-                return mpi::genetic_algorithm::TerminationReason::NotTerminated;
-            }
-        } update_func;
-        
-        // ロガー
-        struct {
-            void operator()([[maybe_unused]]const vector<Individual>& population, [[maybe_unused]]const Context& context, size_t generation) {
-                std::vector<double> lengths(population.size());
-                for (size_t i = 0; i < population.size(); ++i) {
-                    lengths[i] = population[i].get_distance();
-                }
-                double best_length = *std::min_element(lengths.begin(), lengths.end());
-                double average_length = std::accumulate(lengths.begin(), lengths.end(), 0.0) / lengths.size();
-                double worst_length = *std::max_element(lengths.begin(), lengths.end());
-                cout << "Generation " << generation << ": Best Length = " << best_length 
-                     << ", Average Length = " << average_length << ", Worst Length = " << worst_length << endl;
-            }
-        } logging;
-        
-        struct {
-            void operator()([[maybe_unused]]const vector<Individual>& population, Context& context, size_t generation, [[maybe_unused]]mpi::genetic_algorithm::TerminationReason reason) {
-                context.final_generation = generation;
-            }
-        } post_process;
-
-        // 世代交代処理
-        eax::GenerationalStep generational_step(calc_fitness_lambda, crossover_func);
-        
-        // GA実行オブジェクト
-        eax::GenerationalModel genetic_algorithm(generational_step, update_func, logging, post_process);
-
-        // 環境
-        Context tsp_env;
-        tsp_env.tsp = tsp;
-        tsp_env.population_size = population_size;
-        tsp_env.N_parameter = 1;
-        tsp_env.num_children = num_children;
-        tsp_env.eax_type = eax::EAXType::N_AB;
-        tsp_env.selection_type = selection_type;
-        tsp_env.set_initial_edge_counts(population);
-        tsp_env.random_gen = mt19937(local_seed);
-        tsp_env.need_to_update_edge_counts = selection_type != eax::SelectionType::Greedy;
-        
-        cout << "Starting genetic algorithm..." << endl;
-        // 計測開始
-        auto start_time = chrono::high_resolution_clock::now();
-        auto start_clock = clock();
-
-        // vector<Individual> result = eax::GenerationalModel{}(population, update_func, calc_fitness_lambda, crossover_func, tsp_env, local_rng, logging);
-        auto result = genetic_algorithm.execute(population, tsp_env);
-
-        auto end_clock = clock();
-        auto end_time = chrono::high_resolution_clock::now();
-        trial_times[trial] = chrono::duration<double>(end_time - start_time).count();
-        trial_cpu_times[trial] = static_cast<double>(end_clock - start_clock) / CLOCKS_PER_SEC;
-        
-        best_path_lengths[trial] = tsp_env.best_length;
-        generation_of_best[trial] = tsp_env.generation_of_reached_best;
-        final_generations[trial] = tsp_env.final_generation;
-        
-        cout << "Trial " << trial + 1 << " completed." << endl;
-    }
-    
-    // 全試行中のベストとその解に到達した試行の数を出力する
-    double best_path_length = *min_element(best_path_lengths.begin(), best_path_lengths.end());
-    size_t best_path_reached_count = count_if(best_path_lengths.begin(), best_path_lengths.end(),
-                                        [best_path_length](double length) { return length == best_path_length; });
-    cout << "Best path length: " << best_path_length << endl;
-    cout << "Number of trials that reached the best path: " << best_path_reached_count << endl;
-
-    // ベストの平均を出力
-    double average_best_path_length = accumulate(best_path_lengths.begin(), best_path_lengths.end(), 0.0) / trials;
-    cout << "Average best path length: " << average_best_path_length << endl;
-
-    // ベストに到達した最初の世代の平均を出力
-    double average_generation_of_best = accumulate(generation_of_best.begin(), generation_of_best.end(), 0.0) / trials;
-    cout << "Average generation of best path: " << average_generation_of_best << endl;
-    
-    // 最終世代の平均を出力
-    double average_final_generation = accumulate(final_generations.begin(), final_generations.end(), 0.0) / trials;
-    cout << "Average final generation: " << average_final_generation << endl;
-
-    // 各試行の経過時間を出力
-    cout << "Trial times (seconds): ";
-    double sum_trial_times = 0;
-    for (const auto& time : trial_times) {
-        sum_trial_times += time;
-        cout << time << " ";
-    }
-    cout << endl;
-    
-    double average_trial_time = sum_trial_times / trials;
-    cout << "Average trial time: " << average_trial_time << " seconds" << endl;
-
-    // 各試行のCPU時間を出力
-    cout << "Trial CPU times (seconds): ";
-    double sum_trial_cpu_times = 0;
-    for (const auto& cpu_time : trial_cpu_times) {
-        sum_trial_cpu_times += cpu_time;
-        cout << cpu_time << " ";
-    }
-    cout << endl;
-    
-    double average_trial_cpu_time = sum_trial_cpu_times / trials;
-    cout << "Average trial CPU time: " << average_trial_cpu_time << " seconds" << endl;
-
-    eax::print_2opt_time();
-    
-    // 結果をMarkdown形式でファイルに追記保存
-    ofstream output_file(output_file_name, ios::app);
-    if (output_file.is_open()) {
-        output_file << "# Genetic Algorithm Results\n\n";
-        output_file << "## Summary\n";
-        output_file << "- TSP Name: " << tsp.name << "\n";
-        output_file << "- Distance Type: " << tsp.distance_type << "\n";
-        output_file << "- Number of Cities: " << tsp.city_count << "\n";
-        output_file << "- Population Size: " << population_size << "\n";
-        output_file << "- Trials: " << trials << "\n";
-        output_file << "- Selection Type: " << selection_type_str << "\n";
-        output_file << "- Seed: " << seed << "\n\n";
-        output_file << "## Results\n";
-        output_file << "- Best Path Length: " << best_path_length << "\n";
-        output_file << "- Number of Trials that Reached Best Path: " << best_path_reached_count << "\n";
-        output_file << "- Average Best Path Length: " << average_best_path_length << "\n";
-        output_file << "- Average Generation of Best Path: " << average_generation_of_best << "\n";
-        output_file << "- Average Final Generation: " << average_final_generation << "\n";
-        output_file << "- Average Trial Time: " << average_trial_time << " seconds\n";
-        output_file << "- Average Trial CPU Time: " << average_trial_cpu_time << " seconds\n\n";
-        output_file << "## Individual Trial Results\n";
-        output_file << "| Trial | Best Path Length | Generation of Best | Final Generation | Trial Time (s) | Trial CPU Time (s) |\n";
-        output_file << "|-------|------------------|--------------------|------------------|----------------|--------------------|\n";
-        for (size_t i = 0; i < trials; ++i) {
-            output_file << "| " << (i + 1) << " | " << best_path_lengths[i] << " | " << generation_of_best[i] << " | " << final_generations[i]
-                        << " | " << trial_times[i] << " | " << trial_cpu_times[i] << " |\n";
+            result_file << " | " << context.env.num_children << " | " << context.env.random_seed << " | "
+                        << context.best_length << " | " << context.generation_of_reached_best << " | "
+                        << context.final_generation << " | " << context.elapsed_time << " |" << endl;
+            result_file.close();
+            cout << "Result saved to " << output_file_name << endl;
         }
-        output_file.close();
-        cout << "Results saved to " << output_file_name << endl;
     } else {
-        cerr << "Error: Unable to open output file: " << output_file_name << endl;
+        if (population_size == 0) {
+            cerr << "Error: Population size must be greater than 0." << endl;
+            cerr << "--ps <size> to specify the population size." << endl;
+            return 1;
+        }
+    
+        eax::SelectionType selection_type = eax::SelectionType::Ent;
+        if (selection_type_str == "greedy") {
+            selection_type = eax::SelectionType::Greedy;
+        } else if (selection_type_str == "ent") {
+            selection_type = eax::SelectionType::Ent;
+        } else if (selection_type_str == "distance") {
+            selection_type = eax::SelectionType::DistancePreserving;
+        } else {
+            cerr << "Error: Unknown selection type '" << selection_type_str << "'." << endl;
+            cerr << "Options are 'greedy', 'ent', or 'distance'." << endl;
+            return 1;
+        }
+
+        tsp::TSP tsp = tsp::TSP_Loader::load_tsp(file_name);
+        cout << "TSP Name: " << tsp.name << endl;
+        cout << "Distance Type: " << tsp.distance_type << endl;
+        cout << "Number of Cities: " << tsp.city_count << endl;
+        
+        // 乱数成器(グローバル)
+        mt19937 rng(seed);
+        
+        // neighbor_range
+        size_t near_range = 50; // 近傍範囲
+        // 2opt
+        eax::TwoOpt two_opt(tsp.adjacency_matrix, tsp.NN_list, near_range);
+        // 初期集団生成器
+        tsp::PopulationInitializer population_initializer(population_size, tsp.city_count);
+        
+        using Individual = eax::Individual;
+        
+        for (size_t trial = 0; trial < trials; ++trial) {
+            cout << "Trial " << trial + 1 << " of " << trials << endl;
+            // 乱数生成器(ローカル)
+            // グローバルで初期化
+            mt19937::result_type local_seed = rng();
+            string cache_file = "init_pop_cache_" + to_string(local_seed) + "_for_" + tsp.name + "_" + to_string(population_size) + ".txt";
+            vector<vector<size_t>> initial_paths = population_initializer.initialize_population(local_seed, cache_file, [&two_opt, local_seed](vector<size_t>& path) {
+                // 2-optを適用
+                two_opt.apply(path, local_seed);
+            });
+            vector<eax::Individual> population;
+            population.reserve(initial_paths.size());
+            for (const auto& path : initial_paths) {
+                population.emplace_back(path, tsp.adjacency_matrix);
+            }
+
+            cout << "Initial population created." << endl;
+
+            // 環境
+            eax::Environment ga_env{tsp, population_size, num_children, selection_type, local_seed};
+            eax::Context ga_context = eax::create_context(population, ga_env);
+            
+            cout << "Starting genetic algorithm..." << endl;
+            // 計測開始
+            auto result = eax::execute_ga(population, ga_context, timeout_time);
+            auto& [termination_reason, result_population] = result;
+            
+            if (termination_reason == mpi::genetic_algorithm::TerminationReason::TimeLimit) {
+                ofstream checkpoint_out(checkpoint_save_file_name);
+                if (!checkpoint_out.is_open()) {
+                    cerr << "Error: Failed to open checkpoint save file: " << checkpoint_save_file_name << endl;
+                    return 1;
+                }
+                eax::serialize_context(ga_context, checkpoint_out);
+                eax::serialize_population(result_population, checkpoint_out);
+                checkpoint_out.close();
+                cout << "Checkpoint saved to " << checkpoint_save_file_name << endl;
+            } else {
+                // 結果を出力
+                ofstream result_file(output_file_name, ios::app);
+
+                // result_fileが空であればヘッダーを書き込む
+                result_file.seekp(0, ios::end);
+                if (result_file.tellp() == 0) {
+                    result_file << "# EAX Genetic Algorithm Results" << endl;
+                    result_file << endl;
+                    result_file << "| TSP Name | Population Size | Selection Type | Children per Crossover | Seed | Best Length | Generation Reached Best | Total Generations | Time (s) |" << endl;
+                    result_file << "|----------|-----------------|----------------|-----------------------|------|-------------|------------------------|-------------------|----------|" << endl;
+                }
+                
+                result_file << "| " << tsp.name << " | " << population_size << " | " << selection_type_str << " | "
+                            << num_children << " | " << local_seed << " | " << ga_context.best_length << " | " << ga_context.generation_of_reached_best << " | "
+                            << ga_context.final_generation << " | " << ga_context.elapsed_time << " |" << endl;
+                result_file.close();
+                cout << "Result saved to " << output_file_name << endl;
+            }
+            
+            cout << "Trial " << trial + 1 << " completed." << endl;
+        }
     }
 
     return 0;
