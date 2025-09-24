@@ -28,8 +28,6 @@ namespace eax {
             size_t population_size;
             size_t num_children;
             SelectionType selection_type;
-            // 交叉後にエッジカウントを更新する必要があるかどうか
-            bool need_to_update_edge_counts;
         } env;
 
         EAXType eax_type;

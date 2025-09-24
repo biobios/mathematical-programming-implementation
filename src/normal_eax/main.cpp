@@ -212,7 +212,8 @@ int main(int argc, char* argv[])
         // 更新処理関数
         struct {
             mpi::genetic_algorithm::TerminationReason operator()(vector<Individual>& population, Context& context, size_t generation) {
-                if (context.env.need_to_update_edge_counts) {
+                // Greedy Selection以外はエッジカウントを個体の評価に使用するため、個体更新時にエッジカウントも更新する
+                if (context.env.selection_type != eax::SelectionType::Greedy) {
                     update_individual_and_edge_counts(population, context);
                 } else {
                     update(population, context);
