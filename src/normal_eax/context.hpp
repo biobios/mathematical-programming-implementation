@@ -12,7 +12,7 @@
 
 namespace eax {
     enum class EAXType {
-        N_AB,
+        One_AB,
         Block2,
     };
 
@@ -21,14 +21,17 @@ namespace eax {
         Ent,
         DistancePreserving,
     };
+    
+    struct Environment {
+        tsp::TSP tsp;
+        size_t population_size;
+        size_t num_children;
+        SelectionType selection_type;
+        std::mt19937::result_type random_seed;
+    };
 
     struct Context {
-        struct {
-            tsp::TSP tsp;
-            size_t population_size;
-            size_t num_children;
-            SelectionType selection_type;
-        } env;
+        Environment env;
 
         EAXType eax_type;
         std::vector<std::vector<size_t>> pop_edge_counts; // 各エッジの個数

@@ -184,8 +184,9 @@ int main(int argc, char* argv[])
         eax::EAX_Block2 eax_block2(object_pools);
         auto crossover_func = [&eax_n_ab, &eax_block2](const Individual& parent1, const Individual& parent2,
                                     Context& context) {
+            auto& env = context.env;
             switch (context.eax_type) {
-                case eax::EAXType::N_AB:
+                case eax::EAXType::One_AB:
                     return eax_n_ab(parent1, parent2, env.num_children, env.tsp, context.random_gen, 1);
                 case eax::EAXType::Block2:
                     return eax_block2(parent1, parent2, env.num_children, env.tsp, context.random_gen);
