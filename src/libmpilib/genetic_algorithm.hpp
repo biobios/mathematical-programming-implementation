@@ -6,6 +6,15 @@ namespace mpi
 {
     namespace genetic_algorithm
     {
+        enum class TerminationReason {
+            NotTerminated,
+            Converged,
+            MaxGenerations,
+            TimeLimit,
+            Stagnation,
+            Other
+        };
+
         class GenerationsNumEndCondition
         {
         public:
