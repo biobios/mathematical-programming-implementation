@@ -3,6 +3,7 @@
 #include <vector>
 #include <memory>
 #include <random>
+#include <ranges>
 
 #include "object_pool.hpp"
 
