@@ -64,7 +64,6 @@ namespace eax {
         // 経過時間
         double elapsed_time = 0.0;
 
-
         void set_initial_edge_counts(const std::vector<Individual>& init_pop) {
             pop_edge_counts.resize(env.tsp.city_count, std::vector<size_t>(env.tsp.city_count, 0));
             
@@ -77,5 +76,8 @@ namespace eax {
                 }
             }
         };
+        
+        void serialize(std::ostream& os) const;
+        static Context deserialize(std::istream& is, tsp::TSP tsp);
     };
 }

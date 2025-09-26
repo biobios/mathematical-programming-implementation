@@ -89,7 +89,7 @@ void print_result(const eax::Context& context, std::ostream& os)
 
 void serialize(const eax::Context& context, const std::vector<eax::Individual>& population, std::ostream& os)
 {
-    eax::serialize_context(context, os);
+    context.serialize(os);
     eax::serialize_population(population, os);
 }
 
@@ -214,7 +214,7 @@ void resume_from_checkpoint(const Arguments& args)
     if (!checkpoint_file.is_open()) {
         throw std::runtime_error("Failed to open checkpoint file: " + args.checkpoint_load_file_name);
     }
-    eax::Context context = eax::deserialize_context(checkpoint_file, std::move(tsp));
+    eax::Context context = eax::Context::deserialize(checkpoint_file, std::move(tsp));
     vector<eax::Individual> population = eax::deserialize_population(checkpoint_file);
     checkpoint_file.close();
     
