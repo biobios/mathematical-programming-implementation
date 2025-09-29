@@ -15,6 +15,10 @@ public:
     };
     CrossoverDelta() = default;
     
+    /**
+     * @param modifications 変更履歴
+     * @pre modifications.size() % 2 == 0
+     */
     CrossoverDelta(std::vector<Modification>&& modifications)
         : modifications(std::move(modifications)) {}
     

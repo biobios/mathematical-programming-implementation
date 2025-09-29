@@ -58,10 +58,10 @@ void IntermediateIndividual::swap_edges(std::pair<size_t, size_t> edge1, std::pa
     change_connection(v1, v2, u1);
     // v2 -> v1 => v2 -> u2
     change_connection(v2, v1, u2);
-    // u1 -> u2 => u1 -> v1
-    change_connection(u1, u2, v1);
     // u2 -> u1 => u2 -> v2
     change_connection(u2, u1, v2);
+    // u1 -> u2 => u1 -> v1
+    change_connection(u1, u2, v1);
 }
 
 const std::vector<size_t>& IntermediateIndividual::get_path() const {
