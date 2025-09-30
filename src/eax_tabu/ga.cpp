@@ -3,8 +3,7 @@
 #include "genetic_algorithm.hpp"
 
 #include "object_pools.hpp"
-#include "eax_n_ab.hpp"
-#include "eax_block2.hpp"
+#include "eax_tabu.hpp"
 #include "greedy_evaluator.hpp"
 #include "entropy_evaluator.hpp"
 #include "distance_preserving_evaluator.hpp"
@@ -19,19 +18,11 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
     eax::ObjectPools object_pools(context.env.tsp.city_count);
     
     // 交叉関数
-    eax::EAX_N_AB eax_n_ab(object_pools);
-    eax::EAX_Block2 eax_block2(object_pools);
-    auto crossover_func = [&eax_n_ab, &eax_block2](const Individual& parent1, const Individual& parent2,
+    eax::EAX_tabu eax_tabu(object_pools);
+    auto crossover_func = [&eax_tabu](const Individual& parent1, const Individual& parent2,
                                 Context& context) {
         auto& env = context.env;
-        switch (context.eax_type) {
-            case eax::EAXType::One_AB:
-                return eax_n_ab(parent1, parent2, env.num_children, env.tsp, context.random_gen, 1);
-            case eax::EAXType::Block2:
-                return eax_block2(parent1, parent2, env.num_children, env.tsp, context.random_gen);
-            default:
-                throw std::runtime_error("Unknown EAX type.");
-        }
+        return eax_tabu(parent1, parent2, env.num_children, parent1.get_tabu_edges(), env.tsp, context.random_gen, context.env.selection_method);
     };
 
     // 適応度関数
@@ -71,13 +62,13 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
         
         void update(vector<Individual>& population, Context& context) {
             for (auto& individual : population) {
-                individual.update(context.env.tsp.adjacency_matrix);
+                individual.update(context);
             }
         }
         
         void update_individual_and_edge_counts(vector<Individual>& population, Context& context) {
             for (auto& individual : population) {
-                auto delta = individual.update(context.env.tsp.adjacency_matrix);
+                auto delta = individual.update(context);
                 for (const auto& mod : delta.get_modifications()) {
                     size_t v1 = mod.edge1.first;
                     size_t v2 = mod.edge1.second;
@@ -111,22 +102,8 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
             
             const size_t N_child = context.env.num_children;
             
-            if (context.stage == Context::GA_Stage::Stage1) {
-                if (context.G_devided_by_10 == 0 && context.stagnation_generations >= (1500 / N_child)) {
-                    context.G_devided_by_10 = generation / 10;
-                } else if (context.G_devided_by_10 > 0 && context.stagnation_generations >= context.G_devided_by_10) {
-                    context.stage = Context::GA_Stage::Stage2;
-                    context.eax_type = eax::EAXType::Block2;
-                    context.stagnation_generations = 0;
-                    context.generation_of_transition_to_stage2 = generation;
-                    context.G_devided_by_10 = 0;
-                }
-            } else {
-                if (context.G_devided_by_10 == 0 && context.stagnation_generations >= (1500 / N_child)) {
-                    context.G_devided_by_10 = (generation - context.generation_of_transition_to_stage2) / 10;
-                } else if (context.G_devided_by_10 > 0 && context.stagnation_generations >= context.G_devided_by_10) {
-                    return mpi::genetic_algorithm::TerminationReason::Stagnation; // 停滞条件
-                }
+            if (context.stagnation_generations >= (3000 / N_child)) {
+                return mpi::genetic_algorithm::TerminationReason::Stagnation; // 停滞条件
             }
             
             return mpi::genetic_algorithm::TerminationReason::NotTerminated;
@@ -176,7 +153,6 @@ Context create_context(const std::vector<Individual>& initial_population, Enviro
     Context context;
     context.env = env;
 
-    context.eax_type = EAXType::One_AB;
     context.set_initial_edge_counts(initial_population);
     context.random_gen = std::mt19937(env.random_seed);
     return context;

@@ -15,11 +15,6 @@
 #include <list>
 
 #include "object_pools.hpp"
-#include "eax_rand.hpp"
-#include "eax_n_ab.hpp"
-#include "eax_block2.hpp"
-#include "greedy_evaluator.hpp"
-#include "entropy_evaluator.hpp"
 #include "distance_preserving_evaluator.hpp"
 
 #include "simple_ga.hpp"
@@ -33,6 +28,7 @@
 #include "two_opt.hpp"
 #include "command_line_argument_parser.hpp"
 #include <time.h>
+#include "eax_tabu.hpp"
 
 struct Arguments {
     // TSPファイルの名前
@@ -55,6 +51,10 @@ struct Arguments {
     std::string checkpoint_save_file_name = "checkpoint.dat";
     // チェックポイントのファイル名 (指定されれば読み込む)
     std::string checkpoint_load_file_name;
+    // タブーリストの存続世代数
+    size_t tabu_list_duration = 5;
+    // ABサイクルの選択方法
+    std::string selection_method_str = "EAX_1AB";
 };
 
 void print_result(const eax::Context& context, std::ostream& os)
@@ -63,11 +63,11 @@ void print_result(const eax::Context& context, std::ostream& os)
     if (os.tellp() == 0) {
         os << "# EAX Genetic Algorithm Results" << std::endl;
         os << std::endl;
-        os << "| TSP Name | Population Size | Selection Type | Children per Crossover | Seed | Best Length | Generation Reached Best | Total Generations | Time (s) |" << std::endl;
-        os << "|----------|-----------------|----------------|-----------------------|------|-------------|------------------------|-------------------|----------|" << std::endl;
+        os << "| TSP Name | Population Size | Selection Type | Selection Method | Children per Crossover | Seed | Best Length | Generation Reached Best | Total Generations | Time (s) |" << std::endl;
+        os << "|----------|-----------------|----------------|------------------|------------------------|------|-------------|-------------------------|-------------------|----------|" << std::endl;
     }
     
-    os << "| " << context.env.tsp.name << " | " << context.env.population_size << " | "; 
+    os << "| " << context.env.tsp.name << " | " << context.env.population_size << " | ";
     switch (context.env.selection_type) {
         case eax::SelectionType::Greedy:
             os << "greedy";
@@ -77,6 +77,24 @@ void print_result(const eax::Context& context, std::ostream& os)
             break;
         case eax::SelectionType::DistancePreserving:
             os << "distance";
+            break;
+        default:
+            os << "unknown";
+            break;
+    }
+    os << " | ";
+    switch (context.env.selection_method) {
+        case eax::EAX_tabu::SelectionMethod::EAX_UNIFORM:
+            os << "EAX_UNIFORM";
+            break;
+        case eax::EAX_tabu::SelectionMethod::EAX_half_UNIFORM:
+            os << "EAX_half_UNIFORM";
+            break;
+        case eax::EAX_tabu::SelectionMethod::EAX_1AB:
+            os << "EAX_1AB";
+            break;
+        case eax::EAX_tabu::SelectionMethod::EAX_Rand:
+            os << "EAX_Rand";
             break;
         default:
             os << "unknown";
@@ -111,6 +129,18 @@ void execute_normal(const Arguments& args)
     } else {
         throw std::runtime_error("Unknown selection type '" + args.selection_type_str + "'. Options are 'greedy', 'ent', or 'distance'.");
     }
+    eax::EAX_tabu::SelectionMethod selection_method = eax::EAX_tabu::SelectionMethod::EAX_1AB;
+    if (args.selection_method_str == "EAX_UNIFORM") {
+        selection_method = eax::EAX_tabu::SelectionMethod::EAX_UNIFORM;
+    } else if (args.selection_method_str == "EAX_half_UNIFORM") {
+        selection_method = eax::EAX_tabu::SelectionMethod::EAX_half_UNIFORM;
+    } else if (args.selection_method_str == "EAX_1AB") {
+        selection_method = eax::EAX_tabu::SelectionMethod::EAX_1AB;
+    } else if (args.selection_method_str == "EAX_Rand") {
+        selection_method = eax::EAX_tabu::SelectionMethod::EAX_Rand;
+    } else {
+        throw std::runtime_error("Unknown EAX selection method '" + args.selection_method_str + "'. Options are 'EAX_UNIFORM', 'EAX_half_UNIFORM', 'EAX_1AB', or 'EAX_Rand'.");
+    }
 
     tsp::TSP tsp = tsp::TSP_Loader::load_tsp(args.file_name);
     cout << "TSP Name: " << tsp.name << endl;
@@ -129,8 +159,6 @@ void execute_normal(const Arguments& args)
     // タイムアウト時間
     auto timeout_time = chrono::system_clock::now() + chrono::seconds(args.timeout_seconds);
     
-    using Individual = eax::Individual;
-    
     for (size_t trial = 0; trial < args.trials; ++trial) {
         cout << "Trial " << trial + 1 << " of " << args.trials << endl;
         // 乱数生成器(ローカル)
@@ -144,13 +172,13 @@ void execute_normal(const Arguments& args)
         vector<eax::Individual> population;
         population.reserve(initial_paths.size());
         for (const auto& path : initial_paths) {
-            population.emplace_back(path, tsp.adjacency_matrix);
+            population.emplace_back(path, tsp.adjacency_matrix, args.tabu_list_duration);
         }
 
         cout << "Initial population created." << endl;
 
         // 環境
-        eax::Environment ga_env{tsp, args.population_size, args.num_children, selection_type, local_seed};
+        eax::Environment ga_env{tsp, args.population_size, args.num_children, selection_type, local_seed, selection_method};
         eax::Context ga_context = eax::create_context(population, ga_env);
         
         cout << "Starting genetic algorithm..." << endl;
@@ -304,6 +332,16 @@ int main(int argc, char* argv[])
     checkpoint_load_spec.add_argument_name("--checkpoint-load");
     checkpoint_load_spec.set_description("--checkpoint-load <filename> \t:File name to load checkpoint state.");
     parser.add_argument(checkpoint_load_spec);
+    
+    mpi::ArgumentSpec argspec_tabu_list_duration(args.tabu_list_duration);
+    argspec_tabu_list_duration.add_argument_name("--tabu-duration");
+    argspec_tabu_list_duration.set_description("--tabu-duration <number> \t:Number of generations an edge remains in the tabu list (default: 5).");
+    parser.add_argument(argspec_tabu_list_duration);
+    
+    mpi::ArgumentSpec argspec_selection_method(args.selection_method_str);
+    argspec_selection_method.add_argument_name("--eax-selection");
+    argspec_selection_method.set_description("--eax-selection <method> \t:Method for selecting AB-cycles in EAX_tabu. Options are 'EAX_UNIFORM', 'EAX_half_UNIFORM', 'EAX_1AB' (default), and 'EAX_Rand'.");
+    parser.add_argument(argspec_selection_method);
     
     bool help_requested = false;
     mpi::ArgumentSpec help_spec(help_requested);

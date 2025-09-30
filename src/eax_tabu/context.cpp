@@ -26,19 +26,25 @@ void Context::serialize(std::ostream& os) const {
             break;
     }
     os << "random_seed=" << env.random_seed << std::endl;
-    os << "# GA State" << std::endl;
-    os << "eax_type=";
-    switch (eax_type) {
-        case EAXType::One_AB:
-            os << "N_AB" << std::endl;
+    os << "selection_method=";
+    switch (env.selection_method) {
+        case EAX_tabu::SelectionMethod::EAX_UNIFORM:
+            os << "EAX_UNIFORM" << std::endl;
             break;
-        case EAXType::Block2:
-            os << "Block2" << std::endl;
+        case EAX_tabu::SelectionMethod::EAX_half_UNIFORM:
+            os << "EAX_half_UNIFORM" << std::endl;
+            break;
+        case EAX_tabu::SelectionMethod::EAX_1AB:
+            os << "EAX_1AB" << std::endl;
+            break;
+        case EAX_tabu::SelectionMethod::EAX_Rand:
+            os << "EAX_Rand" << std::endl;
             break;
         default:
             os << "Unknown" << std::endl;
             break;
     }
+    os << "# GA State" << std::endl;
     os << "## Population Edge Counts" << std::endl;
     for (const auto& row : pop_edge_counts) {
         for (const auto& count : row) {
@@ -52,22 +58,8 @@ void Context::serialize(std::ostream& os) const {
     os << "best_length=" << best_length << std::endl;
     os << "generation_of_reached_best=" << generation_of_reached_best << std::endl;
     os << "stagnation_generations=" << stagnation_generations << std::endl;
-    os << "generation_of_transition_to_stage2=" << generation_of_transition_to_stage2 << std::endl;
-    os << "G_devided_by_10=" << G_devided_by_10 << std::endl;
     os << "current_generation=" << current_generation << std::endl;
     os << "final_generation=" << final_generation << std::endl;
-    os << "stage=";
-    switch (stage) {
-        case Context::GA_Stage::Stage1:
-            os << "Stage1" << std::endl;
-            break;
-        case Context::GA_Stage::Stage2:
-            os << "Stage2" << std::endl;
-            break;
-        default:
-            os << "Unknown" << std::endl;
-            break;
-    }
     os << "elapsed_time=" << elapsed_time << std::endl;
 }
 
@@ -121,17 +113,22 @@ Context Context::deserialize(std::istream& is, tsp::TSP tsp) {
     // random_seed=...
     context.env.random_seed = static_cast<std::mt19937::result_type>(std::stoull(read_val("random_seed=")));
 
+    // selection_method=...
+    std::string selection_method_str = read_val("selection_method=");
+    if (selection_method_str == "EAX_UNIFORM") {
+        context.env.selection_method = EAX_tabu::SelectionMethod::EAX_UNIFORM;
+    } else if (selection_method_str == "EAX_half_UNIFORM") {
+        context.env.selection_method = EAX_tabu::SelectionMethod::EAX_half_UNIFORM;
+    } else if (selection_method_str == "EAX_1AB") {
+        context.env.selection_method = EAX_tabu::SelectionMethod::EAX_1AB;
+    } else if (selection_method_str == "EAX_Rand") {
+        context.env.selection_method = EAX_tabu::SelectionMethod::EAX_Rand;
+    } else {
+        throw std::runtime_error("Unknown selection method: " + selection_method_str);
+    }
+
     // # GA State
     read_val("# GA State");
-    // eax_type=...
-    std::string eax_type_str = read_val("eax_type=");
-    if (eax_type_str == "N_AB") {
-        context.eax_type = EAXType::One_AB;
-    } else if (eax_type_str == "Block2") {
-        context.eax_type = EAXType::Block2;
-    } else {
-        throw std::runtime_error("Unknown EAX type: " + eax_type_str);
-    }
     // ## Population Edge Counts
     read_val("## Population Edge Counts");
     context.pop_edge_counts.resize(context.env.tsp.city_count, std::vector<size_t>(context.env.tsp.city_count, 0));
@@ -161,28 +158,12 @@ Context Context::deserialize(std::istream& is, tsp::TSP tsp) {
     // stagnation_generations=...
     context.stagnation_generations = std::stoul(read_val("stagnation_generations="));
 
-    // generation_of_transition_to_stage2=...
-    context.generation_of_transition_to_stage2 = std::stoul(read_val("generation_of_transition_to_stage2="));
-
-    // G_devided_by_10=...
-    context.G_devided_by_10 = std::stoul(read_val("G_devided_by_10="));
-    
     // current_generation=...
     context.current_generation = std::stoul(read_val("current_generation="));
 
     // final_generation=...
     context.final_generation = std::stoul(read_val("final_generation="));
 
-    // stage=...
-    std::string stage_str = read_val("stage=");
-    if (stage_str == "Stage1") {
-        context.stage = Context::GA_Stage::Stage1;
-    } else if (stage_str == "Stage2") {
-        context.stage = Context::GA_Stage::Stage2;
-    } else {
-        throw std::runtime_error("Unknown GA stage: " + stage_str);
-    }
-    
     // elapsed_time=...
     context.elapsed_time = std::stod(read_val("elapsed_time="));
 

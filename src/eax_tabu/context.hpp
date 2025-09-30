@@ -9,11 +9,11 @@
 #include "object_pool.hpp"
 #include "limited_range_integer_set.hpp"
 #include "individual.hpp"
+#include "eax_tabu.hpp"
 
 namespace eax {
     enum class EAXType {
-        One_AB,
-        Block2,
+        EAX_tabu,
     };
 
     enum class SelectionType {
@@ -28,12 +28,12 @@ namespace eax {
         size_t num_children;
         SelectionType selection_type;
         std::mt19937::result_type random_seed;
+        EAX_tabu::SelectionMethod selection_method;
     };
 
     struct Context {
         Environment env;
 
-        EAXType eax_type;
         std::vector<std::vector<size_t>> pop_edge_counts; // 各エッジの個数
         std::mt19937 random_gen;
 
@@ -43,21 +43,10 @@ namespace eax {
         size_t generation_of_reached_best = 0;
         // 停滞した世代数
         size_t stagnation_generations = 0;
-        // Block2(Stage2)に移行した世代
-        size_t generation_of_transition_to_stage2 = 0;
-        // ステージ遷移に用いる変数
-        size_t G_devided_by_10 = 0;
         // 現在の世代数
         size_t current_generation = 0;
         // 最終世代
         size_t final_generation = 0;
-
-        // GAの段階
-        enum class GA_Stage {
-            Stage1,
-            Stage2,
-        };
-        GA_Stage stage = GA_Stage::Stage1;
         
         // 計測開始時刻 (これはシリアライズされない)
         std::chrono::system_clock::time_point start_time;
