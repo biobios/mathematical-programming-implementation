@@ -229,6 +229,7 @@ std::vector<PooledVectorPtr> find_AB_cycles(size_t needs,
                         }
                         break;
                     } else { // 親Bのエッジでスタートして、親Bのエッジで帰ってきた
+                        first_visited[current_city] = visited.size() - 1;
                         continue;
                     }
                 } else if (first_visited[current_city] != 0 && (visited.size() - first_visited[current_city] + 1) % 2 == 0) {
@@ -254,7 +255,8 @@ std::vector<PooledVectorPtr> find_AB_cycles(size_t needs,
 
     // 一つのエッジしか残っていないので、LRUをたどるだけでABサイクルを構成する
     while (cities_having_just_1_edge.size() > 0) {
-        size_t start_city = *(cities_having_just_1_edge.begin());
+        size_t rand_to_select_city = uniform_int_distribution<size_t>(0, cities_having_just_1_edge.size() - 1)(rng);
+        size_t start_city = *(cities_having_just_1_edge.begin() + rand_to_select_city);
 
         // 1つのエッジを持つ都市からABサイクルを構成する
         visited.clear();
