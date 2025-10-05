@@ -34,6 +34,8 @@ namespace delta {
                 ++pop_edge_counts[v1][v2];
                 --pop_edge_counts[v1][new_v2];
             }
+            
+            delta_H *= -1.0;
 
             // 多様性が増すならば
             if (delta_H >= 0) {
