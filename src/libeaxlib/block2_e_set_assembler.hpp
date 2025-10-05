@@ -64,7 +64,7 @@ public:
         // 各ABサイクルのサイズを記録
         auto AB_cycle_size_ptr = any_size_vector_pool.acquire_unique();
         vector<size_t>& AB_cycle_size = *AB_cycle_size_ptr;
-        AB_cycle_size.resize(cycle_count, 0);
+        AB_cycle_size.resize(cycle_count);
         for (size_t i = 0; i < cycle_count; ++i) {
             const auto& cycle = *AB_cycles[i];
             AB_cycle_size[i] = cycle.size();
@@ -130,13 +130,13 @@ public:
         // 初期化
         auto c_vertex_count_ptr = vector_of_tsp_size_pool.acquire_unique();
         auto& c_vertex_count = *c_vertex_count_ptr;
-        c_vertex_count.resize(cycle_count, 0);
+        c_vertex_count.assign(cycle_count, 0);
 
         auto shared_vertex_count_ptr = shared_vertex_count_pool.acquire_unique();
         auto& shared_vertex_count = *shared_vertex_count_ptr;
         shared_vertex_count.resize(cycle_count);
         for (size_t i = 0; i < cycle_count; ++i) {
-            shared_vertex_count[i].resize(cycle_count, 0);
+            shared_vertex_count[i].assign(cycle_count, 0);
         }
         
         // C頂点の数と共有頂点の数をカウント

@@ -54,7 +54,7 @@ namespace eax {
         double elapsed_time = 0.0;
 
         void set_initial_edge_counts(const std::vector<Individual>& init_pop) {
-            pop_edge_counts.resize(env.tsp.city_count, std::vector<size_t>(env.tsp.city_count, 0));
+            pop_edge_counts.assign(env.tsp.city_count, std::vector<size_t>(env.tsp.city_count, 0));
             
             for (const auto& individual : init_pop) {
                 for (size_t i = 0; i < individual.size(); ++i) {

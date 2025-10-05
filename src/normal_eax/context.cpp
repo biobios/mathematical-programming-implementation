@@ -134,7 +134,7 @@ Context Context::deserialize(std::istream& is, tsp::TSP tsp) {
     }
     // ## Population Edge Counts
     read_val("## Population Edge Counts");
-    context.pop_edge_counts.resize(context.env.tsp.city_count, std::vector<size_t>(context.env.tsp.city_count, 0));
+    context.pop_edge_counts.assign(context.env.tsp.city_count, std::vector<size_t>(context.env.tsp.city_count, 0));
     for (size_t i = 0; i < context.env.tsp.city_count; ++i) {
         std::getline(is, line);
         std::istringstream iss(line);

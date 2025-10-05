@@ -46,9 +46,9 @@ mpi::pooled_unique_ptr<std::vector<size_t>> Block2ESetAssembler::operator()(size
     auto tabu_list_ptr = any_size_vector_pool.acquire_unique();
     vector<size_t>& tabu_list = *tabu_list_ptr;
 
-    shared_vertex_count_with_e_set.resize(cycle_count, 0);
-    included_in_e_set.resize(cycle_count, false);
-    tabu_list.resize(cycle_count, 0);
+    shared_vertex_count_with_e_set.assign(cycle_count, 0);
+    included_in_e_set.assign(cycle_count, false);
+    tabu_list.assign(cycle_count, 0);
 
     size_t current_num_c = 0;
     // ABサイクルを追加する関数
