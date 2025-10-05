@@ -81,7 +81,7 @@ void SubtourFinder::calc_sub_tour_sizes_and_merge_redundant_segments(eax::Subtou
     auto& segments = subtour_list.segments;
     auto& sub_tour_sizes = subtour_list.sub_tour_sizes;
 
-    sub_tour_sizes.resize(sub_tour_count, 0);
+    sub_tour_sizes.assign(sub_tour_count, 0);
 
     size_t forcused_segment_id = 0;
     for (const auto& segment : segments) {
