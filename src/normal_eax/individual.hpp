@@ -9,7 +9,7 @@
 #include "crossover_delta.hpp"
 
 namespace eax {
-    class Individual;
+    class Context;
 
     class Individual {
     public:
@@ -28,24 +28,12 @@ namespace eax {
             return distance;
         }
         std::vector<size_t> to_path() const;
-        Individual& operator=(const CrossoverDelta& child) {
-            prev_diff = child;
-            return *this;
-        }
-        
-        CrossoverDelta update(const std::vector<std::vector<int64_t>>& adjacency_matrix) {
-            CrossoverDelta child = std::move(prev_diff);
-            prev_diff = CrossoverDelta();
-            child.apply_to(*this);
-            distance += child.get_delta_distance(adjacency_matrix);
-            return child;
-        }
+        void update_from(const CrossoverDelta& delta, Context& context);
         
         void serialize(std::ostream& os) const;
         static Individual deserialize(std::istream& is);
     private:
         std::vector<std::array<size_t, 2>> doubly_linked_list;
-        CrossoverDelta prev_diff;
         int64_t distance = 0;
     };
 }

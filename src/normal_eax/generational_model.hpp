@@ -77,7 +77,7 @@ namespace eax {
         template <typename Individual, typename Context>
             requires(requires(std::vector<Individual> population, FitnessFunc fitness_func, CrossOverFunc cross_over, Context context) {
                 { fitness_func(cross_over(population[0], population[1], context)[0], context) } -> std::convertible_to<double>;
-                population[0] = cross_over(population[0], population[1], context)[0];
+                GenerationalStep::update_individual(population[0], std::move(cross_over(population[0], population[1], context)[0]), context);
                 context.random_gen;
             } && std::uniform_random_bit_generator<decltype(Context::random_gen)>)
         void operator()(std::vector<Individual>& population, Context& context)
@@ -97,8 +97,6 @@ namespace eax {
             std::iota(indices.begin(), indices.end(), 0);
             std::shuffle(indices.begin(), indices.end(), context.random_gen);
 
-            population.push_back(population[indices[0]]); // 最初の個体を追加しておく
-            indices.push_back(population.size() - 1);
             for (size_t i = 0; i < population_size; ++i) {
                 size_t parent_A_index = indices[i];
                 size_t parent_B_index = indices[(i + 1) % population_size];
@@ -124,16 +122,30 @@ namespace eax {
                 
                 if (best_fitness > 0.0) {
                     // 子供の適応度が0より大きい場合、親Aを子供に置き換える
-                    parent_A = std::move(children[best_index]);
+                    update_individual(parent_A, std::move(children[best_index]), context);
                 } else {
                     // 子供の適応度が0以下の場合、親Aをそのままにする
                 }
             }
-
-            // 最後の個体を削除
-            population.pop_back();
         }
     private:
+        template <typename Individual, typename Child, typename Context>
+        static constexpr bool having_update_method = requires(Individual& individual, Child&& child, Context& context) {
+            individual.update_from(std::move(child), context);
+        };
+        
+        template <typename Individual, typename Child, typename Context>
+            requires having_update_method<Individual, std::remove_reference_t<Child>, Context> && std::is_rvalue_reference_v<Child&&>
+        static void update_individual(Individual& individual, Child&& child, Context& context) {
+            individual.update_from(std::move(child), context);
+        }
+        
+        template <typename Individual, typename Child, typename Context>
+            requires (!having_update_method<Individual, std::remove_reference_t<Child>, Context>) && std::is_rvalue_reference_v<Child&&>
+        static void update_individual(Individual& individual, Child&& child, Context& context) {
+            individual = std::move(child);
+        }
+
         FitnessFunc fitness_func;
         CrossOverFunc cross_over;
     };

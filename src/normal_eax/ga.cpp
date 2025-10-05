@@ -54,13 +54,6 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
         std::chrono::system_clock::time_point timeout_time;
         mpi::genetic_algorithm::TerminationReason operator()(vector<Individual>& population, Context& context, size_t generation) {
             context.current_generation = generation;
-
-            // Greedy Selection以外はエッジカウントを個体の評価に使用するため、個体更新時にエッジカウントも更新する
-            if (context.env.selection_type != eax::SelectionType::Greedy) {
-                update_individual_and_edge_counts(population, context);
-            } else {
-                update(population, context);
-            }
             
             if (std::chrono::system_clock::now() >= timeout_time) {
                 return mpi::genetic_algorithm::TerminationReason::TimeLimit;
@@ -69,25 +62,6 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
             return continue_condition(population, context, generation);
         }
         
-        void update(vector<Individual>& population, Context& context) {
-            for (auto& individual : population) {
-                individual.update(context.env.tsp.adjacency_matrix);
-            }
-        }
-        
-        void update_individual_and_edge_counts(vector<Individual>& population, Context& context) {
-            for (auto& individual : population) {
-                auto delta = individual.update(context.env.tsp.adjacency_matrix);
-                for (const auto& mod : delta.get_modifications()) {
-                    size_t v1 = mod.edge1.first;
-                    size_t v2 = mod.edge1.second;
-                    size_t new_v2 = mod.new_v2;
-                    context.pop_edge_counts[v1][v2] -= 1;
-                    context.pop_edge_counts[v1][new_v2] += 1;
-                }
-            }
-        }
-
         mpi::genetic_algorithm::TerminationReason continue_condition(const vector<Individual>& population, Context& context, size_t generation) {
             double best_length = std::numeric_limits<double>::max();
             double average_length = 0.0;

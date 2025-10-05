@@ -1,5 +1,7 @@
 #include "individual.hpp"
 
+#include "context.hpp"
+
 namespace eax {
     Individual::Individual(const std::vector<size_t>& path, const std::vector<std::vector<int64_t>>& adjacency_matrix) {
         doubly_linked_list.resize(path.size());
@@ -55,5 +57,17 @@ namespace eax {
             individual.doubly_linked_list.push_back({v1, v2});
         }
         return individual;
+    }
+
+    void Individual::update_from(const CrossoverDelta &delta, Context &context)
+    {
+        delta.apply_to(*this);
+        distance += delta.get_delta_distance(context.env.tsp.adjacency_matrix);
+        for (const auto& modification : delta.get_modifications()) {
+            auto [v1, v2] = modification.edge1;
+            size_t new_v2 = modification.new_v2;
+            context.pop_edge_counts[v1][v2] -= 1;
+            context.pop_edge_counts[v1][new_v2] += 1;
+        }
     }
 }
