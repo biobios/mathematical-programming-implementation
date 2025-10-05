@@ -92,7 +92,7 @@ void SubtourFinder::calc_sub_tour_sizes_and_merge_redundant_segments(eax::Subtou
         } else {
             ++forcused_segment_id;
             segments[forcused_segment_id] = segment;
-            sub_tour_sizes[segment.sub_tour_ID] = segment.end_pos - segment.beginning_pos + 1;
+            sub_tour_sizes[segment.sub_tour_ID] += segment.end_pos - segment.beginning_pos + 1;
         }
     }
     segments.resize(forcused_segment_id + 1);
