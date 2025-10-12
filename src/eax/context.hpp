@@ -16,18 +16,18 @@ namespace eax {
         Block2,
     };
     
-    struct EAX_N_AB {
-        size_t N;
+    struct EAX_n_AB {
+        size_t n;
         
         // コンストラクタ
-        EAX_N_AB(size_t n) : N(n) {}
-        EAX_N_AB(const std::string& str) {
+        EAX_n_AB(size_t n) : n(n) {}
+        EAX_n_AB(const std::string& str) {
             if (!is_EAX_N_AB(str)) {
                 throw std::runtime_error("Invalid EAX_N_AB string: " + str);
             }
 
             std::string n_str = str.substr(4, str.size() - 7);
-            N = std::stoul(n_str);
+            n = std::stoul(n_str);
         }
         // EAX_N_ABとして解釈可能な文字列か否か
         static bool is_EAX_N_AB(const std::string& str) {
@@ -43,7 +43,7 @@ namespace eax {
         }
     };
     
-    using eax_type_t = std::variant<EAXType, EAX_N_AB>;
+    using eax_type_t = std::variant<EAXType, EAX_n_AB>;
 
     enum class SelectionType {
         Greedy,
