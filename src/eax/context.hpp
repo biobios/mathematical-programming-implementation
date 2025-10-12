@@ -12,9 +12,38 @@
 
 namespace eax {
     enum class EAXType {
-        One_AB,
+        EAX_Rand,
         Block2,
     };
+    
+    struct EAX_N_AB {
+        size_t N;
+        
+        // コンストラクタ
+        EAX_N_AB(size_t n) : N(n) {}
+        EAX_N_AB(const std::string& str) {
+            if (!is_EAX_N_AB(str)) {
+                throw std::runtime_error("Invalid EAX_N_AB string: " + str);
+            }
+
+            std::string n_str = str.substr(4, str.size() - 7);
+            N = std::stoul(n_str);
+        }
+        // EAX_N_ABとして解釈可能な文字列か否か
+        static bool is_EAX_N_AB(const std::string& str) {
+            if (!str.starts_with("EAX_") || !str.ends_with("_AB") || str.size() <= 7) {
+                return false;
+            }
+            
+            std::string n_str = str.substr(4, str.size() - 7);
+            for (char c : n_str) {
+                if (!std::isdigit(c)) return false;
+            }
+            return true;
+        }
+    };
+    
+    using eax_type_t = std::variant<EAXType, EAX_N_AB>;
 
     enum class SelectionType {
         Greedy,
@@ -28,12 +57,12 @@ namespace eax {
         size_t num_children;
         SelectionType selection_type;
         std::mt19937::result_type random_seed;
+        eax_type_t eax_type;
     };
 
     struct Context {
         Environment env;
 
-        EAXType eax_type;
         std::vector<std::vector<size_t>> pop_edge_counts; // 各エッジの個数
         std::mt19937 random_gen;
 

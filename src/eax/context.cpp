@@ -26,19 +26,29 @@ void Context::serialize(std::ostream& os) const {
             break;
     }
     os << "random_seed=" << env.random_seed << std::endl;
-    os << "# GA State" << std::endl;
     os << "eax_type=";
-    switch (eax_type) {
-        case EAXType::One_AB:
-            os << "N_AB" << std::endl;
-            break;
-        case EAXType::Block2:
-            os << "Block2" << std::endl;
-            break;
-        default:
-            os << "Unknown" << std::endl;
-            break;
-    }
+    struct {
+        std::ostream& os;
+        void operator()(const EAXType& type) {
+            switch (type) {
+                case EAXType::EAX_Rand:
+                    os << "EAX_Rand" << std::endl;
+                    break;
+                case EAXType::Block2:
+                    os << "Block2" << std::endl;
+                    break;
+                default:
+                    os << "Unknown" << std::endl;
+                    break;
+            }
+        }
+        void operator()(const EAX_N_AB& n_ab) {
+            os << "EAX_" << n_ab.N << "_AB" << std::endl;
+        }
+    } visitor {os};
+    std::visit(visitor, env.eax_type);
+
+    os << "# GA State" << std::endl;
     os << "## Population Edge Counts" << std::endl;
     for (const auto& row : pop_edge_counts) {
         for (const auto& count : row) {
@@ -120,18 +130,20 @@ Context Context::deserialize(std::istream& is, tsp::TSP tsp) {
 
     // random_seed=...
     context.env.random_seed = static_cast<std::mt19937::result_type>(std::stoull(read_val("random_seed=")));
-
-    // # GA State
-    read_val("# GA State");
     // eax_type=...
     std::string eax_type_str = read_val("eax_type=");
-    if (eax_type_str == "N_AB") {
-        context.eax_type = EAXType::One_AB;
+    if (eax_type_str == "EAX_Rand") {
+        context.env.eax_type = EAXType::EAX_Rand;
     } else if (eax_type_str == "Block2") {
-        context.eax_type = EAXType::Block2;
+        context.env.eax_type = EAXType::Block2;
+    } else if (EAX_N_AB::is_EAX_N_AB(eax_type_str)) {
+        context.env.eax_type = EAX_N_AB(eax_type_str);
     } else {
         throw std::runtime_error("Unknown EAX type: " + eax_type_str);
     }
+
+    // # GA State
+    read_val("# GA State");
     // ## Population Edge Counts
     read_val("## Population Edge Counts");
     context.pop_edge_counts.assign(context.env.tsp.city_count, std::vector<size_t>(context.env.tsp.city_count, 0));
