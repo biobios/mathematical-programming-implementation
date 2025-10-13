@@ -5,6 +5,7 @@
 #include "object_pools.hpp"
 #include "eax_n_ab.hpp"
 #include "eax_block2.hpp"
+#include "eax_rand.hpp"
 #include "greedy_evaluator.hpp"
 #include "entropy_evaluator.hpp"
 #include "distance_preserving_evaluator.hpp"
@@ -21,17 +22,35 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
     // 交叉関数
     eax::EAX_N_AB eax_n_ab(object_pools);
     eax::EAX_Block2 eax_block2(object_pools);
-    auto crossover_func = [&eax_n_ab, &eax_block2](const Individual& parent1, const Individual& parent2,
+    eax::EAX_Rand eax_rand(object_pools);
+    auto crossover_func = [&eax_n_ab, &eax_block2, &eax_rand](const Individual& parent1, const Individual& parent2,
                                 Context& context) {
         auto& env = context.env;
-        switch (context.eax_type) {
-            case eax::EAXType::One_AB:
-                return eax_n_ab(parent1, parent2, env.num_children, env.tsp, context.random_gen, 1);
-            case eax::EAXType::Block2:
-                return eax_block2(parent1, parent2, env.num_children, env.tsp, context.random_gen);
-            default:
-                throw std::runtime_error("Unknown EAX type.");
-        }
+        
+        struct {
+            eax::EAX_N_AB& eax_n_ab;
+            eax::EAX_Block2& eax_block2;
+            eax::EAX_Rand& eax_rand;
+            const Individual& parent1;
+            const Individual& parent2;
+            Context& context;
+            auto operator()(const eax::EAXType& type) {
+                switch (type) {
+                    case eax::EAXType::EAX_Rand:
+                        return eax_rand(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen);
+                    case eax::EAXType::Block2:
+                        return eax_block2(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen);
+                    default:
+                        throw std::runtime_error("Unknown EAX type.");
+                }
+            }
+            
+            auto operator()(const EAX_n_AB& n_ab) {
+                return eax_n_ab(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen, n_ab.n);
+            }
+        } visitor {eax_n_ab, eax_block2, eax_rand, parent1, parent2, context};
+        
+        return std::visit(visitor, env.eax_type);
     };
 
     // 適応度関数
@@ -109,25 +128,8 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
             if (average_length - best_length < 0.001)
                 return mpi::genetic_algorithm::TerminationReason::Converged; // 収束条件
             
-            const size_t N_child = context.env.num_children;
-            
-            if (context.stage == Context::GA_Stage::Stage1) {
-                if (context.G_devided_by_10 == 0 && context.stagnation_generations >= (1500 / N_child)) {
-                    context.G_devided_by_10 = generation / 10;
-                } else if (context.G_devided_by_10 > 0 && context.stagnation_generations >= context.G_devided_by_10) {
-                    context.stage = Context::GA_Stage::Stage2;
-                    context.eax_type = eax::EAXType::Block2;
-                    context.stagnation_generations = 0;
-                    context.generation_of_transition_to_stage2 = generation;
-                    context.G_devided_by_10 = 0;
-                }
-            } else {
-                if (context.G_devided_by_10 == 0 && context.stagnation_generations >= (1500 / N_child)) {
-                    context.G_devided_by_10 = (generation - context.generation_of_transition_to_stage2) / 10;
-                } else if (context.G_devided_by_10 > 0 && context.stagnation_generations >= context.G_devided_by_10) {
-                    return mpi::genetic_algorithm::TerminationReason::Stagnation; // 停滞条件
-                }
-            }
+            if (context.stagnation_generations >= 50)
+                return mpi::genetic_algorithm::TerminationReason::Stagnation; // 停滞条件
             
             return mpi::genetic_algorithm::TerminationReason::NotTerminated;
         }
@@ -176,7 +178,6 @@ Context create_context(const std::vector<Individual>& initial_population, Enviro
     Context context;
     context.env = env;
 
-    context.eax_type = EAXType::One_AB;
     context.set_initial_edge_counts(initial_population);
     context.random_gen = std::mt19937(env.random_seed);
     return context;
