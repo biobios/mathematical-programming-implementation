@@ -48,7 +48,7 @@ struct Arguments {
     // 評価関数の種類
     std::string selection_type_str = "ent"; // "greedy", "ent", or "distance"
     // 交叉手法
-    std::string eax_type_str = "EAX-1AB";
+    std::string eax_type_str = "EAX_1_AB";
     // 出力ファイル名
     std::string output_file_name = "result.md";
     // タイムアウト時間(秒)
@@ -150,9 +150,21 @@ void execute_normal(const Arguments& args)
         }
 
         cout << "Initial population created." << endl;
+        
+        eax::eax_type_t eax_type;
+
+        if (args.eax_type_str == "EAX_Rand") {
+            eax_type = eax::EAXType::EAX_Rand;
+        } else if (args.eax_type_str == "Block2") {
+            eax_type = eax::EAXType::Block2;
+        } else if (eax::EAX_n_AB::is_EAX_N_AB(args.eax_type_str)) {
+            eax_type = eax::EAX_n_AB(args.eax_type_str);
+        } else {
+            throw std::runtime_error("Unknown EAX type '" + args.eax_type_str + "'. Options are 'EAX_Rand', 'Block2', or 'EAX_n_AB' where n is a positive integer.");
+        }
 
         // 環境
-        eax::Environment ga_env{tsp, args.population_size, args.num_children, selection_type, local_seed};
+        eax::Environment ga_env{tsp, args.population_size, args.num_children, selection_type, local_seed, eax_type};
         eax::Context ga_context = eax::create_context(population, ga_env);
         
         cout << "Starting genetic algorithm..." << endl;
