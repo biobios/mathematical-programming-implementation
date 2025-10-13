@@ -42,8 +42,8 @@ void Context::serialize(std::ostream& os) const {
                     break;
             }
         }
-        void operator()(const EAX_N_AB& n_ab) {
-            os << "EAX_" << n_ab.N << "_AB" << std::endl;
+        void operator()(const EAX_n_AB& n_ab) {
+            os << "EAX_" << n_ab.n << "_AB" << std::endl;
         }
     } visitor {os};
     std::visit(visitor, env.eax_type);
@@ -136,8 +136,8 @@ Context Context::deserialize(std::istream& is, tsp::TSP tsp) {
         context.env.eax_type = EAXType::EAX_Rand;
     } else if (eax_type_str == "Block2") {
         context.env.eax_type = EAXType::Block2;
-    } else if (EAX_N_AB::is_EAX_N_AB(eax_type_str)) {
-        context.env.eax_type = EAX_N_AB(eax_type_str);
+    } else if (EAX_n_AB::is_EAX_N_AB(eax_type_str)) {
+        context.env.eax_type = EAX_n_AB(eax_type_str);
     } else {
         throw std::runtime_error("Unknown EAX type: " + eax_type_str);
     }
