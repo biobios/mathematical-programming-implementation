@@ -47,6 +47,8 @@ struct Arguments {
     size_t num_children = 30;
     // 評価関数の種類
     std::string selection_type_str = "ent"; // "greedy", "ent", or "distance"
+    // 交叉手法
+    std::string eax_type_str = "EAX-1AB";
     // 出力ファイル名
     std::string output_file_name = "result.md";
     // タイムアウト時間(秒)
@@ -284,6 +286,11 @@ int main(int argc, char* argv[])
     selection_spec.set_description("--selection <type> \t:Selection type for the genetic algorithm. "
                                    "Options are 'greedy' for Greedy Selection, 'ent' for Entropy Selection (default), and 'distance' for Distance-preserving Selection.");
     parser.add_argument(selection_spec);
+    
+    mpi::ArgumentSpec eax_type_spec(args.eax_type_str);
+    eax_type_spec.add_argument_name("--eax-type");
+    eax_type_spec.set_description("--eax-type <type> \t:EAX crossover type. Options are 'EAX-1AB' (default), 'EAX-Rand', and 'EAX-Block2'.");
+    parser.add_argument(eax_type_spec);
     
     mpi::ArgumentSpec output_spec(args.output_file_name);
     output_spec.add_argument_name("--output");
