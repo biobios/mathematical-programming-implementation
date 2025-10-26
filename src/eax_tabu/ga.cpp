@@ -18,11 +18,32 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
     eax::ObjectPools object_pools(context.env.tsp.city_count);
     
     // 交叉関数
-    eax::EAX_tabu eax_tabu(object_pools);
-    auto crossover_func = [&eax_tabu](const Individual& parent1, const Individual& parent2,
+    eax::EAX_tabu_Rand eax_tabu_rand(object_pools);
+    eax::EAX_tabu_N_AB eax_tabu_n_ab(object_pools);
+    auto crossover_func = [&eax_tabu_rand, &eax_tabu_n_ab](const Individual& parent1, const Individual& parent2,
                                 Context& context) {
         auto& env = context.env;
-        return eax_tabu(parent1, parent2, env.num_children, parent1.get_tabu_edges(), env.tsp, context.random_gen, context.env.selection_method);
+        struct {
+            eax::EAX_tabu_Rand& eax_tabu_rand;
+            eax::EAX_tabu_N_AB& eax_tabu_n_ab;
+            const Individual& parent1;
+            const Individual& parent2;
+            Context& context;
+            auto operator()(const eax::EAXType& type) {
+                switch (type) {
+                    case eax::EAXType::EAX_Rand:
+                        return eax_tabu_rand(parent1, parent2, context.env.num_children, parent1.get_tabu_edges(), context.env.tsp, context.random_gen);
+                    default:
+                        throw std::runtime_error("Unknown EAX type.");
+                }
+            }
+            
+            auto operator()(const EAX_n_AB& n_ab) {
+                return eax_tabu_n_ab(parent1, parent2, context.env.num_children, parent1.get_tabu_edges(), context.env.tsp, context.random_gen, n_ab.n);
+            }
+        } visitor {eax_tabu_rand, eax_tabu_n_ab, parent1, parent2, context};
+        
+        return std::visit(visitor, env.eax_type);
     };
 
     // 適応度関数
