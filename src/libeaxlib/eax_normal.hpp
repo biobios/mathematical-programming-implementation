@@ -31,7 +31,7 @@ public:
                                         const tsp::TSP& tsp, std::mt19937& rng, Args&&... args) {
         using namespace std;
         size_t ab_cycle_need = E_Set_Assembler_Builder::calc_AB_cycle_need(parent1, parent2, children_size, tsp, rng, args...);
-        auto AB_cycles = ab_cycle_finder(ab_cycle_need, parent1, parent2);
+        auto AB_cycles = ab_cycle_finder(ab_cycle_need, parent1, parent2, rng);
         
         auto e_set_assembler = e_set_assembler_builder.build(AB_cycles, parent1, parent2, children_size, tsp, rng, forward<Args>(args)...);
         
