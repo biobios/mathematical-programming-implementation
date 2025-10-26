@@ -10,6 +10,7 @@
 #include "crossover_delta.hpp"
 #include "object_pools.hpp"
 #include "ab_cycle_finder.hpp"
+#include "subtour_merger.hpp"
 
 namespace eax {
 /**
@@ -22,6 +23,7 @@ public:
     EAX_normal(ObjectPools& object_pools)
         : intermediate_individual_pool(object_pools.intermediate_individual_pool.share()),
           ab_cycle_finder(object_pools),
+          subtour_merger(object_pools),
           e_set_assembler_builder(object_pools) {}
 
     template <doubly_linked_list_like Individual, typename... Args>
@@ -58,6 +60,7 @@ public:
 private:
     mpi::ObjectPool<IntermediateIndividual> intermediate_individual_pool;
     ABCycleFinder ab_cycle_finder;
+    SubtourMerger subtour_merger;
     E_Set_Assembler_Builder e_set_assembler_builder;
 };
 }
