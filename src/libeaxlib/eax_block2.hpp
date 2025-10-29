@@ -116,4 +116,20 @@ private:
     Block2ESetAssemblerBuilder block2_e_set_assembler_builder;
     SubtourMerger subtour_merger;
 };
+
+class EAX_Block2_tag {
+public:
+    EAX_Block2_tag() = default;
+    EAX_Block2_tag(const std::string& str) {
+        if (!match_string(str)) {
+            throw std::invalid_argument("Invalid EAX type string for EAX_Block2.");
+        }
+    }
+    static bool match_string(const std::string& str) {
+        return str == "Block2";
+    }
+    std::string to_string() const {
+        return "Block2";
+    }
+};
 }
