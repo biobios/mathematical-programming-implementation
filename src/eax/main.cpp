@@ -32,6 +32,7 @@
 #include "ga.hpp"
 #include "two_opt.hpp"
 #include "command_line_argument_parser.hpp"
+#include "eax_tag.hpp"
 #include <time.h>
 
 struct Arguments {
@@ -153,15 +154,7 @@ void execute_normal(const Arguments& args)
         
         eax::eax_type_t eax_type;
 
-        if (args.eax_type_str == "EAX_Rand") {
-            eax_type = eax::EAXType::EAX_Rand;
-        } else if (args.eax_type_str == "Block2") {
-            eax_type = eax::EAXType::Block2;
-        } else if (eax::EAX_n_AB::is_EAX_N_AB(args.eax_type_str)) {
-            eax_type = eax::EAX_n_AB(args.eax_type_str);
-        } else {
-            throw std::runtime_error("Unknown EAX type '" + args.eax_type_str + "'. Options are 'EAX_Rand', 'Block2', or 'EAX_n_AB' where n is a positive integer.");
-        }
+        eax_type = eax::create_eax_tag_from_string<eax::eax_type_t>(args.eax_type_str);
 
         // 環境
         eax::Environment ga_env{tsp, args.population_size, args.num_children, selection_type, local_seed, eax_type};
