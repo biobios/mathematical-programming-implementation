@@ -91,7 +91,6 @@ using EAX_N_AB = EAX_normal<N_AB_e_set_assembler_builder>;
 
 class EAX_n_AB_tag {
 public:
-    const std::size_t n;
     static bool match_string(const std::string& str) {
         std::string start_str = "EAX_";
         std::string end_str = "_AB";
@@ -126,7 +125,12 @@ public:
         return "EAX_" + std::to_string(n) + "_AB";
     }
 
+    std::size_t get_n() const {
+        return n;
+    }
+
 protected:
+    std::size_t n;
     static constexpr std::size_t parse_n(const std::string& str) {
         std::string start_str = "EAX_";
         std::string end_str = "_AB";
