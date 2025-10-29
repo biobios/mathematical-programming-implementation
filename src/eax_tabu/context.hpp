@@ -10,6 +10,8 @@
 #include "limited_range_integer_set.hpp"
 #include "individual.hpp"
 #include "eax_tabu.hpp"
+#include "eax_rand.hpp"
+#include "eax_n_ab.hpp"
 
 namespace eax {
     enum class SelectionType {
@@ -17,39 +19,8 @@ namespace eax {
         Ent,
         DistancePreserving,
     };
-
-    enum class EAXType {
-        EAX_Rand
-    };
     
-    struct EAX_n_AB {
-        size_t n;
-        
-        // コンストラクタ
-        EAX_n_AB(size_t n) : n(n) {}
-        EAX_n_AB(const std::string& str) {
-            if (!is_EAX_N_AB(str)) {
-                throw std::runtime_error("Invalid EAX_N_AB string: " + str);
-            }
-
-            std::string n_str = str.substr(4, str.size() - 7);
-            n = std::stoul(n_str);
-        }
-        // EAX_N_ABとして解釈可能な文字列か否か
-        static bool is_EAX_N_AB(const std::string& str) {
-            if (!str.starts_with("EAX_") || !str.ends_with("_AB") || str.size() <= 7) {
-                return false;
-            }
-            
-            std::string n_str = str.substr(4, str.size() - 7);
-            for (char c : n_str) {
-                if (!std::isdigit(c)) return false;
-            }
-            return true;
-        }
-    };
-    
-    using eax_type_t = std::variant<EAXType, EAX_n_AB>;
+    using eax_type_t = std::variant<EAX_Rand_tag, EAX_n_AB_tag>;
 
     
     struct Environment {

@@ -34,19 +34,16 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
             const Individual& parent1;
             const Individual& parent2;
             Context& context;
-            auto operator()(const eax::EAXType& type) {
-                switch (type) {
-                    case eax::EAXType::EAX_Rand:
-                        return eax_rand(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen);
-                    case eax::EAXType::Block2:
-                        return eax_block2(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen);
-                    default:
-                        throw std::runtime_error("Unknown EAX type.");
-                }
+            auto operator()(const eax::EAX_Rand_tag&) {
+                return eax_rand(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen);
             }
-            
-            auto operator()(const EAX_n_AB& n_ab) {
-                return eax_n_ab(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen, n_ab.n);
+
+            auto operator()(const eax::EAX_n_AB_tag& n_ab) {
+                return eax_n_ab(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen, n_ab.get_n());
+            }
+
+            auto operator()(const eax::EAX_Block2_tag&) {
+                return eax_block2(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen);
             }
         } visitor {eax_n_ab, eax_block2, eax_rand, parent1, parent2, context};
         
