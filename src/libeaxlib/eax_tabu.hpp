@@ -13,120 +13,113 @@
 #include "tsp_loader.hpp"
 #include "ab_cycle_finder.hpp"
 #include "subtour_merger.hpp"
+#include "intermediate_individual.hpp"
+
+#include "eax_rand.hpp"
+#include "eax_n_ab.hpp"
 
 namespace eax {
+template <typename E_Set_Assembler_Builder>
 class EAX_tabu {
 public:
-    EAX_tabu(size_t city_size);
     EAX_tabu(ObjectPools& object_pools)
-        : vector_of_tsp_size_pool(object_pools.vector_of_tsp_size_pool.share()),
-          any_size_vector_pool(object_pools.any_size_vector_pool.share()),
-          intermediate_individual_pool(object_pools.intermediate_individual_pool.share()),
+        : intermediate_individual_pool(object_pools.intermediate_individual_pool.share()),
+          vector_of_tsp_size_pool(object_pools.vector_of_tsp_size_pool.share()),
           ab_cycle_finder(object_pools),
-          subtour_merger(object_pools) {}
-    
-    EAX_tabu(
-        mpi::ObjectPool<std::vector<size_t>> vector_of_tsp_size_pool,
-        mpi::ObjectPool<std::vector<size_t>> any_size_vector_pool,
-        mpi::ObjectPool<IntermediateIndividual> intermediate_individual_pool,
-        ABCycleFinder ab_cycle_finder,
-        SubtourMerger subtour_merger)
-        : vector_of_tsp_size_pool(std::move(vector_of_tsp_size_pool)),
-          any_size_vector_pool(std::move(any_size_vector_pool)),
-          intermediate_individual_pool(std::move(intermediate_individual_pool)),
-          ab_cycle_finder(std::move(ab_cycle_finder)),
-          subtour_merger(std::move(subtour_merger)) {}
-    
-    enum class SelectionMethod {
-        EAX_UNIFORM,
-        EAX_half_UNIFORM,
-        EAX_1AB,
-        EAX_Rand,
-    };
+          subtour_merger(object_pools),
+          e_set_assembler_builder(object_pools) {}
 
-    /**
-     * @brief タブー制約付き交叉
-     * @param parent1 親個体1
-     * @param parent2 親個体2
-     * @param children_size 生成する子個体の数
-     * @param tabu_edges タブーエッジのリスト
-     * @param tsp 問題の情報
-     * @param rng 乱数生成器
-     * @param selection_method 使用するABサイクル選択方法
-     * @return 生成した子個体の変更履歴のリスト
-     * @tparam Individual 双方向連結リストのようなインターフェースを持つ個体の型
-     */
-    template <doubly_linked_list_like Individual>
+    template <doubly_linked_list_like Individual, typename... Args>
     std::vector<CrossoverDelta> operator()(const Individual& parent1, const Individual& parent2, size_t children_size,
-                                        std::vector<std::pair<size_t, size_t>> const& tabu_edges, const tsp::TSP& tsp, std::mt19937& rng, SelectionMethod selection_method) {
+                                        std::vector<std::pair<size_t, size_t>> const& tabu_edges, const tsp::TSP& tsp, std::mt19937& rng, Args&&... args) {
         using namespace std;
-
-        const size_t n = parent1.size();
-
-        auto path_ptr = vector_of_tsp_size_pool.acquire_unique();
-        auto pos_ptr = vector_of_tsp_size_pool.acquire_unique();
-        vector<size_t>& path = *path_ptr;
-        vector<size_t>& pos = *pos_ptr;
-        for (size_t i = 0, prev = 0, current = 0; i < n; ++i) {
-            path[i] = current;
-            pos[current] = i;
-            size_t next = parent1[current][0];
-            if (next == prev) {
-                next = parent1[current][1];
-            }
-            prev = current;
-            current = next;
-        }
-
         auto AB_cycles = ab_cycle_finder(std::numeric_limits<size_t>::max(), parent1, parent2, rng);
         
         remove_tabu_AB_cycles(AB_cycles, tabu_edges);
+        
+        auto e_set_assembler = e_set_assembler_builder.build(AB_cycles, parent1, parent2, children_size, tsp, rng, forward<Args>(args)...);
+        
+        std::vector<CrossoverDelta> children;
+        
+        auto working_individual_ptr = intermediate_individual_pool.acquire_unique();
+        IntermediateIndividual& working_individual = *working_individual_ptr;
+        working_individual.assign(parent1);
+        
+        for (size_t i = 0; i < children_size && e_set_assembler.has_next(); ++i) {
+            auto e_set_indices_ptr = e_set_assembler.next(rng);
+            auto& e_set_indices = *e_set_indices_ptr;
+ 
+            auto selected_AB_cycles_view = std::views::transform(e_set_indices, [&AB_cycles](size_t index) -> const ab_cycle_t& {
+                return *AB_cycles[index];
+            }); 
 
-        auto working_individual = intermediate_individual_pool.acquire_unique();
-        working_individual->assign(parent1);
+            working_individual.apply_AB_cycles(selected_AB_cycles_view);
+            subtour_merger(working_individual, tsp, selected_AB_cycles_view);
 
-        switch (selection_method) {
-            case SelectionMethod::EAX_UNIFORM:
-                return generate_children_via_EAX_UNIFORM(AB_cycles, children_size, *working_individual, tsp, rng);
-            case SelectionMethod::EAX_half_UNIFORM:
-                return generate_children_via_EAX_half_UNIFORM(AB_cycles, children_size, *working_individual, tsp, rng);
-            case SelectionMethod::EAX_1AB:
-                return generate_children_via_EAX_1AB(AB_cycles, children_size, *working_individual, tsp, rng);
-            case SelectionMethod::EAX_Rand:
-                return generate_children_via_EAX_Rand(AB_cycles, children_size, *working_individual, tsp, rng);
-            default:
-                throw std::invalid_argument("Invalid selection method");
+            children.emplace_back(working_individual.get_delta_and_revert());
         }
+        
+        return children;
     }
-    
 private:
-    // タブーエッジを含むABサイクルを削除する
-    void remove_tabu_AB_cycles(std::vector<mpi::pooled_unique_ptr<ab_cycle_t>>& AB_cycles,
-                               const std::vector<std::pair<size_t, size_t>>& tabu_edges);
-    std::vector<CrossoverDelta> generate_children_via_EAX_UNIFORM(const std::vector<mpi::pooled_unique_ptr<ab_cycle_t>>& AB_cycles,
-                                                                        size_t children_size,
-                                                                        IntermediateIndividual& working_individual,
-                                                                        const tsp::TSP& tsp,
-                                                                        std::mt19937& rng);
-    std::vector<CrossoverDelta> generate_children_via_EAX_half_UNIFORM(const std::vector<mpi::pooled_unique_ptr<ab_cycle_t>>& AB_cycles,
-                                                                        size_t children_size,
-                                                                        IntermediateIndividual& working_individual,
-                                                                        const tsp::TSP& tsp,
-                                                                        std::mt19937& rng);
-    std::vector<CrossoverDelta> generate_children_via_EAX_1AB(const std::vector<mpi::pooled_unique_ptr<ab_cycle_t>>& AB_cycles,
-                                                                        size_t children_size,
-                                                                        IntermediateIndividual& working_individual,
-                                                                        const tsp::TSP& tsp,
-                                                                        std::mt19937& rng);
-    std::vector<CrossoverDelta> generate_children_via_EAX_Rand(const std::vector<mpi::pooled_unique_ptr<ab_cycle_t>>& AB_cycles,
-                                                                        size_t children_size,
-                                                                        IntermediateIndividual& working_individual,
-                                                                        const tsp::TSP& tsp,
-                                                                        std::mt19937& rng);
-    mpi::ObjectPool<std::vector<size_t>> vector_of_tsp_size_pool;
-    mpi::ObjectPool<std::vector<size_t>> any_size_vector_pool;
     mpi::ObjectPool<IntermediateIndividual> intermediate_individual_pool;
+    mpi::ObjectPool<std::vector<size_t>> vector_of_tsp_size_pool;
     ABCycleFinder ab_cycle_finder;
     SubtourMerger subtour_merger;
+    E_Set_Assembler_Builder e_set_assembler_builder;
+
+    // タブーエッジを含むABサイクルを削除する
+    void remove_tabu_AB_cycles(std::vector<mpi::pooled_unique_ptr<ab_cycle_t>>& AB_cycles,
+                                const std::vector<std::pair<size_t, size_t>>& tabu_edges) {
+        // 一つの都市は最大2つのABサイクルに含まれるので、vector_of_tsp_sizeを2つ用意する
+        auto in_cycle1_ptr = vector_of_tsp_size_pool.acquire_unique();
+        auto in_cycle2_ptr = vector_of_tsp_size_pool.acquire_unique();
+        std::vector<size_t>& in_cycle1 = *in_cycle1_ptr;
+        std::vector<size_t>& in_cycle2 = *in_cycle2_ptr;
+        const size_t null_cycle = AB_cycles.size();
+        in_cycle1.assign(in_cycle1.size(), null_cycle);
+        in_cycle2.assign(in_cycle2.size(), null_cycle);
+
+        for (size_t i = 0; i < AB_cycles.size(); ++i) {
+            const ab_cycle_t& cycle = *AB_cycles[i];
+            for (size_t city : cycle) {
+                if (in_cycle1[city] == null_cycle) {
+                    in_cycle1[city] = i;
+                } else {
+                    in_cycle2[city] = i;
+                }
+            }
+        }
+        
+        // タブーエッジを含むABサイクルを削除する
+        for (const auto& [v1, v2] : tabu_edges) {
+            size_t cycle_v1_1 = in_cycle1[v1];
+            size_t cycle_v1_2 = in_cycle2[v1];
+            size_t cycle_v2_1 = in_cycle1[v2];
+            size_t cycle_v2_2 = in_cycle2[v2];
+            if ((cycle_v1_1 == cycle_v2_1) || (cycle_v1_1 == cycle_v2_2)) {
+                if (cycle_v1_1 != null_cycle) {
+                    AB_cycles[cycle_v1_1].reset();
+                }
+            }
+            if ((cycle_v1_2 == cycle_v2_1) || (cycle_v1_2 == cycle_v2_2)) {
+                if (cycle_v1_2 != null_cycle) {
+                    AB_cycles[cycle_v1_2].reset();
+                }
+            }
+        }
+        
+        // nullptrになった要素を削除する
+        for (size_t i = AB_cycles.size(); i > 0; --i) {
+            if (AB_cycles[i - 1] == nullptr) {
+                if (i - 1 != AB_cycles.size() - 1) {
+                    std::swap(AB_cycles[i - 1], AB_cycles.back());
+                }
+                AB_cycles.pop_back();
+            }
+        }
+    }
 };
+using EAX_tabu_Rand = EAX_tabu<Rand_e_set_assembler_builder>;
+using EAX_tabu_N_AB = EAX_tabu<N_AB_e_set_assembler_builder>;
 }

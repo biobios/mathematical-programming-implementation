@@ -26,24 +26,25 @@ void Context::serialize(std::ostream& os) const {
             break;
     }
     os << "random_seed=" << env.random_seed << std::endl;
-    os << "selection_method=";
-    switch (env.selection_method) {
-        case EAX_tabu::SelectionMethod::EAX_UNIFORM:
-            os << "EAX_UNIFORM" << std::endl;
-            break;
-        case EAX_tabu::SelectionMethod::EAX_half_UNIFORM:
-            os << "EAX_half_UNIFORM" << std::endl;
-            break;
-        case EAX_tabu::SelectionMethod::EAX_1AB:
-            os << "EAX_1AB" << std::endl;
-            break;
-        case EAX_tabu::SelectionMethod::EAX_Rand:
-            os << "EAX_Rand" << std::endl;
-            break;
-        default:
-            os << "Unknown" << std::endl;
-            break;
-    }
+    os << "eax_type=";
+    struct {
+        std::ostream& os;
+        void operator()(const EAXType& type) {
+            switch (type) {
+                case EAXType::EAX_Rand:
+                    os << "EAX_Rand" << std::endl;
+                    break;
+                default:
+                    os << "Unknown" << std::endl;
+                    break;
+            }
+        }
+        void operator()(const EAX_n_AB& n_ab) {
+            os << "EAX_" << n_ab.n << "_AB" << std::endl;
+        }
+    } visitor {os};
+    std::visit(visitor, env.eax_type);
+
     os << "# GA State" << std::endl;
     os << "## Population Edge Counts" << std::endl;
     for (const auto& row : pop_edge_counts) {
@@ -113,18 +114,14 @@ Context Context::deserialize(std::istream& is, tsp::TSP tsp) {
     // random_seed=...
     context.env.random_seed = static_cast<std::mt19937::result_type>(std::stoull(read_val("random_seed=")));
 
-    // selection_method=...
-    std::string selection_method_str = read_val("selection_method=");
-    if (selection_method_str == "EAX_UNIFORM") {
-        context.env.selection_method = EAX_tabu::SelectionMethod::EAX_UNIFORM;
-    } else if (selection_method_str == "EAX_half_UNIFORM") {
-        context.env.selection_method = EAX_tabu::SelectionMethod::EAX_half_UNIFORM;
-    } else if (selection_method_str == "EAX_1AB") {
-        context.env.selection_method = EAX_tabu::SelectionMethod::EAX_1AB;
-    } else if (selection_method_str == "EAX_Rand") {
-        context.env.selection_method = EAX_tabu::SelectionMethod::EAX_Rand;
+    // eax_type=...
+    std::string eax_type_str = read_val("eax_type=");
+    if (eax_type_str == "EAX_Rand") {
+        context.env.eax_type = EAXType::EAX_Rand;
+    } else if (EAX_n_AB::is_EAX_N_AB(eax_type_str)) {
+        context.env.eax_type = EAX_n_AB(eax_type_str);
     } else {
-        throw std::runtime_error("Unknown selection method: " + selection_method_str);
+        throw std::runtime_error("Unknown EAX type: " + eax_type_str);
     }
 
     // # GA State

@@ -54,7 +54,7 @@ struct Arguments {
     // タブーリストの存続世代数
     size_t tabu_list_duration = 5;
     // ABサイクルの選択方法
-    std::string selection_method_str = "EAX_1AB";
+    std::string selection_method_str = "EAX_1_AB";
 };
 
 void print_result(const eax::Context& context, std::ostream& os)
@@ -83,23 +83,24 @@ void print_result(const eax::Context& context, std::ostream& os)
             break;
     }
     os << " | ";
-    switch (context.env.selection_method) {
-        case eax::EAX_tabu::SelectionMethod::EAX_UNIFORM:
-            os << "EAX_UNIFORM";
-            break;
-        case eax::EAX_tabu::SelectionMethod::EAX_half_UNIFORM:
-            os << "EAX_half_UNIFORM";
-            break;
-        case eax::EAX_tabu::SelectionMethod::EAX_1AB:
-            os << "EAX_1AB";
-            break;
-        case eax::EAX_tabu::SelectionMethod::EAX_Rand:
-            os << "EAX_Rand";
-            break;
-        default:
-            os << "unknown";
-            break;
-    }
+    struct {
+        std::ostream& os;
+        void operator()(const eax::EAXType& type) {
+            switch (type) {
+                case eax::EAXType::EAX_Rand:
+                    os << "EAX_Rand";
+                    break;
+                default:
+                    os << "Unknown";
+                    break;
+            }
+        }
+        void operator()(const eax::EAX_n_AB& n_ab) {
+            os << "EAX_" << n_ab.n << "_AB";
+        }
+    } visitor {os};
+    std::visit(visitor, context.env.eax_type);
+
     os << " | " << context.env.num_children << " | " << context.env.random_seed << " | " << context.best_length << " | " << context.generation_of_reached_best << " | "
                 << context.final_generation << " | " << context.elapsed_time << " |" << std::endl;
 
@@ -129,15 +130,11 @@ void execute_normal(const Arguments& args)
     } else {
         throw std::runtime_error("Unknown selection type '" + args.selection_type_str + "'. Options are 'greedy', 'ent', or 'distance'.");
     }
-    eax::EAX_tabu::SelectionMethod selection_method = eax::EAX_tabu::SelectionMethod::EAX_1AB;
-    if (args.selection_method_str == "EAX_UNIFORM") {
-        selection_method = eax::EAX_tabu::SelectionMethod::EAX_UNIFORM;
-    } else if (args.selection_method_str == "EAX_half_UNIFORM") {
-        selection_method = eax::EAX_tabu::SelectionMethod::EAX_half_UNIFORM;
-    } else if (args.selection_method_str == "EAX_1AB") {
-        selection_method = eax::EAX_tabu::SelectionMethod::EAX_1AB;
-    } else if (args.selection_method_str == "EAX_Rand") {
-        selection_method = eax::EAX_tabu::SelectionMethod::EAX_Rand;
+    eax::eax_type_t eax_type = eax::EAXType::EAX_Rand;
+    if (args.selection_method_str == "EAX_Rand") {
+        eax_type = eax::EAXType::EAX_Rand;
+    } else if (eax::EAX_n_AB::is_EAX_N_AB(args.selection_method_str)) {
+        eax_type = eax::EAX_n_AB(args.selection_method_str);
     } else {
         throw std::runtime_error("Unknown EAX selection method '" + args.selection_method_str + "'. Options are 'EAX_UNIFORM', 'EAX_half_UNIFORM', 'EAX_1AB', or 'EAX_Rand'.");
     }
@@ -178,7 +175,7 @@ void execute_normal(const Arguments& args)
         cout << "Initial population created." << endl;
 
         // 環境
-        eax::Environment ga_env{tsp, args.population_size, args.num_children, selection_type, local_seed, selection_method};
+        eax::Environment ga_env{tsp, args.population_size, args.num_children, selection_type, local_seed, eax_type};
         eax::Context ga_context = eax::create_context(population, ga_env);
         
         cout << "Starting genetic algorithm..." << endl;
