@@ -29,6 +29,7 @@
 #include "command_line_argument_parser.hpp"
 #include <time.h>
 #include "eax_tabu.hpp"
+#include "eax_tag.hpp"
 
 struct Arguments {
     // TSPファイルの名前
@@ -82,24 +83,7 @@ void print_result(const eax::Context& context, std::ostream& os)
             os << "unknown";
             break;
     }
-    os << " | ";
-    struct {
-        std::ostream& os;
-        void operator()(const eax::EAXType& type) {
-            switch (type) {
-                case eax::EAXType::EAX_Rand:
-                    os << "EAX_Rand";
-                    break;
-                default:
-                    os << "Unknown";
-                    break;
-            }
-        }
-        void operator()(const eax::EAX_n_AB& n_ab) {
-            os << "EAX_" << n_ab.n << "_AB";
-        }
-    } visitor {os};
-    std::visit(visitor, context.env.eax_type);
+    os << " | " << context.env.eax_type;
 
     os << " | " << context.env.num_children << " | " << context.env.random_seed << " | " << context.best_length << " | " << context.generation_of_reached_best << " | "
                 << context.final_generation << " | " << context.elapsed_time << " |" << std::endl;
@@ -130,14 +114,7 @@ void execute_normal(const Arguments& args)
     } else {
         throw std::runtime_error("Unknown selection type '" + args.selection_type_str + "'. Options are 'greedy', 'ent', or 'distance'.");
     }
-    eax::eax_type_t eax_type = eax::EAXType::EAX_Rand;
-    if (args.selection_method_str == "EAX_Rand") {
-        eax_type = eax::EAXType::EAX_Rand;
-    } else if (eax::EAX_n_AB::is_EAX_N_AB(args.selection_method_str)) {
-        eax_type = eax::EAX_n_AB(args.selection_method_str);
-    } else {
-        throw std::runtime_error("Unknown EAX selection method '" + args.selection_method_str + "'. Options are 'EAX_UNIFORM', 'EAX_half_UNIFORM', 'EAX_1AB', or 'EAX_Rand'.");
-    }
+    eax::eax_type_t eax_type = eax::create_eax_tag_from_string<eax::eax_type_t>(args.selection_method_str);
 
     tsp::TSP tsp = tsp::TSP_Loader::load_tsp(args.file_name);
     cout << "TSP Name: " << tsp.name << endl;

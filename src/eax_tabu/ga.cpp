@@ -29,17 +29,12 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
             const Individual& parent1;
             const Individual& parent2;
             Context& context;
-            auto operator()(const eax::EAXType& type) {
-                switch (type) {
-                    case eax::EAXType::EAX_Rand:
-                        return eax_tabu_rand(parent1, parent2, context.env.num_children, parent1.get_tabu_edges(), context.env.tsp, context.random_gen);
-                    default:
-                        throw std::runtime_error("Unknown EAX type.");
-                }
+            auto operator()(const EAX_Rand_tag&) {
+                return eax_tabu_rand(parent1, parent2, context.env.num_children, parent1.get_tabu_edges(), context.env.tsp, context.random_gen);
             }
             
-            auto operator()(const EAX_n_AB& n_ab) {
-                return eax_tabu_n_ab(parent1, parent2, context.env.num_children, parent1.get_tabu_edges(), context.env.tsp, context.random_gen, n_ab.n);
+            auto operator()(const EAX_n_AB_tag& n_ab) {
+                return eax_tabu_n_ab(parent1, parent2, context.env.num_children, parent1.get_tabu_edges(), context.env.tsp, context.random_gen, n_ab.get_n());
             }
         } visitor {eax_tabu_rand, eax_tabu_n_ab, parent1, parent2, context};
         
