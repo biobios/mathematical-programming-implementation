@@ -88,4 +88,78 @@ private:
 };
 
 using EAX_N_AB = EAX_normal<N_AB_e_set_assembler_builder>;
+
+class EAX_n_AB_tag {
+public:
+    const std::size_t n;
+    static bool match_string(const std::string& str) {
+        std::string start_str = "EAX_";
+        std::string end_str = "_AB";
+        if (!str.starts_with(start_str) || !str.ends_with(end_str)) {
+            return false;
+        }
+        std::string n_str = str.substr(start_str.size(), str.size() - (start_str.size() + end_str.size()));
+        try {
+            size_t n_value = std::stoul(n_str);
+            return n_value > 0;
+        } catch (...) {
+            return false;
+        }
+    }
+
+    EAX_n_AB_tag(const std::string& str)
+        : n(parse_n(str)) {
+        if (n == 0) {
+            throw std::invalid_argument("N parameter must be greater than 0.");
+        }
+    }
+
+    EAX_n_AB_tag(std::size_t n_value)
+        : n(n_value) {
+        if (n == 0) {
+            throw std::invalid_argument("N parameter must be greater than 0.");
+        }
+    }
+
+    std::string to_string() const {
+        return "EAX_" + std::to_string(n) + "_AB";
+    }
+
+protected:
+    static constexpr std::size_t parse_n(const std::string& str) {
+        std::string start_str = "EAX_";
+        std::string end_str = "_AB";
+        if (!str.starts_with(start_str) || !str.ends_with(end_str)) {
+            throw std::invalid_argument("Invalid EAX_n_AB format.");
+        }
+        std::string n_str = str.substr(start_str.size(), str.size() - (start_str.size() + end_str.size()));
+        try {
+            size_t n_value = std::stoul(n_str);
+            return n_value;
+        } catch (...) {
+            throw std::invalid_argument("Invalid N parameter in EAX_n_AB.");
+        }
+    }
+private:
+};
+
+template <size_t N>
+class fixed_N_AB_tag : public EAX_n_AB_tag {
+public:
+    static bool match_string(const std::string& str) {
+        return str == "EAX_" + std::to_string(N) + "_AB";
+    }
+
+    fixed_N_AB_tag(const std::string& str)
+        : EAX_n_AB_tag(N) {
+        if (parse_n(str) != N) {
+            throw std::invalid_argument("N parameter does not match the fixed value.");
+        }
+    }
+private:
+};
+
+using EAX_1_AB_tag = fixed_N_AB_tag<1>;
+using EAX_5_AB_tag = fixed_N_AB_tag<5>;
+
 }
