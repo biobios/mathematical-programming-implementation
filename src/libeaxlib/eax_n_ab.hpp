@@ -107,6 +107,7 @@ public:
         }
     }
 
+    EAX_n_AB_tag() : n(1) {}
     EAX_n_AB_tag(const std::string& str)
         : n(parse_n(str)) {
         if (n == 0) {
