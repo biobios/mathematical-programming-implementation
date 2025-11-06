@@ -71,19 +71,20 @@ public:
             elem_of_min_sub_tour.push_back(elem_of_min_sub_tour[0]);
             elem_of_min_sub_tour.push_back(elem_of_min_sub_tour[1]);
             
-            size_t search_range = 10;
-            size_t start = 0;
             edge e1 = {0, 0};
             edge e2 = {0, 0};
             distance_type min_cost = std::numeric_limits<distance_type>::max();
             while (e1.first == 0 && e2.first == 0) {
                 for (size_t i = 1; i <= min_sub_tour_size; ++i) {
                     size_t current_city = elem_of_min_sub_tour[i];
-                    size_t limit = std::min(start + search_range, NN_list[current_city].size());
-                    for (size_t j = start; j < limit; ++j) {
+                    size_t depth = 20;
+                    size_t count = 0;
+                    for (size_t j = 0; count < depth; ++j) {
                         size_t neighbor_city = NN_list[current_city][j].second;
                         if (in_min_sub_tour[neighbor_city])
                             continue;
+                        
+                        ++count;
 
                         for (size_t k = 0; k < 2; ++k) {
                             size_t connected_to_current_city = elem_of_min_sub_tour[i - 1 + 2 * k];
@@ -111,9 +112,6 @@ public:
                         }
                     }
                 }
-                
-                start += search_range;
-                search_range *= 2;
             }
             
             working_individual.swap_edges(e1, e2);
