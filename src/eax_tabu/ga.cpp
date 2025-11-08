@@ -116,7 +116,7 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
             
             const size_t N_child = context.env.num_children;
             
-            if (context.stagnation_generations >= (3000 / N_child)) {
+            if (context.stagnation_generations >= 100) {
                 return mpi::genetic_algorithm::TerminationReason::Stagnation; // 停滞条件
             }
             
