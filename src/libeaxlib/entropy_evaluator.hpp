@@ -7,7 +7,7 @@
 #include "crossover_delta.hpp"
 
 namespace eax {
-    double calc_delta_entropy(const CrossoverDelta& child, edge_counts_t& pop_edge_counts, size_t pop_size) {
+    inline double calc_delta_entropy(const CrossoverDelta& child, edge_counts_t& pop_edge_counts, size_t pop_size) {
         double delta_H = 0.0;
 
         auto calc_entropy = [](size_t count, size_t pop_size) {
