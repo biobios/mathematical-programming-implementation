@@ -46,6 +46,8 @@ struct Arguments {
     std::string selection_type_str = "ent"; // "greedy", "ent", or "distance"
     // 出力ファイル名
     std::string output_file_name = "result.md";
+    // ログファイル名
+    std::string log_file_name = "";
     // タイムアウト時間(秒)
     size_t timeout_seconds = 60 * 60 * 24 * 365; // 実質的に無制限
     // 中断時の状態を保存するファイルの名前
@@ -58,14 +60,14 @@ struct Arguments {
     std::string selection_method_str = "EAX_1_AB";
 };
 
-void print_result(const eax::Context& context, std::ostream& os)
+void print_result(const eax::Context& context, std::ostream& os, mpi::genetic_algorithm::TerminationReason reason)
 {
     os.seekp(0, std::ios::end);
     if (os.tellp() == 0) {
         os << "# EAX Genetic Algorithm Results" << std::endl;
         os << std::endl;
-        os << "| TSP Name | Population Size | Selection Type | Selection Method | Children per Crossover | Seed | Best Length | Generation Reached Best | Total Generations | Time (s) |" << std::endl;
-        os << "|----------|-----------------|----------------|------------------|------------------------|------|-------------|-------------------------|-------------------|----------|" << std::endl;
+        os << "| TSP Name | Population Size | Selection Type | Selection Method | Children per Crossover | Seed | Best Length | Generation Reached Best | Total Generations | Time (s) | Termination Reason |" << std::endl;
+        os << "|----------|-----------------|----------------|------------------|------------------------|------|-------------|-------------------------|-------------------|----------|----------------------|" << std::endl;
     }
     
     os << "| " << context.env.tsp.name << " | " << context.env.population_size << " | ";
@@ -86,7 +88,25 @@ void print_result(const eax::Context& context, std::ostream& os)
     os << " | " << context.env.eax_type;
 
     os << " | " << context.env.num_children << " | " << context.env.random_seed << " | " << context.best_length << " | " << context.generation_of_reached_best << " | "
-                << context.final_generation << " | " << context.elapsed_time << " |" << std::endl;
+                << context.final_generation << " | " << context.elapsed_time << " | ";
+    switch (reason) {
+        case mpi::genetic_algorithm::TerminationReason::Converged:
+            os << " Converged";
+            break;
+        case mpi::genetic_algorithm::TerminationReason::MaxGenerations:
+            os << " Max Generations Reached";
+            break;
+        case mpi::genetic_algorithm::TerminationReason::TimeLimit:
+            os << " Time Limit Reached";
+            break;
+        case mpi::genetic_algorithm::TerminationReason::Stagnation:
+            os << " Stagnation";
+            break;
+        default:
+            os << " Other";
+            break;
+    }
+    os << " |" << std::endl;
 
 }
 
@@ -157,7 +177,7 @@ void execute_normal(const Arguments& args)
         
         cout << "Starting genetic algorithm..." << endl;
         // 計測開始
-        auto result = eax::execute_ga(population, ga_context, timeout_time);
+        auto result = eax::execute_ga(population, ga_context, timeout_time, args.log_file_name);
         auto& [termination_reason, result_population] = result;
         
         if (termination_reason == mpi::genetic_algorithm::TerminationReason::TimeLimit) {
@@ -174,7 +194,7 @@ void execute_normal(const Arguments& args)
             if (!result_file.is_open()) {
                 throw std::runtime_error("Failed to open result file: " + args.output_file_name);
             }
-            print_result(ga_context, result_file);
+            print_result(ga_context, result_file, termination_reason);
             result_file.close();
             cout << "Result saved to " << args.output_file_name << endl;
         }
@@ -225,7 +245,7 @@ void resume_from_checkpoint(const Arguments& args)
 
     // 遺伝的アルゴリズムの実行
     cout << "Resuming from checkpoint..." << endl;
-    auto result = eax::execute_ga(population, context, timeout_time);
+    auto result = eax::execute_ga(population, context, timeout_time, args.log_file_name);
     
     auto& [termination_reason, result_population] = result;
     if (termination_reason == mpi::genetic_algorithm::TerminationReason::TimeLimit) {
@@ -242,7 +262,7 @@ void resume_from_checkpoint(const Arguments& args)
         if (!result_file.is_open()) {
             throw std::runtime_error("Failed to open result file: " + args.output_file_name);
         }
-        print_result(context, result_file);
+        print_result(context, result_file, termination_reason);
         result_file.close();
         cout << "Result saved to " << args.output_file_name << endl;
     }
@@ -291,6 +311,11 @@ int main(int argc, char* argv[])
     output_spec.add_argument_name("--output");
     output_spec.set_description("--output <filename> \t:Output file name (default: result.md).");
     parser.add_argument(output_spec);
+    
+    mpi::ArgumentSpec log_spec(args.log_file_name);
+    log_spec.add_argument_name("--log");
+    log_spec.set_description("--log <filename> \t:Log file name.");
+    parser.add_argument(log_spec);
     
     mpi::ArgumentSpec timeout_spec(args.timeout_seconds);
     timeout_spec.add_argument_name("--timeout");

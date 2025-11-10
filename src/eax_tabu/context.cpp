@@ -118,6 +118,15 @@ Context Context::deserialize(std::istream& is, tsp::TSP tsp) {
             }
         }
     }
+    context.entropy = 0.0;
+    for (auto& row : context.pop_edge_counts) {
+        for (auto& count : row) {
+            if (count > 0) {
+                double p = static_cast<double>(count) / static_cast<double>(context.env.population_size);
+                context.entropy -= p * std::log2(p);
+            }
+        }
+    }
     // ## Random Generator State
     read_val("## Random Generator State");
     is >> context.random_gen;

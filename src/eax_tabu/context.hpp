@@ -53,6 +53,8 @@ namespace eax {
         std::chrono::system_clock::time_point start_time;
         // 経過時間
         double elapsed_time = 0.0;
+        // エントロピー
+        double entropy = 0.0;
 
         void set_initial_edge_counts(const std::vector<Individual>& init_pop) {
             pop_edge_counts.assign(env.tsp.city_count, std::vector<size_t>(env.tsp.city_count, 0));
@@ -63,6 +65,16 @@ namespace eax {
                     size_t v2 = individual[i][1];
                     pop_edge_counts[i][v1] += 1;
                     pop_edge_counts[i][v2] += 1;
+                }
+            }
+
+            entropy = 0.0;
+            for (auto& row : pop_edge_counts) {
+                for (auto& count : row) {
+                    if (count > 0) {
+                        double p = static_cast<double>(count) / static_cast<double>(env.population_size);
+                        entropy -= p * std::log2(p);
+                    }
                 }
             }
         };
