@@ -1,5 +1,8 @@
 #include "ga.hpp"
 
+#include <iostream>
+#include <fstream>
+
 #include "genetic_algorithm.hpp"
 
 #include "object_pools.hpp"
@@ -12,7 +15,11 @@
 #include "generational_model.hpp"
 
 namespace eax {
-std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> execute_ga(std::vector<Individual>& population, Context& context, std::chrono::system_clock::time_point timeout_time) {
+std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> execute_ga(
+    std::vector<Individual>& population,
+    Context& context,
+    std::chrono::system_clock::time_point timeout_time,
+    const std::string& log_file_name) {
     using namespace std;
     using Context = eax::Context;
     // オブジェクトプール
@@ -55,12 +62,7 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
         mpi::genetic_algorithm::TerminationReason operator()(vector<Individual>& population, Context& context, size_t generation) {
             context.current_generation = generation;
 
-            // Greedy Selection以外はエッジカウントを個体の評価に使用するため、個体更新時にエッジカウントも更新する
-            if (context.env.selection_type != eax::SelectionType::Greedy) {
-                update_individual_and_edge_counts(population, context);
-            } else {
-                update(population, context);
-            }
+            update_individual_and_edge_counts(population, context);
             
             if (std::chrono::system_clock::now() >= timeout_time) {
                 return mpi::genetic_algorithm::TerminationReason::TimeLimit;
@@ -69,15 +71,10 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
             return continue_condition(population, context, generation);
         }
         
-        void update(vector<Individual>& population, Context& context) {
-            for (auto& individual : population) {
-                individual.update(context.env.tsp.adjacency_matrix);
-            }
-        }
-        
         void update_individual_and_edge_counts(vector<Individual>& population, Context& context) {
             for (auto& individual : population) {
                 auto delta = individual.update(context.env.tsp.adjacency_matrix);
+                context.entropy += eax::calc_delta_entropy(delta, context.pop_edge_counts, context.env.population_size);
                 for (const auto& mod : delta.get_modifications()) {
                     size_t v1 = mod.edge1.first;
                     size_t v2 = mod.edge1.second;
@@ -134,18 +131,16 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
     } update_func {timeout_time};
     
     // ロガー
+    std::ofstream log_file;
+    if (!log_file_name.empty()) {
+        log_file.open(log_file_name, std::ios::out);
+        if (!log_file.is_open()) {
+            throw std::runtime_error("Failed to open log file: " + log_file_name);
+        }
+    }
     struct {
+        std::ofstream& out;
         void operator()([[maybe_unused]]const vector<Individual>& population, Context& context, size_t generation) {
-            std::vector<double> lengths(population.size());
-            for (size_t i = 0; i < population.size(); ++i) {
-                lengths[i] = population[i].get_distance();
-            }
-            double best_length = *std::min_element(lengths.begin(), lengths.end());
-            double average_length = std::accumulate(lengths.begin(), lengths.end(), 0.0) / lengths.size();
-            double worst_length = *std::max_element(lengths.begin(), lengths.end());
-            cout << "Generation " << generation << ": Best Length = " << best_length 
-                    << ", Average Length = " << average_length << ", Worst Length = " << worst_length << endl;
-            
             if (context.start_time.time_since_epoch().count() == 0) {
                 // 計測開始時刻が未設定なら、現在時刻を設定
                 const_cast<Context&>(context).start_time = std::chrono::system_clock::now();
@@ -154,8 +149,23 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
                 context.elapsed_time += std::chrono::duration<double>(now - context.start_time).count();
                 const_cast<Context&>(context).start_time = now;
             }
+            if (!out.is_open()) return;
+
+            std::vector<double> lengths(population.size());
+            for (size_t i = 0; i < population.size(); ++i) {
+                lengths[i] = population[i].get_distance();
+            }
+            double best_length = *std::min_element(lengths.begin(), lengths.end());
+            double average_length = std::accumulate(lengths.begin(), lengths.end(), 0.0) / lengths.size();
+            double worst_length = *std::max_element(lengths.begin(), lengths.end());
+            out << generation << ","
+                << best_length << ","
+                << average_length << ","
+                << worst_length << ","
+                << context.entropy
+                << std::endl;
         }
-    } logging;
+    } logging {log_file};
     
     struct {
         void operator()([[maybe_unused]]const vector<Individual>& population, Context& context, size_t generation, [[maybe_unused]]mpi::genetic_algorithm::TerminationReason reason) {
