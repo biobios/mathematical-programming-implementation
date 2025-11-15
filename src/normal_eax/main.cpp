@@ -55,6 +55,8 @@ struct Arguments {
     std::string checkpoint_save_file_name = "checkpoint.dat";
     // チェックポイントのファイル名 (指定されれば読み込む)
     std::string checkpoint_load_file_name;
+    // logファイル名
+    std::string log_file_name = "";
 };
 
 void print_result(const eax::Context& context, std::ostream& os)
@@ -155,7 +157,7 @@ void execute_normal(const Arguments& args)
         
         cout << "Starting genetic algorithm..." << endl;
         // 計測開始
-        auto result = eax::execute_ga(population, ga_context, timeout_time);
+        auto result = eax::execute_ga(population, ga_context, timeout_time, args.log_file_name);
         auto& [termination_reason, result_population] = result;
         
         if (termination_reason == mpi::genetic_algorithm::TerminationReason::TimeLimit) {
@@ -223,7 +225,7 @@ void resume_from_checkpoint(const Arguments& args)
 
     // 遺伝的アルゴリズムの実行
     cout << "Resuming from checkpoint..." << endl;
-    auto result = eax::execute_ga(population, context, timeout_time);
+    auto result = eax::execute_ga(population, context, timeout_time, args.log_file_name);
     
     auto& [termination_reason, result_population] = result;
     if (termination_reason == mpi::genetic_algorithm::TerminationReason::TimeLimit) {
@@ -304,6 +306,11 @@ int main(int argc, char* argv[])
     checkpoint_load_spec.add_argument_name("--checkpoint-load");
     checkpoint_load_spec.set_description("--checkpoint-load <filename> \t:File name to load checkpoint state.");
     parser.add_argument(checkpoint_load_spec);
+
+    mpi::ArgumentSpec log_spec(args.log_file_name);
+    log_spec.add_argument_name("--log");
+    log_spec.set_description("--log <filename> \t:Log file name.");
+    parser.add_argument(log_spec);
     
     bool help_requested = false;
     mpi::ArgumentSpec help_spec(help_requested);
