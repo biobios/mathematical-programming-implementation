@@ -12,9 +12,10 @@
 #include "eax_rand.hpp"
 #include "eax_n_ab.hpp"
 #include "eax_block2.hpp"
+#include "eax_uniform.hpp"
 
 namespace eax {
-    using eax_type_t = std::variant<EAX_Rand_tag, EAX_n_AB_tag, EAX_Block2_tag>;
+    using eax_type_t = std::variant<EAX_Rand_tag, EAX_n_AB_tag, EAX_Block2_tag, EAX_full_UNIFORM_tag>;
 
     enum class SelectionType {
         Greedy,
