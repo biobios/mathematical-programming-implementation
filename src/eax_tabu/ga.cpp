@@ -120,11 +120,8 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
             if (average_length - best_length < 0.001)
                 return mpi::genetic_algorithm::TerminationReason::Converged; // 収束条件
             
-            const size_t N_child = context.env.num_children;
-            
-            if (context.stagnation_generations >= 100) {
-                return mpi::genetic_algorithm::TerminationReason::Stagnation; // 停滞条件
-            }
+            if (generation >= 3000)
+                return mpi::genetic_algorithm::TerminationReason::MaxGenerations; // 最大世代数条件
             
             return mpi::genetic_algorithm::TerminationReason::NotTerminated;
         }
