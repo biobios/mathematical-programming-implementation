@@ -12,6 +12,7 @@
 #include "eax_tabu.hpp"
 #include "eax_rand.hpp"
 #include "eax_n_ab.hpp"
+#include "eax_uniform.hpp"
 
 namespace eax {
     enum class SelectionType {
@@ -20,7 +21,7 @@ namespace eax {
         DistancePreserving,
     };
     
-    using eax_type_t = std::variant<EAX_Rand_tag, EAX_n_AB_tag>;
+    using eax_type_t = std::variant<EAX_Rand_tag, EAX_n_AB_tag, EAX_full_UNIFORM_tag>;
 
     
     struct Environment {

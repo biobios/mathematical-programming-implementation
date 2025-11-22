@@ -27,12 +27,14 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
     // 交叉関数
     eax::EAX_tabu_Rand eax_tabu_rand(object_pools);
     eax::EAX_tabu_N_AB eax_tabu_n_ab(object_pools);
-    auto crossover_func = [&eax_tabu_rand, &eax_tabu_n_ab](const Individual& parent1, const Individual& parent2,
+    eax::EAX_tabu_UNIFORM eax_tabu_uniform(object_pools);
+    auto crossover_func = [&eax_tabu_rand, &eax_tabu_n_ab, &eax_tabu_uniform](const Individual& parent1, const Individual& parent2,
                                 Context& context) {
         auto& env = context.env;
         struct {
             eax::EAX_tabu_Rand& eax_tabu_rand;
             eax::EAX_tabu_N_AB& eax_tabu_n_ab;
+            eax::EAX_tabu_UNIFORM& eax_tabu_uniform;
             const Individual& parent1;
             const Individual& parent2;
             Context& context;
@@ -43,7 +45,11 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
             auto operator()(const EAX_n_AB_tag& n_ab) {
                 return eax_tabu_n_ab(parent1, parent2, context.env.num_children, parent1.get_tabu_edges(), context.env.tsp, context.random_gen, n_ab.get_n());
             }
-        } visitor {eax_tabu_rand, eax_tabu_n_ab, parent1, parent2, context};
+            
+            auto operator()(const EAX_UNIFORM_tag& uniform) {
+                return eax_tabu_uniform(parent1, parent2, context.env.num_children, parent1.get_tabu_edges(), context.env.tsp, context.random_gen, uniform.get_ratio());
+            }
+        } visitor {eax_tabu_rand, eax_tabu_n_ab, eax_tabu_uniform, parent1, parent2, context};
         
         return std::visit(visitor, env.eax_type);
     };
