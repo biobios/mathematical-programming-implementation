@@ -8,6 +8,7 @@
 #include "eax_n_ab.hpp"
 #include "eax_block2.hpp"
 #include "eax_rand.hpp"
+#include "eax_uniform.hpp"
 #include "greedy_evaluator.hpp"
 #include "entropy_evaluator.hpp"
 #include "distance_preserving_evaluator.hpp"
@@ -30,7 +31,8 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
     eax::EAX_N_AB eax_n_ab(object_pools);
     eax::EAX_Block2 eax_block2(object_pools);
     eax::EAX_Rand eax_rand(object_pools);
-    auto crossover_func = [&eax_n_ab, &eax_block2, &eax_rand](const Individual& parent1, const Individual& parent2,
+    eax::EAX_UNIFORM eax_uniform(object_pools);
+    auto crossover_func = [&eax_n_ab, &eax_block2, &eax_rand, &eax_uniform](const Individual& parent1, const Individual& parent2,
                                 Context& context) {
         auto& env = context.env;
         
@@ -38,6 +40,7 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
             eax::EAX_N_AB& eax_n_ab;
             eax::EAX_Block2& eax_block2;
             eax::EAX_Rand& eax_rand;
+            eax::EAX_UNIFORM& eax_uniform;
             const Individual& parent1;
             const Individual& parent2;
             Context& context;
@@ -52,7 +55,11 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
             auto operator()(const eax::EAX_Block2_tag&) {
                 return eax_block2(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen);
             }
-        } visitor {eax_n_ab, eax_block2, eax_rand, parent1, parent2, context};
+
+            auto operator()(const eax::EAX_UNIFORM_tag& uniform) {
+                return eax_uniform(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen, uniform.get_ratio());
+            }
+        } visitor {eax_n_ab, eax_block2, eax_rand, eax_uniform, parent1, parent2, context};
         
         return std::visit(visitor, env.eax_type);
     };
