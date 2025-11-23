@@ -25,12 +25,14 @@ public:
         auto& selected_AB_cycles_indices = *selected_AB_cycles_indices_ptr;
         selected_AB_cycles_indices.clear();
 
+        selected_AB_cycles_indices.resize(ab_cycle_count);
+        std::iota(selected_AB_cycles_indices.begin(), selected_AB_cycles_indices.end(), 0);
+        std::shuffle(selected_AB_cycles_indices.begin(), selected_AB_cycles_indices.end(), rng);
+
         size_t target_size = ab_cycle_count * target_size_ratio;
         target_size = std::clamp(target_size, static_cast<size_t>(1), ab_cycle_count);
         std::uniform_int_distribution<size_t> dist_size(1, target_size);
         
-        std::iota(selected_AB_cycles_indices.begin(), selected_AB_cycles_indices.end(), 0);
-        std::shuffle(selected_AB_cycles_indices.begin(), selected_AB_cycles_indices.end(), rng);
         selected_AB_cycles_indices.resize(dist_size(rng));
 
         return selected_AB_cycles_indices_ptr;
