@@ -44,6 +44,8 @@ struct Arguments {
     size_t num_children = 30;
     // 評価関数の種類
     std::string selection_type_str = "ent"; // "greedy", "ent", or "distance"
+    // 交叉手法
+    std::string eax_type_str = "EAX_1_AB";
     // 出力ファイル名
     std::string output_file_name = "result.md";
     // ログファイル名
@@ -56,8 +58,6 @@ struct Arguments {
     std::string checkpoint_load_file_name;
     // タブーリストの存続世代数
     size_t tabu_list_duration = 5;
-    // ABサイクルの選択方法
-    std::string selection_method_str = "EAX_1_AB";
 };
 
 void print_result(const eax::Context& context, std::ostream& os, mpi::genetic_algorithm::TerminationReason reason)
@@ -134,7 +134,7 @@ void execute_normal(const Arguments& args)
     } else {
         throw std::runtime_error("Unknown selection type '" + args.selection_type_str + "'. Options are 'greedy', 'ent', or 'distance'.");
     }
-    eax::eax_type_t eax_type = eax::create_eax_tag_from_string<eax::eax_type_t>(args.selection_method_str);
+    eax::eax_type_t eax_type = eax::create_eax_tag_from_string<eax::eax_type_t>(args.eax_type_str);
 
     tsp::TSP tsp = tsp::TSP_Loader::load_tsp(args.file_name);
     cout << "TSP Name: " << tsp.name << endl;
@@ -306,6 +306,11 @@ int main(int argc, char* argv[])
     selection_spec.set_description("--selection <type> \t:Selection type for the genetic algorithm. "
                                    "Options are 'greedy' for Greedy Selection, 'ent' for Entropy Selection (default), and 'distance' for Distance-preserving Selection.");
     parser.add_argument(selection_spec);
+
+    mpi::ArgumentSpec eax_type_spec(args.eax_type_str);
+    eax_type_spec.add_argument_name("--eax-type");
+    eax_type_spec.set_description("--eax-type <method> \t:Method for selecting AB-cycles in EAX_tabu. Options are 'EAX_1_AB' (default), 'EAX_Rand', 'EAX_UNIFORM', and 'EAX_{N}_AB' (where {N} is a positive integer).");
+    parser.add_argument(eax_type_spec);
     
     mpi::ArgumentSpec output_spec(args.output_file_name);
     output_spec.add_argument_name("--output");
@@ -336,11 +341,6 @@ int main(int argc, char* argv[])
     argspec_tabu_list_duration.add_argument_name("--tabu-duration");
     argspec_tabu_list_duration.set_description("--tabu-duration <number> \t:Number of generations an edge remains in the tabu list (default: 5).");
     parser.add_argument(argspec_tabu_list_duration);
-    
-    mpi::ArgumentSpec argspec_selection_method(args.selection_method_str);
-    argspec_selection_method.add_argument_name("--eax-selection");
-    argspec_selection_method.set_description("--eax-selection <method> \t:Method for selecting AB-cycles in EAX_tabu. Options are 'EAX_UNIFORM', 'EAX_half_UNIFORM', 'EAX_1AB' (default), and 'EAX_Rand'.");
-    parser.add_argument(argspec_selection_method);
     
     bool help_requested = false;
     mpi::ArgumentSpec help_spec(help_requested);

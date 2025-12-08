@@ -313,7 +313,7 @@ int main(int argc, char* argv[])
     
     mpi::ArgumentSpec eax_type_spec(args.eax_type_str);
     eax_type_spec.add_argument_name("--eax-type");
-    eax_type_spec.set_description("--eax-type <type> \t:EAX crossover type. Options are 'EAX-1AB' (default), 'EAX-Rand', and 'EAX-Block2'.");
+    eax_type_spec.set_description("--eax-type <type> \t:EAX crossover type. Options are 'EAX_1_AB' (default), 'EAX_Rand', 'EAX_UNIFORM', and 'EAX_Block2'. EAX_{N}_AB is also supported, where {N} is a positive integer.");
     parser.add_argument(eax_type_spec);
     
     mpi::ArgumentSpec output_spec(args.output_file_name);
@@ -322,8 +322,8 @@ int main(int argc, char* argv[])
     parser.add_argument(output_spec);
 
     mpi::ArgumentSpec log_file_name_spec(args.log_file_name);
-    log_file_name_spec.add_argument_name("--log-file");
-    log_file_name_spec.set_description("--log-file <filename> \t:Log file name.");
+    log_file_name_spec.add_argument_name("--log");
+    log_file_name_spec.set_description("--log <filename> \t:Log file name.");
     parser.add_argument(log_file_name_spec);
     
     mpi::ArgumentSpec timeout_spec(args.timeout_seconds);
