@@ -26,6 +26,13 @@ public:
           in_min_sub_tour_pool(std::move(in_min_sub_tour_pool)),
           subtour_finder(std::move(subtour_finder)) {}
 
+    /**
+     * @brief 部分巡回路を統合する
+     * @tparam ABCycles ABサイクル群の型
+     * @param working_individual 作業中の中間個体
+     * @param tsp TSPインスタンス
+     * @param applied_ab_cycles 適用したABサイクル群
+     */
     template <std::ranges::range ABCycles>
         requires std::convertible_to<std::ranges::range_value_t<ABCycles>, const ab_cycle_t&>
     void operator()(IntermediateIndividual& working_individual,

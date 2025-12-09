@@ -283,6 +283,9 @@ std::vector<PooledVectorPtr> find_AB_cycles(size_t needs,
     return AB_cycles;
 }
 
+/**
+ * @brief ABサイクルを見つける関数オブジェクトのクラス
+ */
 class ABCycleFinder {
 public:
     ABCycleFinder(ObjectPools& object_pools)
@@ -301,6 +304,15 @@ public:
           doubly_linked_list_pool(std::move(doubly_linked_list_pool)),
           LRIS_pool(std::move(LRIS_pool)) {}
 
+    /**
+     * @brief ABサイクルを見つける
+     * @param needs 必要なABサイクルの数
+     * @param parent1 親個体1
+     * @param parent2 親個体2
+     * @param rng 乱数生成器
+     * @return ABサイクルのポインタのベクター
+     * @tparam Individual 親個体の型
+     */
     template <doubly_linked_list_like Individual>
     std::vector<PooledVectorPtr> operator()(size_t needs,
             const Individual& parent1,

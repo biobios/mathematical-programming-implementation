@@ -6,12 +6,23 @@
 #include "eaxdef.hpp"
 
 namespace eax {
+/**
+ * @brief 交叉操作の変更履歴を表すクラス
+ */
 class CrossoverDelta {
 public:
+    /**
+     * @brief 交叉操作の変更内容
+     */
     struct Modification {
-        // (v1, v2)
+        /**
+         * @brief 変更前の辺 (v1, v2)
+         */
         std::pair<size_t, size_t> edge1;
-        size_t new_v2; // new vertex connected to v1
+        /**
+         * @brief 変更後にv1に接続される新しい頂点
+         */
+        size_t new_v2;
     };
     CrossoverDelta() = default;
     
@@ -22,6 +33,10 @@ public:
     CrossoverDelta(std::vector<Modification>&& modifications)
         : modifications(std::move(modifications)) {}
     
+    /**
+     * @brief 変更を個体に適用する
+     * @tparam T 個体の型
+     */
     template <doubly_linked_list_like T>
     void apply_to(T& individual) const {
         for (const auto& modification : modifications) {
@@ -35,7 +50,17 @@ public:
         }
     }
     
+    /**
+     * @brief 変更による距離の変化を取得する (計算量: O(m), m = modifications.size())
+     * @param adjacency_matrix 隣接行列
+     * @return 距離の変化
+     */
     int64_t get_delta_distance(const adjacency_matrix_t& adjacency_matrix) const;
+
+    /**
+     * @brief 変更履歴を取得する
+     * @return 変更履歴の参照
+     */
     const std::vector<Modification>& get_modifications() const {
         return modifications;
     }

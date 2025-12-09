@@ -24,6 +24,16 @@ public:
           block2_e_set_assembler_builder(object_pools),
           subtour_merger(object_pools) {}
 
+    /**
+     * @brief 交叉操作を実行する
+     * @param parent1 親個体1
+     * @param parent2 親個体2
+     * @param children_size 生成する子個体の数
+     * @param tsp TSPインスタンス
+     * @param rng 乱数生成器
+     * @return 生成された子個体の変更履歴のベクター
+     * @tparam Individual 親個体の型
+     */
     template <doubly_linked_list_like Individual>
     std::vector<CrossoverDelta> operator()(const Individual& parent1, const Individual& parent2, size_t children_size,
                                         const tsp::TSP& tsp, std::mt19937& rng) {
@@ -59,7 +69,6 @@ public:
             return a->size() > b->size();
         });
         
-        // Block2Strategy block2_strategy(parent1, parent2, AB_cycles, n, env.object_pools.vector_of_tsp_size_pool, env.object_pools.any_size_vector_pool, env.object_pools.any_size_2d_vector_pool);
         auto block2_e_set_assembler = block2_e_set_assembler_builder.create(parent1, parent2, AB_cycles);
         
         children_size = min(children_size, AB_cycles.size());
@@ -68,7 +77,6 @@ public:
         auto working_individual = intermediate_individual_pool.acquire_unique();
         working_individual->assign(parent1);
         for (size_t child_index = 0; child_index < children_size; ++child_index) {
-            // auto selected_AB_cycles_indices_ptr = block2_strategy.search_e_set_with_tabu_search(child_index, env.object_pools.any_size_vector_pool, rng);
             auto selected_AB_cycles_indices_ptr = block2_e_set_assembler(child_index, rng);
             auto& selected_AB_cycles_indices = *selected_AB_cycles_indices_ptr;
             
@@ -82,7 +90,6 @@ public:
 
             working_individual->apply_AB_cycles(selected_AB_cycles_view);
 
-            // merge_sub_tours(adjacency_matrix, *working_individual, path, pos, NN_list, env);
             subtour_merger(*working_individual, tsp, selected_AB_cycles_view);
             
             // 削除された親1の枝の数(追加された親２の枝の数)

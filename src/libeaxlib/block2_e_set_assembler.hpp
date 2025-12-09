@@ -10,6 +10,9 @@
 #include "object_pools.hpp"
 
 namespace eax {
+/**
+ * @brief ABサイクルを見つける関数オブジェクトのクラス
+ */
 class Block2ESetAssembler {
 public:
     Block2ESetAssembler(size_t city_count,
@@ -24,6 +27,12 @@ public:
           shared_vertex_count_ptr(std::move(shared_vertex_count_ptr)),
           any_size_vector_pool(std::move(any_size_vector_pool)) {}
     
+    /**
+     * @brief 指定した中心ABサイクルに基づいてEセットを組み立てる
+     * @param center_ab_cycle_index 中心ABサイクルのインデックス
+     * @param rng 乱数生成器
+     * @return Eセットに含まれるABサイクルのインデックスのベクター
+     */
     mpi::pooled_unique_ptr<std::vector<size_t>> operator()(size_t center_ab_cycle_index,
                                                                         std::mt19937& rng);
 private:
@@ -35,6 +44,9 @@ private:
     mpi::ObjectPool<std::vector<size_t>> any_size_vector_pool;
 };
 
+/**
+ * @brief Block2ESetAssemblerを構築するビルダークラス
+ */
 class Block2ESetAssemblerBuilder {
 public:
     Block2ESetAssemblerBuilder(ObjectPools& object_pools)
@@ -42,6 +54,14 @@ public:
           any_size_vector_pool(object_pools.any_size_vector_pool.share()),
           shared_vertex_count_pool(object_pools.any_size_2d_vector_pool.share()) {}
 
+    /**
+     * @brief Block2ESetAssemblerを構築する
+     * @param parent1 親個体1
+     * @param parent2 親個体2
+     * @param AB_cycles ABサイクルのポインタのベクター
+     * @return Block2ESetAssemblerのインスタンス
+     * @tparam Individual 親個体の型
+     */
     template <doubly_linked_list_like Individual>
     Block2ESetAssembler create(const Individual& parent1, const Individual& parent2,
                                const std::vector<mpi::pooled_unique_ptr<ab_cycle_t>>& AB_cycles) {

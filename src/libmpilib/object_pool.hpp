@@ -5,6 +5,10 @@
 #include <functional>
 
 namespace mpi {
+    /**
+     * @brief オブジェクトプールを表すクラス
+     * @tparam T プールするオブジェクトの型
+     */
     template <typename T>
     class ObjectPool {
         class ObjectDeleter;
@@ -13,6 +17,11 @@ namespace mpi {
         using pooled_unique_ptr = std::unique_ptr<T, ObjectDeleter>;
         using pooled_ptr = std::shared_ptr<T>;
         
+        /**
+         * @brief デフォルトコンストラクタでオブジェクトプールを構築する
+         * @param initial_size 初期にプールに確保するオブジェクトの数 (デフォルトは0)
+         * @pre Tはデフォルトコンストラクタで構築可能であること
+         */
         ObjectPool(size_t initial_size = 0)
             requires std::is_default_constructible_v<T>
             : factory([]() { return new T(); }), pool(std::make_shared<std::vector<std::unique_ptr<T>>>()) {
@@ -22,6 +31,12 @@ namespace mpi {
             }
         }
        
+        /**
+         * @brief 指定したファクトリ関数でオブジェクトプールを構築する
+         * @param factory オブジェクトを生成するファクトリ関数
+         * @param initial_size 初期にプールに確保するオブジェクトの数 (デフォルトは0)
+         * @pre factoryは引数なしで呼び出せ、T*を返すこと
+         */
         template <typename Factory>
             requires std::is_invocable_v<Factory> && std::is_same_v<T*, std::invoke_result_t<Factory>>
         ObjectPool(Factory&& factory, size_t initial_size = 0)
@@ -32,6 +47,10 @@ namespace mpi {
             }
         }
         
+        /**
+         * @brief オブジェクトをプールから取得する
+         * @return プールから取得したオブジェクトへの共有ポインタ
+         */
         pooled_ptr acquire() {
             if (pool->empty()) {
                 return std::shared_ptr<T>(factory(), ObjectDeleter(pool));
@@ -42,6 +61,10 @@ namespace mpi {
             }
         }
         
+        /**
+         * @brief オブジェクトをプールから取得する
+         * @return プールから取得したオブジェクトへのユニークポインタ
+         */
         pooled_unique_ptr acquire_unique() {
             if (pool->empty()) {
                 return pooled_unique_ptr(factory(), ObjectDeleter(pool));
@@ -58,6 +81,10 @@ namespace mpi {
         ObjectPool(ObjectPool&&) noexcept = default; // ムーブコンストラクタはデフォルト
         ObjectPool& operator=(ObjectPool&&) noexcept = default; // ムーブ代入演算子はデフォルト
         
+        /**
+         * @brief オブジェクトプールを共有する新しいオブジェクトプールを作成する
+         * @return オブジェクトプールを共有する新しいオブジェクトプール
+         */
         ObjectPool share() const {
             return ObjectPool(*this, shallow_copy_tag{});
         }
