@@ -12,8 +12,18 @@ namespace eax {
  */
 class IntermediateIndividual {
 public:
+    /**
+     * @brief 指定したサイズの中間個体を構築する
+     * @param size 個体のサイズ
+     * @details 頂点iの隣接頂点は(i+1) % sizeと(i+size-1) % sizeに初期化される
+     */
     IntermediateIndividual(size_t size);
 
+    /**
+     * @brief 指定した個体をもとに中間個体を構築する
+     * @tparam T 個体の型
+     * @param individual 元にする個体
+     */
     template <doubly_linked_list_like T>
     IntermediateIndividual(const T& individual)
         : individual_being_edited(individual.size()),
@@ -23,6 +33,11 @@ public:
         assign(individual);
     }
 
+    /**
+     * @brief 指定した個体を中間個体に代入する
+     * @tparam T 個体の型
+     * @param individual 代入する個体
+     */
     template <doubly_linked_list_like T>
     void assign(const T& individual) {
         reset();
@@ -46,13 +61,39 @@ public:
         }
     }
     
+    /**
+     * @brief 現在の変更内容を取得し、中間個体を元に戻す
+     * @return 変更内容
+     */
     CrossoverDelta get_delta_and_revert();
+    /**
+     * @brief 現在の変更内容を破棄し、中間個体を元に戻す
+     */
     void discard();
     
+    /**
+     * @brief 指定したインデックスの頂点の隣接頂点を取得する
+     * @param index 頂点のインデックス
+     * @return 頂点の隣接頂点の配列
+     */
     const std::array<size_t, 2>& operator[](size_t index) const;
     
+    /**
+     * @brief 指定した2つの辺を入れ替える
+     * @param edge1 入れ替える辺1
+     * @param edge2 入れ替える辺2
+     * @details
+     * edge1 = (v1, v2), edge2 = (u1, u2) のとき、以下のように変更する。
+     * - v1 <-> u1
+     * - v2 <-> u2
+     */
     void swap_edges(std::pair<size_t, size_t> edge1, std::pair<size_t, size_t> edge2);
 
+    /**
+     * @brief 指定したABサイクル群を中間個体に適用する
+     * @tparam ABCycles ABサイクル群の型
+     * @param AB_cycles 適用するABサイクル群
+     */
     template <std::ranges::range ABCycles>
         requires std::convertible_to<std::ranges::range_value_t<ABCycles>, const ab_cycle_t&>
     void apply_AB_cycles(const ABCycles& AB_cycles) {
@@ -78,8 +119,21 @@ public:
         }
     }
 
+    /**
+     * @brief 現在の個体の巡回路の順序を取得する
+     * @return 巡回路の順序を表す頂点のベクター
+     */
     const std::vector<size_t>& get_path() const;
+    /**
+     * @brief 現在の個体の各頂点の巡回路における位置を取得する
+     * @return 各頂点の巡回路における位置を表すベクター
+     */
     const std::vector<size_t>& get_pos() const;
+    /**
+     * @brief 中間個体の元の個体に対する距離の変化を計算する
+     * @param adjacency_matrix 隣接行列
+     * @return 距離の変化
+     */
     int64_t calc_delta_distance(const std::vector<std::vector<int64_t>>& adjacency_matrix) const;
     size_t size() const;
 private:

@@ -28,6 +28,13 @@ public:
           vector_of_tsp_size_pool(std::move(vector_of_tsp_size_pool)),
           subtour_list_pool(std::move(subtour_list_pool)) {}
 
+    /**
+     * @brief 指定したABサイクル群に基づいて部分巡回路リストを構築する
+     * @tparam ABCycles ABサイクル群の型
+     * @param pos 元の個体の巡回路における頂点の位置ベクター
+     * @param applied_ab_cycles 適用するABサイクル群
+     * @return 部分巡回路リストのポインタ
+     */
     template <std::ranges::range ABCycles>
         requires std::convertible_to<std::ranges::range_value_t<ABCycles>, const ab_cycle_t&>
     subtour_list_pooled_ptr operator()(const std::vector<size_t>& pos,
