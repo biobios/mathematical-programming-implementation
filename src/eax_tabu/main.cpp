@@ -147,7 +147,7 @@ void execute_normal(const Arguments& args)
     mt19937 rng(args.seed);
     
     // neighbor_range
-    size_t near_range = 50; // 近傍範囲
+    size_t near_range = 20; // 近傍範囲
     // 2opt
     eax::TwoOpt two_opt(tsp.adjacency_matrix, tsp.NN_list, near_range);
     // 初期集団生成器
