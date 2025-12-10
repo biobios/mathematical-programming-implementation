@@ -332,6 +332,16 @@ namespace {
                 }
             }
         }
+
+        size_t get_leftmost() {
+            nodes[root].apply_reverse(working_memory);
+            return nodes[root].get_leftmost()->city;
+        }
+
+        size_t get_rightmost() {
+            nodes[root].apply_reverse(working_memory);
+            return nodes[root].get_rightmost()->city;
+        }
         
         size_t get_next(size_t city) {
             splay(city);
@@ -438,79 +448,31 @@ namespace {
         // 平衡二分木を構築
         const size_t n = path.size();
         PathTree tree(path);
-
-        std::vector<uint8_t> is_active(n, true);
         
         std::uniform_int_distribution<size_t> dist(0, n - 1);
-        bool improved = true;
-        while (improved) {
-            improved = false;
-            size_t start = dist(rng);
-            size_t prev_city = tree.get_prev(start);
-            size_t current_city = start;
-            do {
+        double improved = 1.;
+        while (improved > 0.) {
+            improved = 0.;
+            size_t start = tree.get_leftmost();
+            size_t current_city = tree.get_next(start);
+            while (current_city != start) {
+                std::pair<size_t, size_t> best_swap;
                 size_t next_city = tree.get_next(current_city);
-                if (!is_active[current_city]) {
-                    prev_city = current_city;
-                    current_city = next_city;
-                    continue;
-                }
-
-                for (size_t i = 0; i < near_range; ++i) {
-                    size_t neighbor_city = nearest_neighbors[current_city][i].second;
-                    size_t neighbor_prev_city = tree.get_prev(neighbor_city);
-                    
-                    int64_t length_diff = distance_matrix[current_city][prev_city] - distance_matrix[current_city][neighbor_city];
-                    if (length_diff > 0) {
-                        length_diff += distance_matrix[neighbor_city][neighbor_prev_city] - distance_matrix[prev_city][neighbor_prev_city];
-                        if (length_diff > 0) {
-                            // 2-optスワップする
-                            tree.reverse_range(prev_city, neighbor_city);
-                            std::array<size_t, 4> swap_cities = {prev_city, current_city, neighbor_prev_city, neighbor_city};
-
-                            for (size_t city : swap_cities) {
-                                for (auto neighbor : near_cities[city]) {
-                                    is_active[neighbor] = true;
-                                }
-                            }
-                            improved = true;
-                            break;
-                        }
-                    } else break;
-                }
-                
-                if (improved) break;
-
                 for (size_t i = 0; i < near_range; ++i) {
                     size_t neighbor_city = nearest_neighbors[current_city][i].second;
                     size_t neighbor_next_city = tree.get_next(neighbor_city);
-                    
-                    int64_t length_diff = distance_matrix[current_city][next_city] - distance_matrix[current_city][neighbor_city];
-                    if (length_diff > 0) {
-                        length_diff += distance_matrix[neighbor_city][neighbor_next_city] - distance_matrix[next_city][neighbor_next_city];
-                        if (length_diff > 0) {
-                            // 2-optスワップする
-                            tree.reverse_range(current_city, neighbor_next_city);
-                            std::array<size_t, 4> swap_cities = {current_city, next_city, neighbor_city, neighbor_next_city};
-                            for (size_t city : swap_cities) {
-                                for (auto neighbor : near_cities[city]) {
-                                    is_active[neighbor] = true;
-                                }
-                            }
-                            improved = true;
-                            break;
-                        }
-                    } else break;
+                    int64_t length_diff = distance_matrix[current_city][next_city] + distance_matrix[neighbor_city][neighbor_next_city]
+                                        - distance_matrix[current_city][neighbor_city] - distance_matrix[next_city][neighbor_next_city];
+                    if (length_diff > improved) {
+                        improved = length_diff;
+                        best_swap = {current_city, neighbor_next_city};
+                    }
                 }
-                
-                if (improved) break;
-                
-                is_active[current_city] = false;
-                
-                prev_city = current_city;
-                current_city = next_city;
 
-            } while (current_city != start);
+                if (best_swap != std::pair<size_t, size_t>{}) {
+                    tree.reverse_range(best_swap.first, best_swap.second);
+                }
+            }
         }
 
         // 最後に木を走査してパスを更新
