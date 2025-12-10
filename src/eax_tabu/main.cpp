@@ -56,6 +56,8 @@ struct Arguments {
     std::string checkpoint_save_file_name = "checkpoint.dat";
     // チェックポイントのファイル名 (指定されれば読み込む)
     std::string checkpoint_load_file_name;
+    // キャッシュディレクトリ
+    std::string cache_directory = ".";
     // タブーリストの存続世代数
     size_t tabu_list_duration = 5;
 };
@@ -159,6 +161,13 @@ void execute_normal(const Arguments& args)
         // グローバルで初期化
         mt19937::result_type local_seed = rng();
         string cache_file = "init_pop_cache_" + to_string(local_seed) + "_for_" + tsp.name + "_" + to_string(args.population_size) + ".txt";
+
+        if (args.cache_directory.ends_with('/')) {
+            cache_file = args.cache_directory + cache_file;
+        } else {
+            cache_file = args.cache_directory + "/" + cache_file;
+        }
+        
         vector<vector<size_t>> initial_paths = population_initializer.initialize_population(local_seed, cache_file, [&two_opt, local_seed](vector<size_t>& path) {
             // 2-optを適用
             two_opt.apply(path, local_seed);
@@ -336,6 +345,11 @@ int main(int argc, char* argv[])
     checkpoint_load_spec.add_argument_name("--checkpoint-load");
     checkpoint_load_spec.set_description("--checkpoint-load <filename> \t:File name to load checkpoint state.");
     parser.add_argument(checkpoint_load_spec);
+    
+    mpi::ArgumentSpec cache_dir_spec(args.cache_directory);
+    cache_dir_spec.add_argument_name("--cache-dir");
+    cache_dir_spec.set_description("--cache-dir <directory> \t:Directory to store cache files of initial populations (default: current directory).");
+    parser.add_argument(cache_dir_spec);
     
     mpi::ArgumentSpec argspec_tabu_list_duration(args.tabu_list_duration);
     argspec_tabu_list_duration.add_argument_name("--tabu-duration");
