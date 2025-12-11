@@ -456,7 +456,7 @@ namespace {
             size_t start = tree.get_leftmost();
             size_t current_city = tree.get_next(start);
             while (current_city != start) {
-                std::pair<size_t, size_t> best_swap;
+                std::tuple<size_t, size_t, size_t> best_swap;
                 size_t next_city = tree.get_next(current_city);
                 for (size_t i = 0; i < near_range; ++i) {
                     size_t neighbor_city = nearest_neighbors[current_city][i].second;
@@ -465,13 +465,17 @@ namespace {
                                         - distance_matrix[current_city][neighbor_city] - distance_matrix[next_city][neighbor_next_city];
                     if (length_diff > improved) {
                         improved = length_diff;
-                        best_swap = {current_city, neighbor_next_city};
+                        best_swap = {current_city, neighbor_city, neighbor_next_city};
                     }
                 }
 
-                if (best_swap != std::pair<size_t, size_t>{}) {
-                    tree.reverse_range(best_swap.first, best_swap.second);
+                if (best_swap != std::tuple<size_t, size_t, size_t>{}) {
+                    auto& [prev_L, R, next_R] = best_swap;
+                    tree.reverse_range(prev_L, next_R);
+                    next_city = R;
                 }
+
+                current_city = next_city;
             }
         }
 
