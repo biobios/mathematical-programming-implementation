@@ -455,7 +455,7 @@ namespace {
             improved = 0.;
             size_t start = tree.get_leftmost();
             size_t current_city = tree.get_next(start);
-            while (current_city != start) {
+            for (size_t i = 1; i < n; ++i) {
                 std::tuple<size_t, size_t, size_t> best_swap;
                 size_t next_city = tree.get_next(current_city);
                 for (size_t i = 0; i < near_range; ++i) {
