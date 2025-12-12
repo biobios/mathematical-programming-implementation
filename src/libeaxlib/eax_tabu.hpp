@@ -73,21 +73,31 @@ private:
     void remove_tabu_AB_cycles(std::vector<mpi::pooled_unique_ptr<ab_cycle_t>>& AB_cycles,
                                 const std::vector<std::pair<size_t, size_t>>& tabu_edges) {
         // 一つの都市は最大2つのABサイクルに含まれるので、vector_of_tsp_sizeを2つ用意する
+        // 同じABサイクルに含まれる2頂点が接続されているとは限らないため、接続先も記録する
         auto in_cycle1_ptr = vector_of_tsp_size_pool.acquire_unique();
+        auto connected_to1_ptr = vector_of_tsp_size_pool.acquire_unique();
         auto in_cycle2_ptr = vector_of_tsp_size_pool.acquire_unique();
+        auto connected_to2_ptr = vector_of_tsp_size_pool.acquire_unique();
         std::vector<size_t>& in_cycle1 = *in_cycle1_ptr;
+        std::vector<size_t>& connected_to1 = *connected_to1_ptr;
         std::vector<size_t>& in_cycle2 = *in_cycle2_ptr;
+        std::vector<size_t>& connected_to2 = *connected_to2_ptr;
+
         const size_t null_cycle = AB_cycles.size();
         in_cycle1.assign(in_cycle1.size(), null_cycle);
         in_cycle2.assign(in_cycle2.size(), null_cycle);
 
         for (size_t i = 0; i < AB_cycles.size(); ++i) {
             const ab_cycle_t& cycle = *AB_cycles[i];
-            for (size_t city : cycle) {
+            for (size_t j = 0; j < cycle.size(); ++j) {
+                size_t city = cycle[j];
+                size_t connected_city = cycle[(j + 1) % cycle.size()];
                 if (in_cycle1[city] == null_cycle) {
                     in_cycle1[city] = i;
+                    connected_to1[city] = connected_city;
                 } else {
                     in_cycle2[city] = i;
+                    connected_to2[city] = connected_city;
                 }
             }
         }
@@ -98,12 +108,14 @@ private:
             size_t cycle_v1_2 = in_cycle2[v1];
             size_t cycle_v2_1 = in_cycle1[v2];
             size_t cycle_v2_2 = in_cycle2[v2];
-            if ((cycle_v1_1 == cycle_v2_1) || (cycle_v1_1 == cycle_v2_2)) {
+            if ((cycle_v1_1 == cycle_v2_1 && (connected_to1[v1] == v2 || connected_to1[v2] == v1)) ||
+                (cycle_v1_1 == cycle_v2_2 && (connected_to1[v1] == v2 || connected_to2[v2] == v1))) {
                 if (cycle_v1_1 != null_cycle) {
                     AB_cycles[cycle_v1_1].reset();
                 }
             }
-            if ((cycle_v1_2 == cycle_v2_1) || (cycle_v1_2 == cycle_v2_2)) {
+            if ((cycle_v1_2 == cycle_v2_1 && (connected_to2[v1] == v2 || connected_to1[v2] == v1)) ||
+                (cycle_v1_2 == cycle_v2_2 && (connected_to2[v1] == v2 || connected_to2[v2] == v1))) {
                 if (cycle_v1_2 != null_cycle) {
                     AB_cycles[cycle_v1_2].reset();
                 }
