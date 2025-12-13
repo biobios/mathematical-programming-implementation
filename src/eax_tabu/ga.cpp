@@ -39,15 +39,15 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
             const Individual& parent2;
             Context& context;
             auto operator()(const EAX_Rand_tag&) {
-                return eax_tabu_rand(parent1, parent2, context.env.num_children, parent1.get_tabu_edges(), context.env.tsp, context.random_gen);
+                return eax_tabu_rand(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen, {}, {}, std::forward_as_tuple(parent1.get_tabu_edges()));
             }
             
             auto operator()(const EAX_n_AB_tag& n_ab) {
-                return eax_tabu_n_ab(parent1, parent2, context.env.num_children, parent1.get_tabu_edges(), context.env.tsp, context.random_gen, std::forward_as_tuple(n_ab.get_n()));
+                return eax_tabu_n_ab(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen, std::forward_as_tuple(n_ab.get_n()), {}, std::forward_as_tuple(parent1.get_tabu_edges()));
             }
             
             auto operator()(const EAX_UNIFORM_tag& uniform) {
-                return eax_tabu_uniform(parent1, parent2, context.env.num_children, parent1.get_tabu_edges(), context.env.tsp, context.random_gen, std::forward_as_tuple(uniform.get_ratio()));
+                return eax_tabu_uniform(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen, std::forward_as_tuple(uniform.get_ratio()), {}, std::forward_as_tuple(parent1.get_tabu_edges()));
             }
         } visitor {eax_tabu_rand, eax_tabu_n_ab, eax_tabu_uniform, parent1, parent2, context};
         
