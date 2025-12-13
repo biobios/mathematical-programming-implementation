@@ -18,7 +18,7 @@ namespace eax {
  * @tparam E_Set_Assembler_Builder E_Set_Assemblerを構築するクラス
  * @tparam Subtour_Merger 部分巡回路を統合するクラス
  */
-template <typename E_Set_Assembler_Builder, typename Subtour_Merger = SubtourMerger>
+template <typename E_Set_Assembler_Builder, typename Subtour_Merger = SubtourMerger, typename AB_Cycle_Finder = ABCycleFinder>
 class EAX_normal {
 public:
     EAX_normal(ObjectPools& object_pools)
@@ -27,17 +27,22 @@ public:
           subtour_merger(object_pools),
           e_set_assembler_builder(object_pools) {}
 
-    template <doubly_linked_list_like Individual, typename BuilderArgsTuple = std::tuple<>, typename MergerArgsTuple = std::tuple<>>
-    std::vector<CrossoverDelta> operator()(const Individual& parent1, const Individual& parent2, size_t children_size,
-                                        const tsp::TSP& tsp, std::mt19937& rng, BuilderArgsTuple&& builder_args = {}, MergerArgsTuple&& merger_args = {}) {
+    template <doubly_linked_list_like Individual, typename BuilderArgsTuple = std::tuple<>, typename MergerArgsTuple = std::tuple<>, typename FinderArgsTuple = std::tuple<>>
+    std::vector<CrossoverDelta> operator()(const Individual& parent1, const Individual& parent2, size_t children_size, const tsp::TSP& tsp, std::mt19937& rng,
+                                            BuilderArgsTuple&& builder_args = {}, MergerArgsTuple&& merger_args = {}, FinderArgsTuple&& finder_args = {}) {
         using namespace std;
+
         size_t ab_cycle_need = std::apply(
             [&](auto&&... args) {
                 return E_Set_Assembler_Builder::calc_AB_cycle_need(parent1, parent2, children_size, tsp, rng, args...);
             }, builder_args
         );
 
-        auto AB_cycles = ab_cycle_finder(ab_cycle_need, parent1, parent2, rng);
+        auto AB_cycles = std::apply(
+            [&](auto&&... args) {
+                return ab_cycle_finder(ab_cycle_need, parent1, parent2, rng, std::forward<decltype(args)>(args)...);
+            }, finder_args
+        );
         
         auto e_set_assembler = std::apply(
             [&](auto&&... args) {
@@ -73,7 +78,7 @@ public:
     }
 private:
     mpi::ObjectPool<IntermediateIndividual> intermediate_individual_pool;
-    ABCycleFinder ab_cycle_finder;
+    AB_Cycle_Finder ab_cycle_finder;
     Subtour_Merger subtour_merger;
     E_Set_Assembler_Builder e_set_assembler_builder;
 };
