@@ -43,11 +43,11 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
             }
             
             auto operator()(const EAX_n_AB_tag& n_ab) {
-                return eax_tabu_n_ab(parent1, parent2, context.env.num_children, parent1.get_tabu_edges(), context.env.tsp, context.random_gen, n_ab.get_n());
+                return eax_tabu_n_ab(parent1, parent2, context.env.num_children, parent1.get_tabu_edges(), context.env.tsp, context.random_gen, std::forward_as_tuple(n_ab.get_n()));
             }
             
             auto operator()(const EAX_UNIFORM_tag& uniform) {
-                return eax_tabu_uniform(parent1, parent2, context.env.num_children, parent1.get_tabu_edges(), context.env.tsp, context.random_gen, uniform.get_ratio());
+                return eax_tabu_uniform(parent1, parent2, context.env.num_children, parent1.get_tabu_edges(), context.env.tsp, context.random_gen, std::forward_as_tuple(uniform.get_ratio()));
             }
         } visitor {eax_tabu_rand, eax_tabu_n_ab, eax_tabu_uniform, parent1, parent2, context};
         
