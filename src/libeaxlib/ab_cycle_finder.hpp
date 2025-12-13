@@ -321,6 +321,8 @@ public:
     {
         return find_AB_cycles(needs, parent1, parent2, rng, any_size_vector_pool, vector_of_tsp_size_pool, doubly_linked_list_pool, LRIS_pool);
     }
+
+    using completeness_category = complete_ABCycleFinder_tag;
 private:
     mpi::ObjectPool<std::vector<size_t>> any_size_vector_pool;
     mpi::ObjectPool<std::vector<size_t>> vector_of_tsp_size_pool;
