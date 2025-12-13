@@ -20,7 +20,7 @@
 #include "eax_uniform.hpp"
 
 namespace eax {
-template <typename E_Set_Assembler_Builder>
+template <typename E_Set_Assembler_Builder, typename Subtour_Merger = SubtourMerger>
 class EAX_tabu {
 public:
     EAX_tabu(ObjectPools& object_pools)
@@ -30,15 +30,19 @@ public:
           subtour_merger(object_pools),
           e_set_assembler_builder(object_pools) {}
 
-    template <doubly_linked_list_like Individual, typename... Args>
+    template <doubly_linked_list_like Individual, typename BuilderArgsTuple = std::tuple<>, typename MergerArgsTuple = std::tuple<>>
     std::vector<CrossoverDelta> operator()(const Individual& parent1, const Individual& parent2, size_t children_size,
-                                        std::vector<std::pair<size_t, size_t>> const& tabu_edges, const tsp::TSP& tsp, std::mt19937& rng, Args&&... args) {
+                                        std::vector<std::pair<size_t, size_t>> const& tabu_edges, const tsp::TSP& tsp, std::mt19937& rng, BuilderArgsTuple&& builder_args = {}, MergerArgsTuple&& merger_args = {}) {
         using namespace std;
         auto AB_cycles = ab_cycle_finder(std::numeric_limits<size_t>::max(), parent1, parent2, rng);
         
         remove_tabu_AB_cycles(AB_cycles, tabu_edges);
         
-        auto e_set_assembler = e_set_assembler_builder.build(AB_cycles, parent1, parent2, children_size, tsp, rng, forward<Args>(args)...);
+        auto e_set_assembler = std::apply(
+            [&](auto&&... args) {
+                return e_set_assembler_builder.build(AB_cycles, parent1, parent2, children_size, tsp, rng, std::forward<decltype(args)>(args)...);
+            }, builder_args
+        );
         
         std::vector<CrossoverDelta> children;
         
@@ -55,7 +59,11 @@ public:
             }); 
 
             working_individual.apply_AB_cycles(selected_AB_cycles_view);
-            subtour_merger(working_individual, tsp, selected_AB_cycles_view);
+            std::apply(
+                [&](auto&&... args) {
+                    subtour_merger(working_individual, tsp, selected_AB_cycles_view, std::forward<decltype(args)>(args)...);
+                }, merger_args
+            );
 
             children.emplace_back(working_individual.get_delta_and_revert());
         }
@@ -66,7 +74,7 @@ private:
     mpi::ObjectPool<IntermediateIndividual> intermediate_individual_pool;
     mpi::ObjectPool<std::vector<size_t>> vector_of_tsp_size_pool;
     ABCycleFinder ab_cycle_finder;
-    SubtourMerger subtour_merger;
+    Subtour_Merger subtour_merger;
     E_Set_Assembler_Builder e_set_assembler_builder;
 
     // タブーエッジを含むABサイクルを削除する
