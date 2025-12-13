@@ -83,6 +83,12 @@ public:
     static size_t calc_AB_cycle_need([[maybe_unused]]const auto& parent1, [[maybe_unused]]const auto& parent2, size_t children_size, [[maybe_unused]]const tsp::TSP& tsp, [[maybe_unused]]std::mt19937& rng, size_t N_parameter) {
         return N_parameter * children_size;
     }
+
+    template <typename CompletenessCategory>
+    static constexpr bool is_available(CompletenessCategory) {
+        // 完全なABサイクル集合を必要としないため、常にtrueを返す
+        return true;
+    }
 private:
     mpi::ObjectPool<std::vector<size_t>> any_size_vector_pool;
 };
