@@ -19,6 +19,7 @@ namespace eax {
  * @tparam Subtour_Merger 部分巡回路を統合するクラス
  */
 template <typename E_Set_Assembler_Builder, typename Subtour_Merger = SubtourMerger, typename AB_Cycle_Finder = ABCycleFinder>
+    requires (E_Set_Assembler_Builder::is_available(typename AB_Cycle_Finder::completeness_category{}))
 class EAX_normal {
 public:
     EAX_normal(ObjectPools& object_pools)
