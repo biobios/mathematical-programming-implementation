@@ -5,6 +5,8 @@
 - mpilib
 - eaxlib
 - eax
+- normal_eax
+- eax_tabu
 - eax_stsp
 - fast_eax
 - simplex
@@ -44,7 +46,7 @@ make bin/prof/libeaxlib.a
 ### eax
 Directory: `./src/eax`
 
-This project implements the EAX algorithm for ATSP.
+This project implements the EAX algorithm.
 
 #### How to use make
 To compile the `eax`:
@@ -60,15 +62,68 @@ make bin/prof/eax
 To run the `eax`:
 ```bash
 # normal run
-make run/eax
+ARGS="ARGUMENTS" make run/eax
 # profile run
-make run/prof/eax
+ARGS="ARGUMENTS" make run/prof/eax
 ```
+
+`--help` can be used to see the available arguments.
+
+### normal_eax
+Directory: `./src/normal_eax`
+
+This project implements the version of the paper [A Powerful Genetic Algorithm Using Edge Assembly Crossover for the Traveling Salesman Problem](https://doi.org/10.1287/ijoc.1120.0506).
+
+#### How to use make
+To compile the `normal_eax`:
+```bash
+# normal compilation
+make bin/normal_eax
+# debug compilation (with -g option)
+make bin/debug/normal_eax
+# profile compilation (with -pg option)
+make bin/prof/normal_eax
+```
+
+To run the `normal_eax`:
+```bash
+# normal run
+ARGS="ARGUMENTS" make run/normal_eax
+# profile run
+ARGS="ARGUMENTS" make run/prof/normal_eax
+```
+`--help` can be used to see the available arguments.
+
+### eax_tabu
+Directory: `./src/eax_tabu`
+
+This project implements the EAX algorithm with tabu edge.
+
+#### How to use make
+To compile the `eax_tabu`:
+```bash
+# normal compilation
+make bin/eax_tabu
+# debug compilation (with -g option)
+make bin/debug/eax_tabu
+# profile compilation (with -pg option)
+make bin/prof/eax_tabu
+```
+
+To run the `eax_tabu`:
+```bash
+# normal run
+ARGS="ARGUMENTS" make run/eax_tabu
+# profile run
+ARGS="ARGUMENTS" make run/prof/eax_tabu
+```
+`--help` can be used to see the available arguments.
 
 ### eax_stsp
 Directory: `./src/eax_stsp`
 
 This project implements the EAX algorithm for STSP.
+(Legacy code, not actively maintained.)
 
 #### How to use make
 To compile the `eax_stsp`:
@@ -94,6 +149,7 @@ ARGS="ARGUMENTS" make run/prof/eax_stsp
 Directory: `./src/fast_eax`
 
 This project implements a faster version of the EAX algorithm.
+(Legacy code, not actively maintained.)
 
 #### How to use make
 To compile the `fast_eax`:
