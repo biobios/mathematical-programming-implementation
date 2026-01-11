@@ -26,7 +26,6 @@ public:
                     const tsp::TSP& tsp,
                     const ABCycles& applied_ab_cycles,
                     const EdgeCounter& edge_counter) { 
-                    // std::mt19937& random_gen) {
         auto& adjacency_matrix = tsp.adjacency_matrix;
         auto& path = working_individual.get_path();
         auto& pos = working_individual.get_pos();
