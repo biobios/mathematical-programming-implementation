@@ -36,9 +36,9 @@ namespace eax {
     struct Context {
         Environment env;
 
-        std::vector<std::vector<size_t>> pop_edge_counts; // 各エッジの個数
+        std::vector<std::vector<size_t>> pop_edge_counts = {}; // 各エッジの個数
         EdgeCounter edge_counter;
-        std::mt19937 random_gen;
+        std::mt19937 random_gen = {};
 
         // 最良解の長さ
         size_t best_length = 1e18;
@@ -64,7 +64,7 @@ namespace eax {
         
         // 統計情報
         // 計測開始時刻 (これはシリアライズされない)
-        std::chrono::system_clock::time_point start_time;
+        std::chrono::system_clock::time_point start_time = {};
         // 経過時間
         double elapsed_time = 0.0;
         // エントロピー(シリアライズされない)
