@@ -131,8 +131,6 @@ void execute_normal(const Arguments& args)
     // タイムアウト時間
     auto timeout_time = chrono::system_clock::now() + chrono::seconds(args.timeout_seconds);
     
-    using Individual = eax::Individual;
-    
     for (size_t trial = 0; trial < args.trials; ++trial) {
         cout << "Trial " << trial + 1 << " of " << args.trials << endl;
         // 乱数生成器(ローカル)

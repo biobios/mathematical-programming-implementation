@@ -182,7 +182,7 @@ int main(int argc, char* argv[])
                 case eax::EAXType::Rand:
                     return eax_rand(parent1, parent2, children_size, env.tsp, rng);
                 case eax::EAXType::N_AB:
-                    return eax_n_ab(parent1, parent2, children_size, env.tsp, rng, env.N_parameter);
+                    return eax_n_ab(parent1, parent2, children_size, env.tsp, rng, std::forward_as_tuple(env.N_parameter));
                 default:
                     throw std::runtime_error("Unknown EAX type");
             }

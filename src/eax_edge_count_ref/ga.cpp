@@ -198,8 +198,7 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
 }
 
 Context create_context(const std::vector<Individual>& initial_population, Environment const& env) {
-    Context context{.edge_counter = EdgeCounter(initial_population)};
-    context.env = env;
+    Context context{.env = env, .edge_counter = EdgeCounter(initial_population)};
 
     context.set_initial_edge_counts(initial_population);
     context.random_gen = std::mt19937(env.random_seed);

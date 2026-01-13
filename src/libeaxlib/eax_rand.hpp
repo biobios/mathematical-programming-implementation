@@ -66,7 +66,7 @@ using EAX_Rand = EAX_normal<Rand_e_set_assembler_builder>;
 class EAX_Rand_tag {
 public:
     EAX_Rand_tag() {}
-    EAX_Rand_tag(const std::string& str) {}
+    EAX_Rand_tag(const std::string&) {}
     static bool match_string(const std::string& str) {
         return str == "EAX_Rand";
     }
