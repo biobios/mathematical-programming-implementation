@@ -33,7 +33,7 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
         auto& env = context.env;
         switch (context.eax_type) {
             case eax::EAXType::One_AB:
-                return eax_n_ab(parent1, parent2, env.num_children, env.tsp, context.random_gen, std::forward_as_tuple(1));
+                return eax_n_ab(parent1, parent2, env.num_children, env.tsp, context.random_gen, 1);
             case eax::EAXType::Block2:
                 return eax_block2(parent1, parent2, env.num_children, env.tsp, context.random_gen);
             default:

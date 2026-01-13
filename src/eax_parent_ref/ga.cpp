@@ -50,15 +50,15 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
             const Individual& parent2;
             Context& context;
             auto operator()(const eax::EAX_Rand_tag&) {
-                return pr_rand(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen, std::tuple<>{}, std::forward_as_tuple(context.reference_parents));
+                return pr_rand(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen, {}, context.reference_parents);
             }
 
             auto operator()(const eax::EAX_n_AB_tag& n_ab) {
-                return pr_n_ab(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen, std::forward_as_tuple(n_ab.get_n()), std::forward_as_tuple(context.reference_parents));
+                return pr_n_ab(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen, n_ab.get_n(), context.reference_parents);
             }
 
             auto operator()(const eax::EAX_UNIFORM_tag& uniform) {
-                return pr_uniform(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen, std::forward_as_tuple(uniform.get_ratio()), std::forward_as_tuple(context.reference_parents));
+                return pr_uniform(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen, uniform.get_ratio(), context.reference_parents);
             }
         } visitor {pr_n_ab, pr_rand, pr_uniform, parent1, parent2, context};
         

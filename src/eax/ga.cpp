@@ -49,7 +49,7 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
             }
 
             auto operator()(const eax::EAX_n_AB_tag& n_ab) {
-                return eax_n_ab(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen, std::forward_as_tuple(n_ab.get_n()));
+                return eax_n_ab(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen, n_ab.get_n());
             }
 
             auto operator()(const eax::EAX_Block2_tag&) {
@@ -57,7 +57,7 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
             }
 
             auto operator()(const eax::EAX_UNIFORM_tag& uniform) {
-                return eax_uniform(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen, std::forward_as_tuple(uniform.get_ratio()));
+                return eax_uniform(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen, uniform.get_ratio());
             }
         } visitor {eax_n_ab, eax_block2, eax_rand, eax_uniform, parent1, parent2, context};
         

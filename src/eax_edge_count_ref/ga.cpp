@@ -53,15 +53,15 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
             const Individual& parent2;
             Context& context;
             auto operator()(const eax::EAX_Rand_tag&) {
-                return eax_rand(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen, std::tuple<>{}, std::forward_as_tuple(context.edge_counter));
+                return eax_rand(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen, {}, context.edge_counter);
             }
 
             auto operator()(const eax::EAX_n_AB_tag& n_ab) {
-                return eax_n_ab(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen, std::forward_as_tuple(n_ab.get_n()), std::forward_as_tuple(context.edge_counter));
+                return eax_n_ab(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen, n_ab.get_n(), context.edge_counter);
             }
 
             auto operator()(const eax::EAX_UNIFORM_tag& uniform) {
-                return eax_uniform(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen, std::forward_as_tuple(uniform.get_ratio()), std::forward_as_tuple(context.edge_counter));
+                return eax_uniform(parent1, parent2, context.env.num_children, context.env.tsp, context.random_gen, uniform.get_ratio(), context.edge_counter);
             }
         } visitor {eax_n_ab, eax_rand, eax_uniform, parent1, parent2, context};
         

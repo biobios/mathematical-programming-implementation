@@ -3,6 +3,7 @@
 #include <vector>
 #include <ranges>
 
+#include "utils.hpp"
 #include "object_pool.hpp"
 
 #include "eaxdef.hpp"
@@ -32,24 +33,48 @@ public:
     std::vector<CrossoverDelta> operator()(const Individual& parent1, const Individual& parent2, size_t children_size, const tsp::TSP& tsp, std::mt19937& rng,
                                             BuilderArgsTuple&& builder_args = {}, MergerArgsTuple&& merger_args = {}, FinderArgsTuple&& finder_args = {}) {
         using namespace std;
-
-        size_t ab_cycle_need = std::apply(
-            [&](auto&&... args) {
-                return E_Set_Assembler_Builder::calc_AB_cycle_need(parent1, parent2, children_size, tsp, rng, args...);
-            }, builder_args
-        );
-
-        auto AB_cycles = std::apply(
-            [&](auto&&... args) {
-                return ab_cycle_finder(ab_cycle_need, parent1, parent2, rng, std::forward<decltype(args)>(args)...);
-            }, finder_args
-        );
         
-        auto e_set_assembler = std::apply(
-            [&](auto&&... args) {
-                return e_set_assembler_builder.build(AB_cycles, parent1, parent2, children_size, tsp, rng, std::forward<decltype(args)>(args)...);
-            }, builder_args
-        );
+        size_t ab_cycle_need = [&]() {
+            if constexpr (mpi::tuple_like<BuilderArgsTuple>) {
+                // BuilderArgsTupleがtuple_likeであれば引数を展開して渡す
+                return std::apply(
+                    [&](auto&&... args) {
+                        return E_Set_Assembler_Builder::calc_AB_cycle_need(parent1, parent2, children_size, tsp, rng, args...);
+                    }, builder_args
+                );
+            } else {
+                // そうでなければそのまま渡す
+                return E_Set_Assembler_Builder::calc_AB_cycle_need(parent1, parent2, children_size, tsp, rng, builder_args);
+            }
+        }();
+        
+        auto AB_cycles = [&]() {
+            if constexpr (mpi::tuple_like<FinderArgsTuple>) {
+                // FinderArgsTupleがtuple_likeであれば引数を展開して渡す
+                return std::apply(
+                    [&](auto&&... args) {
+                        return ab_cycle_finder(ab_cycle_need, parent1, parent2, rng, std::forward<decltype(args)>(args)...);
+                    }, std::forward<FinderArgsTuple>(finder_args)
+                );
+            } else {
+                // そうでなければそのまま渡す
+                return ab_cycle_finder(ab_cycle_need, parent1, parent2, rng, std::forward<FinderArgsTuple>(finder_args));
+            }
+        }();
+
+        auto e_set_assembler = [&]() {
+            if constexpr (mpi::tuple_like<BuilderArgsTuple>) {
+                // BuilderArgsTupleがtuple_likeであれば引数を展開して渡す
+                return std::apply(
+                    [&](auto&&... args) {
+                        return e_set_assembler_builder.build(AB_cycles, parent1, parent2, children_size, tsp, rng, std::forward<decltype(args)>(args)...);
+                    }, std::forward<BuilderArgsTuple>(builder_args)
+                );
+            } else {
+                // そうでなければそのまま渡す
+                return e_set_assembler_builder.build(AB_cycles, parent1, parent2, children_size, tsp, rng, std::forward<BuilderArgsTuple>(builder_args));
+            }
+        }();
         
         std::vector<CrossoverDelta> children;
         
@@ -66,11 +91,18 @@ public:
             }); 
 
             working_individual.apply_AB_cycles(selected_AB_cycles_view);
-            std::apply(
-                [&](auto&&... args) {
-                    subtour_merger(working_individual, tsp, selected_AB_cycles_view, std::forward<decltype(args)>(args)...);
-                }, merger_args
-            );
+            
+            if constexpr (mpi::tuple_like<MergerArgsTuple>) {
+                // MergerArgsTupleがtuple_likeであれば引数を展開して渡す
+                std::apply(
+                    [&](auto&&... args) {
+                        subtour_merger(working_individual, tsp, selected_AB_cycles_view, std::forward<decltype(args)>(args)...);
+                    }, std::forward<MergerArgsTuple>(merger_args)
+                );
+            } else {
+                // そうでなければそのまま渡す
+                subtour_merger(working_individual, tsp, selected_AB_cycles_view, std::forward<MergerArgsTuple>(merger_args));
+            }
 
             children.emplace_back(working_individual.get_delta_and_revert());
         }
