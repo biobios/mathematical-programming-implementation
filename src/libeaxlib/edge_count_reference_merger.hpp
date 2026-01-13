@@ -27,6 +27,7 @@ public:
                     const ABCycles& applied_ab_cycles,
                     const EdgeCounter& edge_counter) { 
         auto& adjacency_matrix = tsp.adjacency_matrix;
+        auto& NN_list = tsp.NN_list;
         auto& path = working_individual.get_path();
         auto& pos = working_individual.get_pos();
                                     
@@ -75,6 +76,36 @@ public:
 
                 for (size_t j = 0; j < limit; ++j) {
                     size_t candidate_city = existing_edges_connecting_current_city[j];
+                    for (size_t k = 0; k < 2; ++k) {
+                        size_t candidate_city2 = NN_list[candidate_city][k].second;
+                        if (in_min_sub_tour[candidate_city2])
+                            continue;
+                        
+                        for (size_t l = 0; l < 2; ++l) {
+                            size_t connected_to_current_city = elem_of_min_sub_tour[i - 1 + 2 * l];
+                            for (size_t m = 0; m < 2; ++m) {
+                                size_t connected_to_candidate_city = working_individual[candidate_city2][m];
+
+                                distance_type cost = - adjacency_matrix[current_city][connected_to_current_city] - adjacency_matrix[candidate_city2][connected_to_candidate_city]
+                                                    + adjacency_matrix[current_city][candidate_city2] + adjacency_matrix[connected_to_current_city][connected_to_candidate_city];
+
+                                if (cost < min_cost) {
+                                    min_cost = cost;
+                                    e1 = {current_city, connected_to_current_city};
+                                    e2 = {candidate_city2, connected_to_candidate_city};
+                                }
+
+                                cost = - adjacency_matrix[current_city][connected_to_current_city] - adjacency_matrix[candidate_city2][connected_to_candidate_city]
+                                        + adjacency_matrix[current_city][connected_to_candidate_city] + adjacency_matrix[connected_to_current_city][candidate_city2];
+                                
+                                if (cost < min_cost) {
+                                    min_cost = cost;
+                                    e1 = {current_city, connected_to_current_city};
+                                    e2 = {connected_to_candidate_city, candidate_city2};
+                                }
+                            }
+                        }
+                    }
                     if (in_min_sub_tour[candidate_city])
                         continue;
 
