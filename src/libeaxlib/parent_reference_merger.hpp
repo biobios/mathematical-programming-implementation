@@ -86,14 +86,6 @@ public:
                                     e1 = {current_city, connected_to_current_city};
                                     e2 = {parent_connected_city, connected_to_parent_city};
                                 }
-                                cost = - adjacency_matrix[current_city][connected_to_current_city] - adjacency_matrix[parent_connected_city][connected_to_parent_city]
-                                    + adjacency_matrix[current_city][connected_to_parent_city] + adjacency_matrix[connected_to_current_city][parent_connected_city];
-
-                                if (cost < min_cost) {
-                                    min_cost = cost;
-                                    e1 = {current_city, connected_to_current_city};
-                                    e2 = {connected_to_parent_city, parent_connected_city};
-                                }
                             }
                         }
                     }
