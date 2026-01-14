@@ -1,3 +1,9 @@
+ifndef VERBOSE_MAKEFILE
+MAKEFLAGS += --no-print-directory
+endif
+
+-include makefiles/common.mk
+
 PROJECTS:=$(patsubst src/%, %, $(wildcard src/*))
 APP_PROJECTS:=$(filter-out lib%, $(PROJECTS))
 LIB_PROJECTS:=$(filter lib%, $(PROJECTS))
