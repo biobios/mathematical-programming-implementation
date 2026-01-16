@@ -81,23 +81,14 @@ $(PROF_OBJS): $(ROOT_DIR)/temp/prof/$(PROJECT_NAME)/%.o: %.cpp
 	$(call log,Compiling $< to $@)
 	@$(CXX) -c $< -o $@ $(CXXFLAGS) $(INCLUDE_DIR_OPTS) -O0 -pg -MMD -MP
 
-$(patsubst %, $(ROOT_DIR)/bin/lib%.a, $(DEPEND_LIBS)): $(ROOT_DIR)/bin/lib%.a: | build-lib%
+$(patsubst %, $(ROOT_DIR)/bin/lib%.a, $(DEPEND_LIBS)): $(ROOT_DIR)/bin/%.a: FORCE
+	@$(MAKE) -C $(ROOT_DIR) build-$*
 
-$(patsubst %, $(ROOT_DIR)/bin/debug/lib%.a, $(DEPEND_LIBS)): $(ROOT_DIR)/bin/debug/lib%.a: | debug-build-lib%
+$(patsubst %, $(ROOT_DIR)/bin/debug/lib%.a, $(DEPEND_LIBS)): $(ROOT_DIR)/bin/debug/%.a: FORCE
+	@$(MAKE) -C $(ROOT_DIR) debug-build-$*
 
-$(patsubst %, $(ROOT_DIR)/bin/prof/lib%.a, $(DEPEND_LIBS)): $(ROOT_DIR)/bin/prof/lib%.a: | prof-build-lib%
-
-.PHONY: $(addprefix build-lib, $(DEPEND_LIBS))
-$(addprefix build-lib, $(DEPEND_LIBS)):
-	@$(MAKE) -C $(ROOT_DIR) $@
-
-.PHONY: $(addprefix debug-build-lib, $(DEPEND_LIBS))
-$(addprefix debug-build-lib, $(DEPEND_LIBS)):
-	@$(MAKE) -C $(ROOT_DIR) $@
-
-.PHONY: $(addprefix prof-build-lib, $(DEPEND_LIBS))
-$(addprefix prof-build-lib, $(DEPEND_LIBS)):
-	@$(MAKE) -C $(ROOT_DIR) $@
+$(patsubst %, $(ROOT_DIR)/bin/prof/lib%.a, $(DEPEND_LIBS)): $(ROOT_DIR)/bin/prof/%.a: FORCE
+	@$(MAKE) -C $(ROOT_DIR) prof-build-$*
 
 $(DEPEND_DATA): $(ROOT_DIR)/debug/$(PROJECT_NAME)/%: $(ROOT_DIR)/data/$(PROJECT_NAME)/%
 	@mkdir -p $(dir $@)
@@ -115,6 +106,9 @@ clean:
 .PHONY: debug-clean
 debug-clean:
 	@rm -rf $(ROOT_DIR)/debug/$(PROJECT_NAME)
+
+.PHONY: FORCE
+FORCE: ;
 
 -include $(OBJS_DEPEND)
 -include $(DEBUG_OBJS_DEPEND)
