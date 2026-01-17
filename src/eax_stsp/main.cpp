@@ -18,15 +18,39 @@
 
 #include "simple_ga.hpp"
 #include "elitist_recombination.hpp"
+#include "generational_change_model.hpp"
 #include "command_line_argument_parser.hpp"
 
 #include "checksumed.hpp"
-#include "individual_delta_view.hpp"
+#include "delta_with_individual.hpp"
 #include "tsp_loader.hpp"
 #include "population_initializer.hpp"
 #include "two_opt.hpp"
 #include "object_pools.hpp"
 #include "eax_rand.hpp"
+
+struct Individual : public eax::Checksumed, public std::vector<std::array<size_t, 2>> {
+    using std::vector<std::array<size_t, 2>>::vector;
+
+    int64_t& distance() {
+        return distance_;
+    }
+
+    const int64_t& distance() const {
+        return distance_;
+    }
+
+    template <typename T = Individual>
+        requires std::is_same_v<T, Individual>
+    Individual& operator=(eax::DeltaWithIndividual<T>&& delta_view) {
+        delta_view.apply_to(*this);
+        return *this;
+    }
+
+private:
+    int64_t distance_ = 0;
+};
+    
 
 double calc_fitness(const std::vector<size_t>& path, const std::vector<std::vector<int64_t>>& adjacency_matrix){
     double distance = 0.0;
@@ -127,20 +151,6 @@ int main(int argc, char* argv[])
     // 初期集団生成器
     tsp::PopulationInitializer population_initializer(population_size, tsp.city_count);
 
-    struct Individual : public eax::Checksumed, std::vector<std::array<size_t, 2>> {
-        using std::vector<std::array<size_t, 2>>::vector;
-
-        int64_t& distance() {
-            return distance_;
-        }
-        const int64_t& distance() const {
-            return distance_;
-        }
-
-    private:
-        int64_t distance_ = 0;
-    };
-    
     // 1試行にかかった時間
     vector<double> trial_times(trials, 0.0);
     // 1試行にかかったCPU時間
@@ -185,19 +195,23 @@ int main(int argc, char* argv[])
         }
         cout << "Initial population created." << endl;
         
-        using Env = tsp::TSP;
+        // using Env = tsp::TSP;
+        struct Env {
+            tsp::TSP tsp;
+            std::mt19937 random_gen;
+        };
         
         eax::ObjectPools object_pools(tsp.city_count);
         eax::EAX_Rand eax_rand(object_pools);
         
-        auto crossover = [&eax_rand](const Individual& parent1, const Individual& parent2, size_t children_size,
-                                            Env& env, mt19937& rng) {
-            auto deltas = eax_rand(parent1, parent2, children_size, env, rng);
-            std::vector<Individual> children(deltas.size(), parent1);
-            for (size_t i = 0; i < deltas.size(); ++i) {
-                deltas[i].apply_to(children[i]);
+        auto crossover = [&eax_rand](const Individual& parent1, const Individual& parent2, Env& env) {
+            auto deltas = eax_rand(parent1, parent2, 100, env.tsp, env.random_gen);
+            std::vector<eax::DeltaWithIndividual<Individual>> delta_views;
+            delta_views.reserve(deltas.size());
+            for (const auto& delta : deltas) {
+                delta_views.emplace_back(parent1, std::move(delta));
             }
-            return children;
+            return delta_views;
         };
 
         // 終了判定関数
@@ -205,59 +219,72 @@ int main(int argc, char* argv[])
         struct {
             size_t max_generations;
 
-            bool operator()([[maybe_unused]]const vector<Individual>& population, const vector<double>& fitness_values, [[maybe_unused]]const Env& tsp, size_t generation) {
+            mpi::genetic_algorithm::TerminationReason operator()(const vector<Individual>& population, const Env&, size_t generation) {
+                
+                if (generation >= max_generations) {
+                    return mpi::genetic_algorithm::TerminationReason::MaxGenerations;
+                }
 
-                double max_fitness = 0.0;
-                double min_fitness = std::numeric_limits<double>::max();
-                for (const auto& fitness : fitness_values) {
-                    max_fitness = std::max(max_fitness, fitness);
-                    min_fitness = std::min(min_fitness, fitness);
+                int64_t max_disntance = 0;
+                int64_t min_distance = std::numeric_limits<int64_t>::max();
+
+                for (const auto& individual : population) {
+                    max_disntance = std::max(max_disntance, individual.distance());
+                    min_distance = std::min(min_distance, individual.distance());
+                }
+
+                if (max_disntance == min_distance) {
+                    return mpi::genetic_algorithm::TerminationReason::Converged;
                 }
                 
-                // 終了条件を満たすかどうかを判定
-                return generation > max_generations || max_fitness == min_fitness;
+                return mpi::genetic_algorithm::TerminationReason::NotTerminated;
             }
-        } end_condition = {.max_generations = generations};
+        } update_func = {.max_generations = generations};
         
         // ロガー
         struct {
-            double best_fitness = 0.0;
+            // double best_fitness = 0.0;
+            int64_t best_length = std::numeric_limits<int64_t>::max();
             size_t generation_of_reached_best = 0;
 
-            void operator()([[maybe_unused]]const vector<Individual>& population, const vector<double>& fitness_values, [[maybe_unused]]const Env& tsp, size_t generation) {
-                double max_fitness = *max_element(fitness_values.begin(), fitness_values.end());
-                if (max_fitness > best_fitness) {
-                    best_fitness = max_fitness;
+            void operator()([[maybe_unused]]const vector<Individual>& population, [[maybe_unused]]const Env& tsp, size_t generation) {
+                int64_t min_length = std::numeric_limits<int64_t>::max();
+                for (const auto& individual : population) {
+                    min_length = std::min(min_length, individual.distance());
+                }
+                if (min_length < best_length) {
+                    best_length = min_length;
                     generation_of_reached_best = generation;
                 }
             }
         } logging;
 
         // 適応度関数
-        auto calc_fitness_lambda = [](const Individual& individual, const Env& env) {
-            return calc_fitness(individual, env.adjacency_matrix);
+        auto calc_fitness_lambda = [](const eax::DeltaWithIndividual<Individual>& child, const Env&) {
+            return 1.0 / (child.individual.distance() + child.delta.get_delta_distance());
         };
         
         // 乱数生成器初期化
         mt19937 local_rng(local_seed);
         
         // 環境情報の設定
-        Env& env = tsp;       
+        Env env = {.tsp = tsp, .random_gen = local_rng};
 
         // 計測開始
         auto start_time = chrono::high_resolution_clock::now();
         auto start_cpu_time = clock();
 
         // 世代交代モデル ElitistRecombinationを使用して、遺伝的アルゴリズムを実行
-        vector<Individual> result = mpi::genetic_algorithm::ElitistRecombination<100>(population, end_condition, calc_fitness_lambda, crossover, env, local_rng, logging);
-        // vector<Individual> result = mpi::genetic_algorithm::SimpleGA(population, end_condition, calc_fitness, eax::edge_assembly_crossover, adjacency_matrix, local_rng);
+        auto elitist_recombination = mpi::genetic_algorithm::ElitistRecombination(calc_fitness_lambda, crossover);
+        auto gen_change_model = mpi::GenerationalChangeModel(elitist_recombination, update_func, logging);
+        auto [reason, final_population] = gen_change_model.execute(population, env);
         
         auto end_cpu_time = clock();
         auto end_time = chrono::high_resolution_clock::now();
         cpu_trial_times[trial] = static_cast<double>(end_cpu_time - start_cpu_time) / CLOCKS_PER_SEC;
         trial_times[trial] = chrono::duration<double>(end_time - start_time).count();
         
-        best_path_lengths[trial] = 1.0 / logging.best_fitness;
+        best_path_lengths[trial] = logging.best_length;
         generation_of_best[trial] = logging.generation_of_reached_best;
     }
     
