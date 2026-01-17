@@ -15,15 +15,15 @@ namespace eax {
             size_t next_index = i + 1;
             doubly_linked_list[path[i]][0] = path[prev_index];
             doubly_linked_list[path[i]][1] = path[next_index];
-            distance += adjacency_matrix[path[i]][path[next_index]];
+            distance_ += adjacency_matrix[path[i]][path[next_index]];
         }
         
         doubly_linked_list[path[0]][0] = path.back();
         doubly_linked_list[path[0]][1] = path[1];
-        distance += adjacency_matrix[path[0]][path[1]];
+        distance_ += adjacency_matrix[path[0]][path[1]];
         doubly_linked_list[path.back()][0] = path[path.size() - 2];
         doubly_linked_list[path.back()][1] = path[0];
-        distance += adjacency_matrix[path.back()][path[0]];
+        distance_ += adjacency_matrix[path.back()][path[0]];
     }
     
     size_t Individual::size() const {
@@ -48,7 +48,7 @@ namespace eax {
     }
     
     void Individual::serialize(std::ostream& os) const {
-        os << distance << " " << doubly_linked_list.size() << " ";
+        os << distance_ << " " << doubly_linked_list.size() << " ";
         for (size_t i = 0; i < doubly_linked_list.size(); ++i) {
             os << doubly_linked_list[i][0] << " " << doubly_linked_list[i][1] << " ";
         }
@@ -63,7 +63,7 @@ namespace eax {
     
     Individual Individual::deserialize(std::istream& is) {
         Individual individual;
-        is >> individual.distance;
+        is >> individual.distance_;
         size_t size;
         is >> size;
         individual.doubly_linked_list.resize(size);
@@ -88,8 +88,6 @@ namespace eax {
         prev_diff = CrossoverDelta();
         // グラフの更新
         child.apply_to(*this);
-        // 距離の更新
-        distance += child.get_delta_distance(context.env.tsp.adjacency_matrix);
         // タブーリストの更新
         tabu_edges[current_tabu_index].clear();
         current_tabu_index = (current_tabu_index + 1) % tabu_range;

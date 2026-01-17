@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <utility>
+#include <stdexcept>
 
 #include "eaxdef.hpp"
 
@@ -28,17 +29,31 @@ public:
     
     /**
      * @param modifications 変更履歴
+     * @param base_checksum ベースの個体のチェックサム
+     * @param delta_distance 距離の変化
      * @pre modifications.size() % 2 == 0
      */
-    CrossoverDelta(std::vector<Modification>&& modifications)
-        : modifications(std::move(modifications)) {}
+    CrossoverDelta(std::vector<Modification>&& modifications, uint64_t base_checksum, int64_t delta_distance)
+        :   modifications(std::move(modifications)),
+            base_checksum(base_checksum),
+            delta_checksum(compute_delta_checksum(this->modifications)),
+            delta_distance(delta_distance) {}
     
     /**
      * @brief 変更を個体に適用する
      * @tparam T 個体の型
      */
-    template <doubly_linked_list_like T>
+    template <individual_concept T>
     void apply_to(T& individual) const {
+
+        if (modifications.empty()) {
+            return;
+        }
+
+        if (base_checksum != individual.checksum()) {
+            throw std::invalid_argument("CrossoverDelta::apply_to: The base checksum does not match the individual's checksum.");
+        }
+
         for (const auto& modification : modifications) {
             auto [v1, v2] = modification.edge1;
             size_t new_v2 = modification.new_v2;
@@ -48,6 +63,61 @@ public:
                 individual[v1][1] = new_v2;
             }
         }
+
+        individual.checksum() ^= delta_checksum;
+        individual.distance() += delta_distance;
+    }
+
+    /**
+     * @brief 変更を元に戻す
+     * @tparam T 個体の型
+     */
+    template <individual_concept T>
+    void undo(T& individual) const {
+        
+        if (modifications.empty()) {
+            return;
+        }
+
+        if ((base_checksum ^ delta_checksum) != individual.checksum()) {
+            throw std::invalid_argument("CrossoverDelta::undo: The individual's checksum does not match the expected checksum after applying the delta.");
+        }
+
+        for (auto it = modifications.rbegin(); it != modifications.rend(); ++it) {
+            const auto& modification = *it;
+            auto [v1, v2] = modification.edge1;
+            size_t new_v2 = modification.new_v2;
+            if (individual[v1][0] == new_v2) {
+                individual[v1][0] = v2;
+            } else {
+                individual[v1][1] = v2;
+            }
+        }
+
+        individual.checksum() ^= delta_checksum;
+        individual.distance() -= delta_distance;
+    }
+
+    /**
+     * @brief ベースの個体であるかどうかをチェックする(apply_toを呼び出せるかどうか)
+     * @tparam T 個体の型
+     * @param individual チェックする個体
+     * @return ベースの個体であればtrue、そうでなければfalse
+     */
+    template <individual_concept T>
+    bool is_base_individual(const T& individual) const {
+        return base_checksum == individual.checksum();
+    }
+
+    /**
+     * @brief 変更後の個体であるかどうかをチェックする(undoを呼び出せるかどうか)
+     * @tparam T 個体の型
+     * @param individual チェックする個体
+     * @return 変更後の個体であればtrue、そうでなければfalse
+     */
+    template <individual_concept T>
+    bool is_modified_individual(const T& individual) const {
+        return (base_checksum ^ delta_checksum) == individual.checksum();
     }
     
     /**
@@ -55,7 +125,7 @@ public:
      * @param adjacency_matrix 隣接行列
      * @return 距離の変化
      */
-    int64_t get_delta_distance(const adjacency_matrix_t& adjacency_matrix) const;
+    int64_t get_delta_distance() const;
 
     /**
      * @brief 変更履歴を取得する
@@ -66,6 +136,29 @@ public:
     }
 
 private:
+    /**
+     * @brief 変更履歴
+     */
     std::vector<Modification> modifications;
+    
+    /**
+     * @brief ベースの個体のチェックサム
+     */
+    uint64_t base_checksum;
+
+    /**
+     * @brief チェックサムの更新値
+     */
+    uint64_t delta_checksum;
+
+    /**
+     * @brief 距離の変化
+     */
+    int64_t delta_distance;
+    
+    /**
+     * @brief チェックサムの更新値を計算する
+     */
+    static uint64_t compute_delta_checksum(const std::vector<Modification>& modifications);
 };
 }

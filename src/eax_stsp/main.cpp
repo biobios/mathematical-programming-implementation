@@ -20,6 +20,8 @@
 #include "elitist_recombination.hpp"
 #include "command_line_argument_parser.hpp"
 
+#include "checksumed.hpp"
+#include "individual_delta_view.hpp"
 #include "tsp_loader.hpp"
 #include "population_initializer.hpp"
 #include "two_opt.hpp"
@@ -124,8 +126,20 @@ int main(int argc, char* argv[])
 
     // 初期集団生成器
     tsp::PopulationInitializer population_initializer(population_size, tsp.city_count);
-    
-    using Individual = vector<array<size_t, 2>>;
+
+    struct Individual : public eax::Checksumed, std::vector<std::array<size_t, 2>> {
+        using std::vector<std::array<size_t, 2>>::vector;
+
+        int64_t& distance() {
+            return distance_;
+        }
+        const int64_t& distance() const {
+            return distance_;
+        }
+
+    private:
+        int64_t distance_ = 0;
+    };
     
     // 1試行にかかった時間
     vector<double> trial_times(trials, 0.0);
@@ -150,12 +164,23 @@ int main(int argc, char* argv[])
         population.reserve(population_size);
         for (const auto& path : paths) {
             Individual individual;
+            auto& distance = individual.distance();
+
             individual.resize(path.size());
             for (size_t i = 1; i < path.size() - 1; ++i) {
                 individual[path[i]] = {path[i - 1], path[i + 1]};
+                distance += tsp.adjacency_matrix[path[i]][path[i - 1]];
+                distance += tsp.adjacency_matrix[path[i]][path[i + 1]];
             }
             individual[path[0]] = {path.back(), path[1]};
+            distance += tsp.adjacency_matrix[path[0]][path.back()];
+            distance += tsp.adjacency_matrix[path[0]][path[1]];
+
             individual[path.back()] = {path[path.size() - 2], path[0]};
+            distance += tsp.adjacency_matrix[path.back()][path[path.size() - 2]];
+            distance += tsp.adjacency_matrix[path.back()][path[0]];
+
+            distance /= 2; // 各辺が2回カウントされているため半分にする
             population.push_back(std::move(individual));
         }
         cout << "Initial population created." << endl;

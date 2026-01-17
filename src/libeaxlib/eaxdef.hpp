@@ -19,6 +19,30 @@ concept doubly_linked_list_like = requires(T t) {
 };
 
 /**
+ * @brief チェックサムコンセプト
+ */
+template <typename T>
+concept has_checksum = requires(T t) {
+    { t.checksum() } -> std::convertible_to<uint64_t>;
+    t.checksum() = 0; // 変更可能であることを確認
+};
+
+/**
+ * @brief 距離コンセプト
+ */
+template <typename T>
+concept has_distance = requires(T t) {
+    { t.distance() } -> std::convertible_to<int64_t>;
+    t.distance() = 0; // 変更可能であることを確認
+};
+
+/**
+ * @brief 個体コンセプト
+ */
+template <typename T>
+concept individual_concept = doubly_linked_list_like<T> && has_checksum<T> && has_distance<T>;
+
+/**
  * @brief すべてのABサイクルを見つけることが保証されたクラスのタグ
  */
 struct complete_ABCycleFinder_tag {};

@@ -6,12 +6,13 @@
 #include <cmath>
 #include <chrono>
 
+#include "checksumed.hpp"
 #include "crossover_delta.hpp"
 
 namespace eax {
     class Individual;
 
-    class Individual {
+    class Individual : public Checksumed {
     public:
         Individual() = default;
         Individual(const std::vector<size_t>& path, const std::vector<std::vector<int64_t>>& adjacency_matrix);
@@ -25,7 +26,7 @@ namespace eax {
 
         size_t size() const;
         size_t get_distance() const {
-            return distance;
+            return distance_;
         }
         std::vector<size_t> to_path() const;
         Individual& operator=(const CrossoverDelta& child) {
@@ -33,12 +34,15 @@ namespace eax {
             return *this;
         }
         
-        CrossoverDelta update(const std::vector<std::vector<int64_t>>& adjacency_matrix) {
+        CrossoverDelta update() {
             CrossoverDelta child = std::move(prev_diff);
             prev_diff = CrossoverDelta();
             child.apply_to(*this);
-            distance += child.get_delta_distance(adjacency_matrix);
             return child;
+        }
+
+        int64_t& distance() {
+            return distance_;
         }
         
         void serialize(std::ostream& os) const;
@@ -46,6 +50,6 @@ namespace eax {
     private:
         std::vector<std::array<size_t, 2>> doubly_linked_list;
         CrossoverDelta prev_diff;
-        int64_t distance = 0;
+        int64_t distance_ = 0;
     };
 }

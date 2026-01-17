@@ -107,11 +107,7 @@ public:
                 continue;
             }
 
-            children.emplace_back(working_individual->get_delta_and_revert());
-        }
-        
-        if (children.empty()) {
-            children.emplace_back(working_individual->get_delta_and_revert());
+            children.emplace_back(working_individual->get_delta_and_revert(adjacency_matrix));
         }
         return children;
     }
