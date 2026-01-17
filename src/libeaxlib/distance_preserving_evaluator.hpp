@@ -6,6 +6,7 @@
 namespace eax {
 namespace eval {
 namespace delta {
+namespace impl {
     struct DistancePreserving {
         double operator()(const CrossoverDelta& child, const adjacency_matrix_t& adjacency_matrix, edge_counts_t& pop_edge_counts, double epsilon = 1e-9) const {
             double delta_L = child.get_delta_distance(adjacency_matrix);
@@ -47,6 +48,10 @@ namespace delta {
             return delta_L / delta_H;
         }
     };
-}
+} // namespace impl
+
+constexpr impl::DistancePreserving DistancePreserving{};
+
+} // namespace delta
 } // namespace eval
 } // namespace eax

@@ -5,11 +5,16 @@
 namespace eax {
 namespace eval {
 namespace delta {
+namespace impl {
     struct Greedy {
         double operator()(const CrossoverDelta& child, const adjacency_matrix_t& adjacency_matrix) const {
             return -1.0 * child.get_delta_distance(adjacency_matrix);
         }
     };
+}
+
+constexpr impl::Greedy Greedy{};
+
 }
 }
 }
