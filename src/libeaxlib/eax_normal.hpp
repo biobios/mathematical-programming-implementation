@@ -29,7 +29,7 @@ public:
           subtour_merger(object_pools),
           e_set_assembler_builder(object_pools) {}
 
-    template <doubly_linked_list_like Individual, typename BuilderArgsTuple = std::tuple<>, typename MergerArgsTuple = std::tuple<>, typename FinderArgsTuple = std::tuple<>>
+    template <individual_concept Individual, typename BuilderArgsTuple = std::tuple<>, typename MergerArgsTuple = std::tuple<>, typename FinderArgsTuple = std::tuple<>>
     std::vector<CrossoverDelta> operator()(const Individual& parent1, const Individual& parent2, size_t children_size, const tsp::TSP& tsp, std::mt19937& rng,
                                             BuilderArgsTuple&& builder_args = {}, MergerArgsTuple&& merger_args = {}, FinderArgsTuple&& finder_args = {}) {
         using namespace std;
@@ -104,7 +104,7 @@ public:
                 subtour_merger(working_individual, tsp, selected_AB_cycles_view, std::forward<MergerArgsTuple>(merger_args));
             }
 
-            children.emplace_back(working_individual.get_delta_and_revert());
+            children.emplace_back(working_individual.get_delta_and_revert(tsp.adjacency_matrix));
         }
         
         return children;

@@ -45,29 +45,30 @@ inline double calc_delta_entropy(const CrossoverDelta& child, edge_counts_t& pop
     
     return delta_H;
 }
+
 namespace eval {
 namespace delta {
 
 namespace impl {
-    struct Entropy {
-        double operator()(const CrossoverDelta& child, adjacency_matrix_t& adjacency_matrix, edge_counts_t& pop_edge_counts, size_t pop_size, double epsilon = 1e-9) const {
-            double delta_L = child.get_delta_distance(adjacency_matrix);
-            if (delta_L >= 0.0) {
-                return -1.0;
-            }
-
-            double delta_H = calc_delta_entropy(child, pop_edge_counts, pop_size);
-            
-            // 多様性が増すならば
-            if (delta_H >= 0) {
-                return -1.0 * delta_L / epsilon;
-            }
-
-            // 多様性が減るならば
-            // 減少多様性当たりの距離の減少量を評価値とする
-            return delta_L / delta_H;
+struct Entropy {
+    double operator()(const CrossoverDelta& child, edge_counts_t& pop_edge_counts, size_t pop_size, double epsilon = 1e-9) const {
+        double delta_L = child.get_delta_distance();
+        if (delta_L >= 0.0) {
+            return -1.0;
         }
-    };
+
+        double delta_H = calc_delta_entropy(child, pop_edge_counts, pop_size);
+        
+        // 多様性が増すならば
+        if (delta_H >= 0) {
+            return -1.0 * delta_L / epsilon;
+        }
+
+        // 多様性が減るならば
+        // 減少多様性当たりの距離の減少量を評価値とする
+        return delta_L / delta_H;
+    }
+};
 }
 
 constexpr impl::Entropy Entropy{};

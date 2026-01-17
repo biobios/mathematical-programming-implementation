@@ -25,9 +25,10 @@ IntermediateIndividual::IntermediateIndividual(size_t size)
     individual_being_edited[size - 1] = {size - 2, 0};
 }
 
-CrossoverDelta IntermediateIndividual::get_delta_and_revert() {
+CrossoverDelta IntermediateIndividual::get_delta_and_revert(const adjacency_matrix_t& adjacency_matrix) {
     revert();
-    CrossoverDelta delta(std::move(modifications));
+    int64_t delta_distance = calc_delta_distance(adjacency_matrix);
+    CrossoverDelta delta(std::move(modifications), base_checksum, delta_distance);
     reset();
     return delta;
 }

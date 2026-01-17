@@ -24,9 +24,10 @@ public:
      * @tparam T 個体の型
      * @param individual 元にする個体
      */
-    template <doubly_linked_list_like T>
+    template <individual_concept T>
     IntermediateIndividual(const T& individual)
         : individual_being_edited(individual.size()),
+        base_checksum(individual.checksum()),
         modifications(),
         path(individual.size()),
         pos(individual.size()) {
@@ -38,9 +39,10 @@ public:
      * @tparam T 個体の型
      * @param individual 代入する個体
      */
-    template <doubly_linked_list_like T>
+    template <individual_concept T>
     void assign(const T& individual) {
         reset();
+        base_checksum = individual.checksum();
         for (size_t i = 0; i < individual.size(); ++i) {
             individual_being_edited[i] = {individual[i][0], individual[i][1]};
         }
@@ -63,9 +65,10 @@ public:
     
     /**
      * @brief 現在の変更内容を取得し、中間個体を元に戻す
+     * @param adjacency_matrix 隣接行列
      * @return 変更内容
      */
-    CrossoverDelta get_delta_and_revert();
+    CrossoverDelta get_delta_and_revert(const adjacency_matrix_t& adjacency_matrix);
     /**
      * @brief 現在の変更内容を破棄し、中間個体を元に戻す
      */
@@ -150,6 +153,7 @@ private:
     void reset();
     void undo(const CrossoverDelta::Modification& modification);
     doubly_linked_list_t individual_being_edited;
+    uint64_t base_checksum;
     /**
      * 個体の変更履歴
      * 偶数番目あるいは奇数番目の要素だけを見れば、交叉に関わったすべての辺を知ることができる

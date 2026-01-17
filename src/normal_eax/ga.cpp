@@ -46,11 +46,11 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
         auto& env = context.env;
         switch (env.selection_type) {
             case eax::SelectionType::Greedy:
-                return eax::eval::delta::Greedy(child, env.tsp.adjacency_matrix);
+                return eax::eval::delta::Greedy(child);
             case eax::SelectionType::Ent:
-                return eax::eval::delta::Entropy(child, env.tsp.adjacency_matrix, context.pop_edge_counts, env.population_size);
+                return eax::eval::delta::Entropy(child, context.pop_edge_counts, env.population_size);
             case eax::SelectionType::DistancePreserving:
-                return eax::eval::delta::DistancePreserving(child, env.tsp.adjacency_matrix, context.pop_edge_counts);
+                return eax::eval::delta::DistancePreserving(child, context.pop_edge_counts);
             default:
                 throw std::runtime_error("Unknown selection type");
         }
@@ -73,7 +73,7 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
         
         void update_individual_and_edge_counts(vector<Individual>& population, Context& context) {
             for (auto& individual : population) {
-                auto delta = individual.update(context.env.tsp.adjacency_matrix);
+                auto delta = individual.update();
                 context.entropy += eax::calc_delta_entropy(delta, context.pop_edge_counts, context.env.population_size);
                 for (const auto& mod : delta.get_modifications()) {
                     size_t v1 = mod.edge1.first;

@@ -211,15 +211,15 @@ int main(int argc, char* argv[])
                 }
             }
             
-            void update_greedy(vector<Individual>& population, Env& env) {
+            void update_greedy(vector<Individual>& population, Env&) {
                 for (auto& individual : population) {
-                    individual.update(env.tsp.adjacency_matrix);
+                    individual.update();
                 }
             }
             
             void update_entropy(vector<Individual>& population, Env& env) {
                 for (auto& individual : population) {
-                    eax::CrossoverDelta delta = individual.update(env.tsp.adjacency_matrix);
+                    eax::CrossoverDelta delta = individual.update();
                     
                     for (const auto& modification : delta.get_modifications()) {
                         auto [v1, v2] = modification.edge1;
@@ -302,14 +302,12 @@ int main(int argc, char* argv[])
         } logging;
 
         // 適応度関数
-        eax::eval::delta::Greedy eval_greedy;
-        eax::eval::delta::Entropy eval_ent;
-        auto calc_fitness_lambda = [&eval_greedy, &eval_ent](const eax::CrossoverDelta& child, Env& env) {
+        auto calc_fitness_lambda = [](const eax::CrossoverDelta& child, Env& env) {
             switch (env.selection_type) {
                 case eax::SelectionType::Greedy:
-                    return eval_greedy(child, env.tsp.adjacency_matrix);
+                    return eax::eval::delta::Greedy(child);
                 case eax::SelectionType::Ent:
-                    return eval_ent(child, env.tsp.adjacency_matrix, env.pop_edge_counts, env.population_size);
+                    return eax::eval::delta::Entropy(child, env.pop_edge_counts, env.population_size);
                 default:
                     throw std::runtime_error("Unknown selection type");
             }
