@@ -28,29 +28,8 @@
 #include "two_opt.hpp"
 #include "object_pools.hpp"
 #include "eax_rand.hpp"
+#include "buffered_individual.hpp"
 
-struct Individual : public eax::Checksumed, public std::vector<std::array<size_t, 2>> {
-    using std::vector<std::array<size_t, 2>>::vector;
-
-    int64_t& distance() {
-        return distance_;
-    }
-
-    const int64_t& distance() const {
-        return distance_;
-    }
-
-    template <typename T = Individual>
-        requires std::is_same_v<T, Individual>
-    Individual& operator=(eax::DeltaWithIndividual<T>&& delta_view) {
-        delta_view.apply_to(*this);
-        return *this;
-    }
-
-private:
-    int64_t distance_ = 0;
-};
-    
 
 double calc_fitness(const std::vector<size_t>& path, const std::vector<std::vector<int64_t>>& adjacency_matrix){
     double distance = 0.0;
@@ -159,6 +138,8 @@ int main(int argc, char* argv[])
     vector<double> best_path_lengths(trials, 0.0);
     // 各試行のベストに到達した最初の世代
     vector<size_t> generation_of_best(trials, 0);
+
+    using Individual = eax::BufferedIndividual;
     
     for (size_t trial = 0; trial < trials; ++trial) {
         cout << "Trial " << trial + 1 << " of " << trials << endl;
@@ -173,26 +154,9 @@ int main(int argc, char* argv[])
         vector<Individual> population;
         population.reserve(population_size);
         for (const auto& path : paths) {
-            Individual individual;
-            auto& distance = individual.distance();
-
-            individual.resize(path.size());
-            for (size_t i = 1; i < path.size() - 1; ++i) {
-                individual[path[i]] = {path[i - 1], path[i + 1]};
-                distance += tsp.adjacency_matrix[path[i]][path[i - 1]];
-                distance += tsp.adjacency_matrix[path[i]][path[i + 1]];
-            }
-            individual[path[0]] = {path.back(), path[1]};
-            distance += tsp.adjacency_matrix[path[0]][path.back()];
-            distance += tsp.adjacency_matrix[path[0]][path[1]];
-
-            individual[path.back()] = {path[path.size() - 2], path[0]};
-            distance += tsp.adjacency_matrix[path.back()][path[path.size() - 2]];
-            distance += tsp.adjacency_matrix[path.back()][path[0]];
-
-            distance /= 2; // 各辺が2回カウントされているため半分にする
-            population.push_back(std::move(individual));
+            population.emplace_back(path, tsp.adjacency_matrix);
         }
+
         cout << "Initial population created." << endl;
         
         // using Env = tsp::TSP;
@@ -206,7 +170,7 @@ int main(int argc, char* argv[])
         
         auto crossover = [&eax_rand](const Individual& parent1, const Individual& parent2, Env& env) {
             auto deltas = eax_rand(parent1, parent2, 100, env.tsp, env.random_gen);
-            std::vector<eax::DeltaWithIndividual<Individual>> delta_views;
+            std::vector<Individual::delta_t> delta_views;
             delta_views.reserve(deltas.size());
             for (const auto& delta : deltas) {
                 delta_views.emplace_back(parent1, std::move(delta));
@@ -219,8 +183,11 @@ int main(int argc, char* argv[])
         struct {
             size_t max_generations;
 
-            mpi::genetic_algorithm::TerminationReason operator()(const vector<Individual>& population, const Env&, size_t generation) {
-                
+            mpi::genetic_algorithm::TerminationReason operator()(vector<Individual>& population, const Env&, size_t generation) {
+                for (auto& individual : population) {
+                    individual.flush_buffer();
+                }
+
                 if (generation >= max_generations) {
                     return mpi::genetic_algorithm::TerminationReason::MaxGenerations;
                 }
@@ -229,8 +196,8 @@ int main(int argc, char* argv[])
                 int64_t min_distance = std::numeric_limits<int64_t>::max();
 
                 for (const auto& individual : population) {
-                    max_disntance = std::max(max_disntance, individual.distance());
-                    min_distance = std::min(min_distance, individual.distance());
+                    max_disntance = std::max(max_disntance, individual.get_distance());
+                    min_distance = std::min(min_distance, individual.get_distance());
                 }
 
                 if (max_disntance == min_distance) {
@@ -250,7 +217,7 @@ int main(int argc, char* argv[])
             void operator()([[maybe_unused]]const vector<Individual>& population, [[maybe_unused]]const Env& tsp, size_t generation) {
                 int64_t min_length = std::numeric_limits<int64_t>::max();
                 for (const auto& individual : population) {
-                    min_length = std::min(min_length, individual.distance());
+                    min_length = std::min(min_length, individual.get_distance());
                 }
                 if (min_length < best_length) {
                     best_length = min_length;
@@ -260,8 +227,8 @@ int main(int argc, char* argv[])
         } logging;
 
         // 適応度関数
-        auto calc_fitness_lambda = [](const eax::DeltaWithIndividual<Individual>& child, const Env&) {
-            return 1.0 / (child.individual.distance() + child.delta.get_delta_distance());
+        auto calc_fitness_lambda = [](const Individual::delta_t& child, const Env&) {
+            return 1.0 / (child.get_individual().get_distance() + child.get_delta().get_delta_distance());
         };
         
         // 乱数生成器初期化
@@ -276,7 +243,7 @@ int main(int argc, char* argv[])
 
         // 世代交代モデル ElitistRecombinationを使用して、遺伝的アルゴリズムを実行
         auto elitist_recombination = mpi::genetic_algorithm::ElitistRecombination(calc_fitness_lambda, crossover);
-        auto gen_change_model = mpi::GenerationalChangeModel(elitist_recombination, update_func, logging);
+        auto gen_change_model = mpi::GenerationalChangeModel(elitist_recombination, update_func, std::ref(logging));
         auto [reason, final_population] = gen_change_model.execute(population, env);
         
         auto end_cpu_time = clock();
