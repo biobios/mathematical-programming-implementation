@@ -62,7 +62,7 @@ public:
      * @return Block2ESetAssemblerのインスタンス
      * @tparam Individual 親個体の型
      */
-    template <doubly_linked_list_like Individual>
+    template <individual_readable Individual>
     Block2ESetAssembler create(const Individual& parent1, const Individual& parent2,
                                const std::vector<mpi::pooled_unique_ptr<ab_cycle_t>>& AB_cycles) {
         using namespace std;

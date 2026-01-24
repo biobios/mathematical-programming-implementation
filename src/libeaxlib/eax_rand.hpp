@@ -43,7 +43,7 @@ public:
     Rand_e_set_assembler_builder(ObjectPools& object_pools) :
         any_size_vector_pool(object_pools.any_size_vector_pool.share()) {}
     
-    template <doubly_linked_list_like Individual>
+    template <individual_readable Individual>
     Rand_e_set_assembler build(const std::vector<mpi::pooled_unique_ptr<ab_cycle_t>>& AB_cycles, [[maybe_unused]]const Individual& parent1, [[maybe_unused]]const Individual parent2, [[maybe_unused]]size_t children_size, [[maybe_unused]]const tsp::TSP& tsp, [[maybe_unused]]std::mt19937& rng) {
         return Rand_e_set_assembler(AB_cycles.size(), any_size_vector_pool.share());
     }

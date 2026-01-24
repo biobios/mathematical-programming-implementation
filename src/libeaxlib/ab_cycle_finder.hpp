@@ -313,7 +313,7 @@ public:
      * @return ABサイクルのポインタのベクター
      * @tparam Individual 親個体の型
      */
-    template <doubly_linked_list_like Individual>
+    template <individual_readable Individual>
     std::vector<PooledVectorPtr> operator()(size_t needs,
             const Individual& parent1,
             const Individual& parent2,
