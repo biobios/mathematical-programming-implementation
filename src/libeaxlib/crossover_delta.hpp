@@ -25,7 +25,12 @@ public:
          */
         size_t new_v2;
     };
-    CrossoverDelta() = default;
+
+    CrossoverDelta(const individual_readable auto& individual)
+        :   modifications(),
+            base_checksum(individual.get_checksum()),
+            delta_checksum(0),
+            delta_distance(0) {}
     
     /**
      * @param modifications 変更履歴
