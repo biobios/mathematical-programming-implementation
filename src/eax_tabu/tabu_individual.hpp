@@ -28,7 +28,10 @@ public:
         current_tabu_index = (current_tabu_index + 1) % tabu_range;
         
         // 変更をもとにタブーリストを更新
-        std::bernoulli_distribution tabu_decision(0.5);
+
+        // modificationには、同一の辺が2回ずつ含まれている((u,v)と(v,u)の両方)ため、
+        // まったく選ばれない確率が0.5(つまり、一回以上選ばれる確率が0.5)となるように、確率を設定する
+        std::bernoulli_distribution tabu_decision(1.0 - sqrt(0.5));
 
         for (auto& tabu_edge_list : tabu_edges) {
             for (const auto& modification : pending_delta.get_modifications()) {
