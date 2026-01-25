@@ -41,7 +41,7 @@ public:
      * @return ABサイクルのポインタのベクター
      * @tparam Individual 親個体の型
      */
-    template <doubly_linked_list_like Individual>
+    template <doubly_linked_list_readable Individual>
     std::vector<mpi::pooled_unique_ptr<ab_cycle_t>> operator()(size_t needs,
             const Individual& parent1,
             const Individual& parent2,
