@@ -18,7 +18,6 @@ namespace eax {
 std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> execute_ga(
     std::vector<Individual>& population,
     Context& context,
-    std::chrono::system_clock::time_point timeout_time,
     const std::string& log_file_name) {
     using namespace std;
     using Context = eax::Context;
@@ -58,22 +57,18 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
     
     // 更新処理関数
     struct {
-        std::chrono::system_clock::time_point timeout_time;
         mpi::genetic_algorithm::TerminationReason operator()(vector<Individual>& population, Context& context, size_t generation) {
             context.current_generation = generation;
 
             update_individual_and_edge_counts(population, context);
             
-            if (std::chrono::system_clock::now() >= timeout_time) {
-                return mpi::genetic_algorithm::TerminationReason::TimeLimit;
-            }
-
             return continue_condition(population, context, generation);
         }
         
         void update_individual_and_edge_counts(vector<Individual>& population, Context& context) {
             for (auto& individual : population) {
-                auto delta = individual.update();
+                auto delta = individual.apply_pending_delta();
+
                 context.entropy += eax::calc_delta_entropy(delta, context.pop_edge_counts, context.env.population_size);
                 for (const auto& mod : delta.get_modifications()) {
                     size_t v1 = mod.edge1.first;
@@ -128,7 +123,7 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
             
             return mpi::genetic_algorithm::TerminationReason::NotTerminated;
         }
-    } update_func {timeout_time};
+    } update_func;
     
     // ロガー
     std::ofstream log_file;
@@ -190,29 +185,6 @@ Context create_context(const std::vector<Individual>& initial_population, Enviro
     context.set_initial_edge_counts(initial_population);
     context.random_gen = std::mt19937(env.random_seed);
     return context;
-}
-
-void serialize_population(const std::vector<Individual>& population, std::ostream& os) {
-    os << "# Population" << std::endl;
-    for (const auto& individual : population) {
-        individual.serialize(os);
-        os << std::endl;
-    }
-}
-
-std::vector<Individual> deserialize_population(std::istream& is) {
-    std::vector<Individual> population;
-    std::string line;
-    // # Population
-    std::getline(is, line);
-    if (line != "# Population") throw std::runtime_error("Expected '# Population'");
-    while (std::getline(is, line)) {
-        if (line.empty()) continue;
-        std::istringstream iss(line);
-        Individual individual = Individual::deserialize(iss);
-        population.push_back(individual);
-    }
-    return population;
 }
     
 }
