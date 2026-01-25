@@ -19,7 +19,7 @@ public:
     EdgeCounter(size_t num_vertices, size_t population_size)
         : vertex_counters(num_vertices, VertexEdgeCounter{population_size}) {}
     
-    template <doubly_linked_list_like Individual>
+    template <doubly_linked_list_readable Individual>
     EdgeCounter(const std::vector<Individual>& population)
         : EdgeCounter(population[0].size(), population.size()) {
         
