@@ -19,19 +19,19 @@ public:
         : checksum_value(calc_checksum_from_seed(global_checksum_counter++)) {}
 
     /**
-     * @brief 個体のチェックサムを取得・設定する
-     * @return チェックサムの参照
+     * @brief 個体のチェックサムを取得する
+     * @return チェックサム
      */
-    uint64_t& checksum() {
+    uint64_t get_checksum() const {
         return checksum_value;
     }
 
     /**
-     * @brief 個体のチェックサムを取得する
-     * @return チェックサム
+     * @brief 個体のチェックサムを設定する
+     * @param val 設定するチェックサムの値
      */
-    const uint64_t& checksum() const {
-        return checksum_value;
+    void set_checksum(uint64_t val) {
+        checksum_value = val;
     }
 private:
     /**

@@ -25,7 +25,12 @@ public:
          */
         size_t new_v2;
     };
-    CrossoverDelta() = default;
+
+    CrossoverDelta(const individual_readable auto& individual)
+        :   modifications(),
+            base_checksum(individual.get_checksum()),
+            delta_checksum(0),
+            delta_distance(0) {}
     
     /**
      * @param modifications 変更履歴
@@ -43,14 +48,10 @@ public:
      * @brief 変更を個体に適用する
      * @tparam T 個体の型
      */
-    template <individual_concept T>
+    template <individual_writable T>
     void apply_to(T& individual) const {
 
-        if (modifications.empty()) {
-            return;
-        }
-
-        if (base_checksum != individual.checksum()) {
+        if (base_checksum != individual.get_checksum()) {
             throw std::invalid_argument("CrossoverDelta::apply_to: The base checksum does not match the individual's checksum.");
         }
 
@@ -63,23 +64,21 @@ public:
                 individual[v1][1] = new_v2;
             }
         }
+        
+        uint64_t new_checksum = base_checksum ^ delta_checksum;
+        individual.set_checksum(new_checksum);
 
-        individual.checksum() ^= delta_checksum;
-        individual.distance() += delta_distance;
+        int64_t new_distance = individual.get_distance() + delta_distance;
+        individual.set_distance(new_distance);
     }
 
     /**
      * @brief 変更を元に戻す
      * @tparam T 個体の型
      */
-    template <individual_concept T>
-    void undo(T& individual) const {
-        
-        if (modifications.empty()) {
-            return;
-        }
+    void undo(individual_writable auto& individual) const {
 
-        if ((base_checksum ^ delta_checksum) != individual.checksum()) {
+        if ((base_checksum ^ delta_checksum) != individual.get_checksum()) {
             throw std::invalid_argument("CrossoverDelta::undo: The individual's checksum does not match the expected checksum after applying the delta.");
         }
 
@@ -93,9 +92,12 @@ public:
                 individual[v1][1] = v2;
             }
         }
+        
+        uint64_t original_checksum = base_checksum;
+        individual.set_checksum(original_checksum);
 
-        individual.checksum() ^= delta_checksum;
-        individual.distance() -= delta_distance;
+        int64_t original_distance = individual.get_distance() - delta_distance;
+        individual.set_distance(original_distance);
     }
 
     /**
@@ -104,9 +106,9 @@ public:
      * @param individual チェックする個体
      * @return ベースの個体であればtrue、そうでなければfalse
      */
-    template <individual_concept T>
+    template <individual_readable T>
     bool is_base_individual(const T& individual) const {
-        return base_checksum == individual.checksum();
+        return base_checksum == individual.get_checksum();
     }
 
     /**
@@ -115,9 +117,9 @@ public:
      * @param individual チェックする個体
      * @return 変更後の個体であればtrue、そうでなければfalse
      */
-    template <individual_concept T>
+    template <individual_readable T>
     bool is_modified_individual(const T& individual) const {
-        return (base_checksum ^ delta_checksum) == individual.checksum();
+        return (base_checksum ^ delta_checksum) == individual.get_checksum();
     }
     
     /**

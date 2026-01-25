@@ -34,7 +34,7 @@ public:
      * @return 生成された子個体の変更履歴のベクター
      * @tparam Individual 親個体の型
      */
-    template <doubly_linked_list_like Individual>
+    template <individual_readable Individual>
     std::vector<CrossoverDelta> operator()(const Individual& parent1, const Individual& parent2, size_t children_size,
                                         const tsp::TSP& tsp, std::mt19937& rng) {
         auto& adjacency_matrix = tsp.adjacency_matrix;

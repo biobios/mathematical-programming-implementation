@@ -26,7 +26,6 @@
 #include "elitist_recombination.hpp"
 #include "tsp_loader.hpp"
 #include "population_initializer.hpp"
-#include "individual.hpp"
 #include "generational_model.hpp"
 #include "context.hpp"
 #include "ga.hpp"
@@ -54,14 +53,8 @@ struct Arguments {
     size_t num_reference_parents = 10;
     // 出力ファイル名
     std::string output_file_name = "result.md";
-    // タイムアウト時間(秒)
-    size_t timeout_seconds = 60 * 60 * 24 * 365; // 実質的に無制限
-    // 中断時の状態を保存するファイルの名前
-    std::string checkpoint_save_file_name = "checkpoint.dat";
     // ログファイル名
     std::string log_file_name = "";
-    // チェックポイントのファイル名 (指定されれば読み込む)
-    std::string checkpoint_load_file_name;
     // キャッシュディレクトリ
     std::string cache_directory = ".";
 };
@@ -113,12 +106,6 @@ void print_result(const eax::Context& context, std::ostream& os, mpi::genetic_al
 
 }
 
-void serialize(const eax::Context& context, const std::vector<eax::Individual>& population, std::ostream& os)
-{
-    context.serialize(os);
-    eax::serialize_population(population, os);
-}
-
 // 通常実行
 void execute_normal(const Arguments& args)
 {
@@ -152,8 +139,6 @@ void execute_normal(const Arguments& args)
     eax::TwoOpt two_opt(tsp.adjacency_matrix, tsp.NN_list, near_range);
     // 初期集団生成器
     tsp::PopulationInitializer population_initializer(args.population_size, tsp.city_count);
-    // タイムアウト時間
-    auto timeout_time = chrono::system_clock::now() + chrono::seconds(args.timeout_seconds);
     
     for (size_t trial = 0; trial < args.trials; ++trial) {
         cout << "Trial " << trial + 1 << " of " << args.trials << endl;
@@ -190,96 +175,19 @@ void execute_normal(const Arguments& args)
         
         cout << "Starting genetic algorithm..." << endl;
         // 計測開始
-        auto result = eax::execute_ga(population, ga_context, timeout_time, args.log_file_name);
+        auto result = eax::execute_ga(population, ga_context, args.log_file_name);
         auto& [termination_reason, result_population] = result;
         
-        if (termination_reason == mpi::genetic_algorithm::TerminationReason::TimeLimit) {
-            ofstream checkpoint_out(args.checkpoint_save_file_name);
-            if (!checkpoint_out.is_open()) {
-                throw std::runtime_error("Failed to open checkpoint save file: " + args.checkpoint_save_file_name);
-            }
-            serialize(ga_context, result_population, checkpoint_out);
-            checkpoint_out.close();
-            cout << "Checkpoint saved to " << args.checkpoint_save_file_name << endl;
-        } else {
-            // 結果を出力
-            ofstream result_file(args.output_file_name, ios::app);
-            if (!result_file.is_open()) {
-                throw std::runtime_error("Failed to open result file: " + args.output_file_name);
-            }
-            print_result(ga_context, result_file, termination_reason);
-            result_file.close();
-            cout << "Result saved to " << args.output_file_name << endl;
-        }
-        
-        cout << "Trial " << trial + 1 << " completed." << endl;
-    }
-}
-
-// チェックポイントから再開
-void resume_from_checkpoint(const Arguments& args)
-{
-    using namespace std;
-    if (args.seed != mt19937::default_seed) {
-        cerr << "Warning: --seed is ignored when --checkpoint-load is specified." << endl;
-    }
-    if (args.population_size != 0) {
-        cerr << "Warning: --ps is ignored when --checkpoint-load is specified." << endl;
-    }
-    if (args.num_children != 30) {
-        cerr << "Warning: --children is ignored when --checkpoint-load is specified." << endl;
-    }
-    if (args.selection_type_str != "ent") {
-        cerr << "Warning: --selection is ignored when --checkpoint-load is specified." << endl;
-    }
-    if (args.trials != 1) {
-        cerr << "Warning: --trials is ignored when --checkpoint-load is specified." << endl;
-    }
-
-    // TSPファイルを読み込む
-    ifstream tsp_file(args.file_name);
-    if (!tsp_file.is_open()) {
-        throw std::runtime_error("Failed to open TSP file: " + args.file_name);
-    }
-    tsp::TSP tsp = tsp::TSP_Loader::load_tsp(args.file_name);
-    tsp_file.close();
-
-    // チェックポイントファイルを読み込む
-    ifstream checkpoint_file(args.checkpoint_load_file_name);
-    if (!checkpoint_file.is_open()) {
-        throw std::runtime_error("Failed to open checkpoint file: " + args.checkpoint_load_file_name);
-    }
-    eax::Context context = eax::Context::deserialize(checkpoint_file, std::move(tsp));
-    vector<eax::Individual> population = eax::deserialize_population(checkpoint_file);
-    context.update_reference_parents(population);
-
-    checkpoint_file.close();
-    
-    // タイムアウト時間
-    auto timeout_time = chrono::system_clock::now() + chrono::seconds(args.timeout_seconds);
-
-    // 遺伝的アルゴリズムの実行
-    cout << "Resuming from checkpoint..." << endl;
-    auto result = eax::execute_ga(population, context, timeout_time, args.log_file_name);
-    
-    auto& [termination_reason, result_population] = result;
-    if (termination_reason == mpi::genetic_algorithm::TerminationReason::TimeLimit) {
-        ofstream checkpoint_out(args.checkpoint_save_file_name);
-        if (!checkpoint_out.is_open()) {
-            throw std::runtime_error("Failed to open checkpoint save file: " + args.checkpoint_save_file_name);
-        }
-        serialize(context, result_population, checkpoint_out);
-        checkpoint_out.close();
-        cout << "Checkpoint saved to " << args.checkpoint_save_file_name << endl;
-    } else {
         // 結果を出力
         ofstream result_file(args.output_file_name, ios::app);
         if (!result_file.is_open()) {
             throw std::runtime_error("Failed to open result file: " + args.output_file_name);
         }
-        print_result(context, result_file, termination_reason);
+        print_result(ga_context, result_file, termination_reason);
         result_file.close();
         cout << "Result saved to " << args.output_file_name << endl;
+        
+        cout << "Trial " << trial + 1 << " completed." << endl;
     }
 }
 
@@ -341,21 +249,6 @@ int main(int argc, char* argv[])
     log_file_name_spec.add_argument_name("--log");
     log_file_name_spec.set_description("--log <filename> \t:Log file name.");
     parser.add_argument(log_file_name_spec);
-    
-    mpi::ArgumentSpec timeout_spec(args.timeout_seconds);
-    timeout_spec.add_argument_name("--timeout");
-    timeout_spec.set_description("--timeout <seconds> \t:Timeout duration in seconds.");
-    parser.add_argument(timeout_spec);
-    
-    mpi::ArgumentSpec checkpoint_save_spec(args.checkpoint_save_file_name);
-    checkpoint_save_spec.add_argument_name("--checkpoint-save");
-    checkpoint_save_spec.set_description("--checkpoint-save <filename> \t:File name to save checkpoint state (default: checkpoint.dat).");
-    parser.add_argument(checkpoint_save_spec);
-
-    mpi::ArgumentSpec checkpoint_load_spec(args.checkpoint_load_file_name);
-    checkpoint_load_spec.add_argument_name("--checkpoint-load");
-    checkpoint_load_spec.set_description("--checkpoint-load <filename> \t:File name to load checkpoint state.");
-    parser.add_argument(checkpoint_load_spec);
 
     mpi::ArgumentSpec cache_dir_spec(args.cache_directory);
     cache_dir_spec.add_argument_name("--cache-dir");
@@ -381,11 +274,7 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    if (!args.checkpoint_load_file_name.empty()) {
-        resume_from_checkpoint(args);
-    } else {
-        execute_normal(args);
-    }
+    execute_normal(args);
 
     return 0;
 }

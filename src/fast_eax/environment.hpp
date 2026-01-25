@@ -7,8 +7,11 @@
 #include "tsp_loader.hpp"
 #include "object_pool.hpp"
 #include "limited_range_integer_set.hpp"
+#include "individual_with_pending_delta.hpp"
 
 namespace eax {
+    using Individual = IndividualWithPendingDelta;
+
     enum class EAXType {
         Rand,
         N_AB,

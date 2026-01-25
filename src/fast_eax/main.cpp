@@ -19,7 +19,6 @@
 #include "elitist_recombination.hpp"
 #include "tsp_loader.hpp"
 #include "population_initializer.hpp"
-#include "individual.hpp"
 #include "generational_model.hpp"
 #include "environment.hpp"
 #include "two_opt.hpp"
@@ -213,13 +212,13 @@ int main(int argc, char* argv[])
             
             void update_greedy(vector<Individual>& population, Env&) {
                 for (auto& individual : population) {
-                    individual.update();
+                    individual.apply_pending_delta();
                 }
             }
             
             void update_entropy(vector<Individual>& population, Env& env) {
                 for (auto& individual : population) {
-                    eax::CrossoverDelta delta = individual.update();
+                    eax::CrossoverDelta delta = individual.apply_pending_delta();
                     
                     for (const auto& modification : delta.get_modifications()) {
                         auto [v1, v2] = modification.edge1;

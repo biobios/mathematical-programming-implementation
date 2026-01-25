@@ -16,7 +16,6 @@ namespace eax {
 std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> execute_ga(
     std::vector<Individual>& population,
     Context& context,
-    std::chrono::system_clock::time_point timeout_time,
     const std::string& log_file_name) {
 
     using namespace std;
@@ -71,22 +70,17 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
     
     // 更新処理関数
     struct {
-        std::chrono::system_clock::time_point timeout_time;
         mpi::genetic_algorithm::TerminationReason operator()(vector<Individual>& population, Context& context, size_t generation) {
             context.current_generation = generation;
 
             update_individual_and_edge_counts(population, context);
             
-            if (std::chrono::system_clock::now() >= timeout_time) {
-                return mpi::genetic_algorithm::TerminationReason::TimeLimit;
-            }
-
             return continue_condition(population, context, generation);
         }
         
         void update_individual_and_edge_counts(vector<Individual>& population, Context& context) {
             for (auto& individual : population) {
-                auto delta = individual.update(context);
+                auto delta = individual.update_graph_and_tabu(context.random_gen);
                 auto delta_H = eax::calc_delta_entropy(delta, context.pop_edge_counts, context.env.population_size);
                 context.entropy += delta_H;
                 for (const auto& mod : delta.get_modifications()) {
@@ -125,7 +119,7 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
             
             return mpi::genetic_algorithm::TerminationReason::NotTerminated;
         }
-    } update_func {timeout_time};
+    } update_func;
     
     // ロガー
     std::ofstream log_ofs;
@@ -138,11 +132,11 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
         void operator()([[maybe_unused]]const vector<Individual>& population, Context& context, size_t generation) {
             if (context.start_time.time_since_epoch().count() == 0) {
                 // 計測開始時刻が未設定なら、現在時刻を設定
-                const_cast<Context&>(context).start_time = std::chrono::system_clock::now();
+                context.start_time = std::chrono::system_clock::now();
             } else {
                 auto now = std::chrono::system_clock::now();
                 context.elapsed_time += std::chrono::duration<double>(now - context.start_time).count();
-                const_cast<Context&>(context).start_time = now;
+                context.start_time = now;
             }
 
             if (!log_os.is_open()) {
@@ -184,27 +178,4 @@ Context create_context(const std::vector<Individual>& initial_population, Enviro
     return context;
 }
 
-void serialize_population(const std::vector<Individual>& population, std::ostream& os) {
-    os << "# Population" << std::endl;
-    for (const auto& individual : population) {
-        individual.serialize(os);
-        os << std::endl;
-    }
-}
-
-std::vector<Individual> deserialize_population(std::istream& is) {
-    std::vector<Individual> population;
-    std::string line;
-    // # Population
-    std::getline(is, line);
-    if (line != "# Population") throw std::runtime_error("Expected '# Population'");
-    while (std::getline(is, line)) {
-        if (line.empty()) continue;
-        std::istringstream iss(line);
-        Individual individual = Individual::deserialize(iss);
-        population.push_back(individual);
-    }
-    return population;
-}
-    
 }

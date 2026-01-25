@@ -8,13 +8,16 @@
 #include "tsp_loader.hpp"
 #include "object_pool.hpp"
 #include "limited_range_integer_set.hpp"
-#include "individual.hpp"
 #include "eax_rand.hpp"
 #include "eax_n_ab.hpp"
 #include "eax_block2.hpp"
 #include "eax_uniform.hpp"
 
+#include "individual_with_pending_delta.hpp"
+
 namespace eax {
+    using Individual = eax::IndividualWithPendingDelta;
+
     using eax_type_t = std::variant<EAX_Rand_tag, EAX_n_AB_tag, EAX_Block2_tag, EAX_full_UNIFORM_tag>;
 
     enum class SelectionType {
@@ -89,9 +92,6 @@ namespace eax {
                     }
                 }
             }
-        };
-        
-        void serialize(std::ostream& os) const;
-        static Context deserialize(std::istream& is, tsp::TSP tsp);
+        }
     };
 }

@@ -26,7 +26,6 @@
 #include "elitist_recombination.hpp"
 #include "tsp_loader.hpp"
 #include "population_initializer.hpp"
-#include "individual.hpp"
 #include "generational_model.hpp"
 #include "context.hpp"
 #include "ga.hpp"
@@ -52,8 +51,6 @@ struct Arguments {
     std::string eax_type_str = "EAX_5_AB";
     // 出力ファイル名
     std::string output_file_name = "result.md";
-    // タイムアウト時間(秒)
-    size_t timeout_seconds = 60 * 60 * 24 * 365; // 実質的に無制限
     // ログファイル名
     std::string log_file_name = "";
     // キャッシュディレクトリ
@@ -140,8 +137,6 @@ void execute_normal(const Arguments& args)
     eax::TwoOpt two_opt(tsp.adjacency_matrix, tsp.NN_list, near_range);
     // 初期集団生成器
     tsp::PopulationInitializer population_initializer(args.population_size, tsp.city_count);
-    // タイムアウト時間
-    auto timeout_time = chrono::system_clock::now() + chrono::seconds(args.timeout_seconds);
     
     for (size_t trial = 0; trial < args.trials; ++trial) {
         cout << "Trial " << trial + 1 << " of " << args.trials << endl;
@@ -178,7 +173,7 @@ void execute_normal(const Arguments& args)
         
         cout << "Starting genetic algorithm..." << endl;
         // 計測開始
-        auto result = eax::execute_ga(population, ga_context, timeout_time, args.log_file_name);
+        auto result = eax::execute_ga(population, ga_context, args.log_file_name);
         auto& [termination_reason, result_population] = result;
         
         if (termination_reason == mpi::genetic_algorithm::TerminationReason::TimeLimit) {
@@ -252,11 +247,6 @@ int main(int argc, char* argv[])
     log_file_name_spec.set_description("--log <filename> \t:Log file name.");
     parser.add_argument(log_file_name_spec);
     
-    mpi::ArgumentSpec timeout_spec(args.timeout_seconds);
-    timeout_spec.add_argument_name("--timeout");
-    timeout_spec.set_description("--timeout <seconds> \t:Timeout duration in seconds.");
-    parser.add_argument(timeout_spec);
-
     mpi::ArgumentSpec cache_dir_spec(args.cache_directory);
     cache_dir_spec.add_argument_name("--cache-dir");
     cache_dir_spec.set_description("--cache-dir <directory> \t:Directory to store cache files of initial populations (default: current directory).");

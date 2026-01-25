@@ -17,7 +17,7 @@ public:
           in_min_sub_tour_pool(object_pools.in_min_sub_tour_pool.share()),
           subtour_finder(object_pools) {}
 
-    template <std::ranges::range ABCycles, doubly_linked_list_like Individual>
+    template <std::ranges::range ABCycles, doubly_linked_list_readable Individual>
         requires std::convertible_to<std::ranges::range_value_t<ABCycles>, const ab_cycle_t&>
     void operator()(IntermediateIndividual& working_individual,
                     const tsp::TSP& tsp,
