@@ -49,7 +49,7 @@ public:
         any_size_vector_pool(object_pools.any_size_vector_pool.share()) {}
     
     template <individual_readable Individual>
-    uniform_e_set_assembler build(const std::vector<mpi::pooled_unique_ptr<ab_cycle_t>>& AB_cycles, [[maybe_unused]]const Individual& parent1, [[maybe_unused]]const Individual parent2, [[maybe_unused]]size_t children_size, [[maybe_unused]]const tsp::TSP& tsp, [[maybe_unused]]std::mt19937& rng, double target_size_ratio = 1.0) {
+    uniform_e_set_assembler build(const std::vector<mpi::pooled_unique_ptr<ab_cycle_t>>& AB_cycles, [[maybe_unused]]const Individual& parent1, [[maybe_unused]]const Individual& parent2, [[maybe_unused]]size_t children_size, [[maybe_unused]]const tsp::TSP& tsp, [[maybe_unused]]std::mt19937& rng, double target_size_ratio = 1.0) {
         return uniform_e_set_assembler(AB_cycles.size(), target_size_ratio, any_size_vector_pool.share());
     }
 
