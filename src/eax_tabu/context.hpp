@@ -8,13 +8,15 @@
 #include "tsp_loader.hpp"
 #include "object_pool.hpp"
 #include "limited_range_integer_set.hpp"
-#include "individual.hpp"
+#include "tabu_individual.hpp"
 #include "eax_tabu.hpp"
 #include "eax_rand.hpp"
 #include "eax_n_ab.hpp"
 #include "eax_uniform.hpp"
 
 namespace eax {
+    using Individual = TabuIndividual;
+
     enum class SelectionType {
         Greedy,
         Ent,
@@ -79,8 +81,5 @@ namespace eax {
                 }
             }
         };
-        
-        void serialize(std::ostream& os) const;
-        static Context deserialize(std::istream& is, tsp::TSP tsp);
     };
 }
