@@ -153,12 +153,12 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
 
             if (context.start_time.time_since_epoch().count() == 0) {
                 // 計測開始時刻が未設定なら、現在時刻を設定
-                const_cast<Context&>(context).start_time = std::chrono::system_clock::now();
+                context.start_time = std::chrono::system_clock::now();
             } else {
                 auto now = std::chrono::system_clock::now();
                 time_per_generation = std::chrono::duration<double>(now - context.start_time).count();
                 context.elapsed_time += time_per_generation;
-                const_cast<Context&>(context).start_time = now;
+                context.start_time = now;
             }
 
 
