@@ -20,11 +20,11 @@ This project contains the utilities for mathematical programming.
 To compile the `mpilib`:
 ```bash
 # normal compilation
-make bin/libmpilib.a
+make build-libmpilib
 # debug compilation (with -g option)
-make bin/debug/libmpilib.a
+make debug-build-libmpilib
 # profile compilation (with -pg option)
-make bin/prof/libmpilib.a
+make prof-build-libmpilib
 ```
 
 ### eaxlib
@@ -36,11 +36,11 @@ This project contains the utilities for the EAX algorithm.
 To compile the `eaxlib`:
 ```bash
 # normal compilation
-make bin/libeaxlib.a
+make build-libeaxlib
 # debug compilation (with -g option)
-make bin/debug/libeaxlib.a
+make debug-build-libeaxlib
 # profile compilation (with -pg option)
-make bin/prof/libeaxlib.a
+make prof-build-libeaxlib
 ```
 
 ### eax
@@ -52,19 +52,19 @@ This project implements the EAX algorithm.
 To compile the `eax`:
 ```bash
 # normal compilation
-make bin/eax
+make build-eax
 # debug compilation (with -g option)
-make bin/debug/eax
+make debug-build-eax
 # profile compilation (with -pg option)
-make bin/prof/eax
+make prof-build-eax
 ```
 
 To run the `eax`:
 ```bash
 # normal run
-ARGS="ARGUMENTS" make run/eax
+ARGS="ARGUMENTS" make run-eax
 # profile run
-ARGS="ARGUMENTS" make run/prof/eax
+ARGS="ARGUMENTS" make prof-run-eax
 ```
 
 `--help` can be used to see the available arguments.
@@ -78,19 +78,19 @@ This project implements the version of the paper [A Powerful Genetic Algorithm U
 To compile the `normal_eax`:
 ```bash
 # normal compilation
-make bin/normal_eax
+make build-normal_eax
 # debug compilation (with -g option)
-make bin/debug/normal_eax
+make debug-build-normal_eax
 # profile compilation (with -pg option)
-make bin/prof/normal_eax
+make prof-build-normal_eax
 ```
 
 To run the `normal_eax`:
 ```bash
 # normal run
-ARGS="ARGUMENTS" make run/normal_eax
+ARGS="ARGUMENTS" make run-normal_eax
 # profile run
-ARGS="ARGUMENTS" make run/prof/normal_eax
+ARGS="ARGUMENTS" make prof-run-normal_eax
 ```
 `--help` can be used to see the available arguments.
 
@@ -103,19 +103,19 @@ This project implements the EAX algorithm with tabu edge.
 To compile the `eax_tabu`:
 ```bash
 # normal compilation
-make bin/eax_tabu
+make build-eax_tabu
 # debug compilation (with -g option)
-make bin/debug/eax_tabu
+make debug-build-eax_tabu
 # profile compilation (with -pg option)
-make bin/prof/eax_tabu
+make prof-build-eax_tabu
 ```
 
 To run the `eax_tabu`:
 ```bash
 # normal run
-ARGS="ARGUMENTS" make run/eax_tabu
+ARGS="ARGUMENTS" make run-eax_tabu
 # profile run
-ARGS="ARGUMENTS" make run/prof/eax_tabu
+ARGS="ARGUMENTS" make prof-run-eax_tabu
 ```
 `--help` can be used to see the available arguments.
 
@@ -129,19 +129,19 @@ This project implements the EAX algorithm for STSP.
 To compile the `eax_stsp`:
 ```bash
 # normal compilation
-make bin/eax_stsp
+make build-eax_stsp
 # debug compilation (with -g option)
-make bin/debug/eax_stsp
+make debug-build-eax_stsp
 # profile compilation (with -pg option)
-make bin/prof/eax_stsp
+make prof-build-eax_stsp
 ```
 
 To run the `eax_stsp`:
 ```bash
 # normal run
-ARGS="ARGUMENTS" make run/eax_stsp
+ARGS="ARGUMENTS" make run-eax_stsp
 # profile run
-ARGS="ARGUMENTS" make run/prof/eax_stsp
+ARGS="ARGUMENTS" make prof-run-eax_stsp
 ```
 `--help` can be used to see the available arguments.
 
@@ -155,19 +155,19 @@ This project implements a faster version of the EAX algorithm.
 To compile the `fast_eax`:
 ```bash
 # normal compilation
-make bin/fast_eax
+make build-fast_eax
 # debug compilation (with -g option)
-make bin/debug/fast_eax
+make debug-build-fast_eax
 # profile compilation (with -pg option)
-make bin/prof/fast_eax
+make prof-build-fast_eax
 ```
 
 To run the `fast_eax`:
 ```bash
 # normal run
-ARGS="ARGUMENTS" make run/fast_eax
+ARGS="ARGUMENTS" make run-fast_eax
 # profile run
-ARGS="ARGUMENTS" make run/prof/fast_eax
+ARGS="ARGUMENTS" make prof-run-fast_eax
 ```
 `--help` can be used to see the available arguments.
 
@@ -180,17 +180,17 @@ This project implements the Simplex algorithm.
 To compile the `simplex`:
 ```bash
 # normal compilation
-make bin/simplex
+make build-simplex
 # debug compilation (with -g option)
-make bin/debug/simplex
+make debug-build-simplex
 # profile compilation (with -pg option)
-make bin/prof/simplex
+make prof-build-simplex
 ```
 
 To run the `simplex`:
 ```bash
 # normal run
-make run/simplex
+make run-simplex
 # profile run
-make run/prof/simplex
+make prof-run-simplex
 ```
