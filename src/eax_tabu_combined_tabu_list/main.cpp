@@ -53,6 +53,8 @@ struct Arguments {
     std::string cache_directory = ".";
     // タブーリストの存続世代数
     size_t tabu_list_duration = 5;
+    //2-optの種類
+    std::string two_opt_type_str = "soft"; // "normal", "soft"
 };
 
 void print_result(const eax::Context& context, std::ostream& os, mpi::genetic_algorithm::TerminationReason reason)
@@ -134,9 +136,10 @@ void execute_normal(const Arguments& args)
     mt19937 rng(args.seed);
     
     // neighbor_range
-    size_t near_range = 50; // 近傍範囲
+    size_t near_range = 20; // 近傍範囲, normal: 50, soft: 20
     // 2opt
     eax::TwoOpt two_opt(tsp.adjacency_matrix, tsp.NN_list, near_range);
+    eax::SoftTwoOpt soft_two_opt(tsp.adjacency_matrix, tsp.NN_list, near_range);
     // 初期集団生成器
     tsp::PopulationInitializer population_initializer(args.population_size, tsp.city_count);
     
@@ -153,10 +156,21 @@ void execute_normal(const Arguments& args)
             cache_file = args.cache_directory + "/" + cache_file;
         }
         
-        vector<vector<size_t>> initial_paths = population_initializer.initialize_population(local_seed, cache_file, [&two_opt, local_seed](vector<size_t>& path) {
-            // 2-optを適用
-            two_opt.apply(path, local_seed);
-        });
+        vector<vector<size_t>> initial_paths;
+        if (args.two_opt_type_str == "normal") {
+            initial_paths = population_initializer.initialize_population(local_seed, cache_file, [&two_opt, local_seed](vector<size_t>& path) {
+                // 2-optを適用
+                two_opt.apply(path, local_seed);
+            });
+        } else if (args.two_opt_type_str == "soft") {
+            initial_paths = population_initializer.initialize_population(local_seed, cache_file, [&soft_two_opt](vector<size_t>& path) {
+                // 2-optを適用
+                soft_two_opt.apply(path);
+            });
+        } else {
+            throw std::runtime_error("Unknown two-opt type '" + args.two_opt_type_str + "'. Options are 'normal' or 'soft'.");
+        }
+        
         vector<eax::Individual> population;
         population.reserve(initial_paths.size());
         for (const auto& path : initial_paths) {
@@ -250,6 +264,11 @@ int main(int argc, char* argv[])
     argspec_tabu_list_duration.add_argument_name("--tabu-duration");
     argspec_tabu_list_duration.set_description("--tabu-duration <number> \t:Number of generations an edge remains in the tabu list (default: 5).");
     parser.add_argument(argspec_tabu_list_duration);
+
+    mpi::ArgumentSpec two_opt_type_spec(args.two_opt_type_str);
+    two_opt_type_spec.add_argument_name("--two-opt-type");
+    two_opt_type_spec.set_description("--two-opt-type <type> \t:Type of 2-opt. Options: 'normal' (default) or 'soft'.");
+    parser.add_argument(two_opt_type_spec);
     
     bool help_requested = false;
     mpi::ArgumentSpec help_spec(help_requested);
