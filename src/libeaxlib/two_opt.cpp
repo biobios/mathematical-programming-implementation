@@ -593,6 +593,7 @@ namespace {
         });
         
     }
+
 }
 
 namespace eax {
@@ -631,4 +632,5 @@ void TwoOpt::apply(std::vector<size_t>& path, std::mt19937::result_type seed)
     auto end_time = std::chrono::high_resolution_clock::now();
     time_a += std::chrono::duration<double>(end_time - start_time).count();
 }
+
 }
