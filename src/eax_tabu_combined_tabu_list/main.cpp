@@ -25,6 +25,7 @@
 #include "context.hpp"
 #include "ga.hpp"
 #include "two_opt.hpp"
+#include "soft_two_opt.hpp"
 #include "command_line_argument_parser.hpp"
 #include <time.h>
 #include "eax_tabu.hpp"
