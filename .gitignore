@@ -2,4 +2,3 @@ bin/
 debug/
 temp/
 src/*/Makefile
-conv/
