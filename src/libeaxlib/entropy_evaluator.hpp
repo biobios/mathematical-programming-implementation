@@ -53,7 +53,7 @@ namespace impl {
 struct Entropy {
     double operator()(const CrossoverDelta& child, edge_counts_t& pop_edge_counts, size_t pop_size, double epsilon = 1e-9) const {
         double delta_L = child.get_delta_distance();
-        if (delta_L >= 0.0) {
+        if (delta_L > 0.0) {
             return -1.0;
         }
 
