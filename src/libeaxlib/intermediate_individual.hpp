@@ -21,13 +21,11 @@ public:
 
     /**
      * @brief 指定した個体をもとに中間個体を構築する
-     * @tparam T 個体の型
      * @param individual 元にする個体
      */
-    template <individual_readable T>
-    IntermediateIndividual(const T& individual)
+    IntermediateIndividual(const individual_readable auto& individual)
         : individual_being_edited(individual.size()),
-        base_checksum(individual.checksum()),
+        base_checksum(individual.get_checksum()),
         modifications(),
         path(individual.size()),
         pos(individual.size()) {
@@ -36,11 +34,9 @@ public:
 
     /**
      * @brief 指定した個体を中間個体に代入する
-     * @tparam T 個体の型
      * @param individual 代入する個体
      */
-    template <individual_readable T>
-    void assign(const T& individual) {
+    void assign(const individual_readable auto& individual) {
         reset();
         base_checksum = individual.get_checksum();
         for (size_t i = 0; i < individual.size(); ++i) {

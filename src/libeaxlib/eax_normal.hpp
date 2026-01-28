@@ -29,8 +29,8 @@ public:
           subtour_merger(object_pools),
           e_set_assembler_builder(object_pools) {}
 
-    template <individual_readable Individual, typename BuilderArgsTuple = std::tuple<>, typename MergerArgsTuple = std::tuple<>, typename FinderArgsTuple = std::tuple<>>
-    std::vector<CrossoverDelta> operator()(const Individual& parent1, const Individual& parent2, size_t children_size, const tsp::TSP& tsp, std::mt19937& rng,
+    template <typename BuilderArgsTuple = std::tuple<>, typename MergerArgsTuple = std::tuple<>, typename FinderArgsTuple = std::tuple<>>
+    std::vector<CrossoverDelta> operator()(const individual_readable auto& parent1, const individual_readable auto& parent2, size_t children_size, const tsp::TSP& tsp, std::mt19937& rng,
                                             BuilderArgsTuple&& builder_args = {}, MergerArgsTuple&& merger_args = {}, FinderArgsTuple&& finder_args = {}) {
         using namespace std;
         

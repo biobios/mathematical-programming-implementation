@@ -32,10 +32,8 @@ public:
      * @param tsp TSPインスタンス
      * @param rng 乱数生成器
      * @return 生成された子個体の変更履歴のベクター
-     * @tparam Individual 親個体の型
      */
-    template <individual_readable Individual>
-    std::vector<CrossoverDelta> operator()(const Individual& parent1, const Individual& parent2, size_t children_size,
+    std::vector<CrossoverDelta> operator()(const individual_readable auto& parent1, const individual_readable auto& parent2, size_t children_size,
                                         const tsp::TSP& tsp, std::mt19937& rng) {
         auto& adjacency_matrix = tsp.adjacency_matrix;
         using namespace std;
