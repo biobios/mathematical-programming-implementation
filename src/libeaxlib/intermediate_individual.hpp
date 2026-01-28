@@ -25,7 +25,7 @@ public:
      */
     IntermediateIndividual(const individual_readable auto& individual)
         : individual_being_edited(individual.size()),
-        base_checksum(individual.checksum()),
+        base_checksum(individual.get_checksum()),
         modifications(),
         path(individual.size()),
         pos(individual.size()) {
