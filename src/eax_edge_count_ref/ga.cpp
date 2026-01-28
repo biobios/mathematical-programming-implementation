@@ -190,10 +190,10 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
         }
     } post_process;
 
-    // // 世代交代処理
+    // 世代交代処理
     eax::NagataGenerationChangeModel generational_step(calc_fitness_lambda, crossover_func);
     
-    // // GA実行オブジェクト
+    // GA実行オブジェクト
     mpi::GenerationalChangeModel genetic_algorithm(generational_step, update_func, logging, post_process);
 
     return genetic_algorithm.execute(population, context, context.current_generation);
