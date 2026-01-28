@@ -15,11 +15,12 @@
 #include <list>
 #include <time.h>
 
+#include "generational_change_model.hpp"
+
 #include "simple_ga.hpp"
-#include "elitist_recombination.hpp"
+#include "nagata_generation_change_model.hpp"
 #include "tsp_loader.hpp"
 #include "population_initializer.hpp"
-#include "generational_model.hpp"
 #include "environment.hpp"
 #include "two_opt.hpp"
 #include "command_line_argument_parser.hpp"
@@ -175,13 +176,13 @@ int main(int argc, char* argv[])
         eax::EAX_Rand eax_rand(object_pools);
         eax::EAX_N_AB eax_n_ab(object_pools);
         // 交叉関数
-        auto crossover_func = [&eax_rand, &eax_n_ab](const eax::Individual& parent1, const eax::Individual& parent2, size_t children_size,
-                                 const Env& env, mt19937& rng) {
+        auto crossover_func = [&eax_rand, &eax_n_ab](const eax::Individual& parent1, const eax::Individual& parent2,
+                                 Env& env) {
             switch (env.eax_type) {
                 case eax::EAXType::Rand:
-                    return eax_rand(parent1, parent2, children_size, env.tsp, rng);
+                    return eax_rand(parent1, parent2, 30, env.tsp, env.random_gen);
                 case eax::EAXType::N_AB:
-                    return eax_n_ab(parent1, parent2, children_size, env.tsp, rng, std::forward_as_tuple(env.N_parameter));
+                    return eax_n_ab(parent1, parent2, 30, env.tsp, env.random_gen, std::forward_as_tuple(env.N_parameter));
                 default:
                     throw std::runtime_error("Unknown EAX type");
             }
@@ -196,7 +197,7 @@ int main(int argc, char* argv[])
             eax::EAXType eax_type;
             eax::SelectionType selection_type;
 
-            bool operator()(vector<Individual>& population, Env& env, size_t generation) {
+            mpi::genetic_algorithm::TerminationReason operator()(vector<Individual>& population, Env& env, size_t generation) {
                 if (selection_type == eax::SelectionType::Greedy) {
                     update_greedy(population, env);
                 } else {
@@ -230,7 +231,7 @@ int main(int argc, char* argv[])
                 }
             }
             
-            bool continue_condition_global(const vector<Individual>& population) {
+            mpi::genetic_algorithm::TerminationReason continue_condition_global(const vector<Individual>& population) {
                 double best_length = std::numeric_limits<double>::max();
                 double average_length = 0.0;
                 for (const auto& individual : population) {
@@ -239,10 +240,14 @@ int main(int argc, char* argv[])
                     average_length += length;
                 }
                 average_length /= population.size();
-                return (average_length - best_length) > 0.1;
+                if ((average_length - best_length) > 0.1) {
+                    return mpi::genetic_algorithm::TerminationReason::NotTerminated;
+                } else {
+                    return mpi::genetic_algorithm::TerminationReason::Converged;
+                }
             }
 
-            bool continue_condition_local(const vector<Individual>& population, Env& env, size_t generation) {
+            mpi::genetic_algorithm::TerminationReason continue_condition_local(const vector<Individual>& population, Env& env, size_t generation) {
                 double best_length = std::numeric_limits<double>::max();
                 for (size_t i = 0; i < population.size(); ++i) {
                     double length = population[i].get_distance();
@@ -267,11 +272,12 @@ int main(int argc, char* argv[])
                 } else if (env.eax_type == eax::EAXType::N_AB && env.N_parameter == 5) {
                     size_t last_new_record_generation = max(this->generation_of_reached_best, this->generation_of_change_to_5AB);
                     if (generation - last_new_record_generation >= 50) {
-                        return false; // 5ABで50世代以上新記録が出なければ終了
+                        // 5ABで50世代以上新記録が出なければ終了
+                        return mpi::genetic_algorithm::TerminationReason::Stagnation;
                     }
                 }
                 
-                return true;
+                return mpi::genetic_algorithm::TerminationReason::NotTerminated;
             }
         } update_func {
             .eax_type = use_local_eax ? eax::EAXType::N_AB : eax::EAXType::Rand,
@@ -312,14 +318,13 @@ int main(int argc, char* argv[])
             }
         };
         
-        // // 乱数生成器再初期化
-        mt19937 local_rng(local_seed);
-
         // 環境
         Env tsp_env;
         tsp_env.tsp = tsp;
         tsp_env.population_size = population_size;
         tsp_env.N_parameter = 1;
+        tsp_env.random_gen = mt19937(local_seed);
+
         if (use_local_eax) {
             tsp_env.eax_type = eax::EAXType::N_AB;
         } else {
@@ -337,8 +342,10 @@ int main(int argc, char* argv[])
         auto start_time = chrono::high_resolution_clock::now();
         auto start_clock = clock();
 
-        // 世代交代モデル ElitistRecombinationを使用して、遺伝的アルゴリズムを実行
-        vector<Individual> result = eax::GenerationalModel<30>(population, update_func, calc_fitness_lambda, crossover_func, tsp_env, local_rng, logging);
+        eax::NagataGenerationChangeModel generational_step(calc_fitness_lambda, crossover_func);
+        mpi::GenerationalChangeModel genetic_algorithm(generational_step, update_func, std::ref(logging));
+        
+        auto result = genetic_algorithm.execute(population, tsp_env);
 
         auto end_clock = clock();
         auto end_time = chrono::high_resolution_clock::now();

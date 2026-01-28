@@ -3,6 +3,7 @@
 #include <fstream>
 
 #include "genetic_algorithm.hpp"
+#include "generational_change_model.hpp"
 
 #include "object_pools.hpp"
 #include "eax_n_ab.hpp"
@@ -13,8 +14,8 @@
 #include "entropy_evaluator.hpp"
 #include "distance_preserving_evaluator.hpp"
 #include "edge_count_reference_merger.hpp"
+#include "nagata_generation_change_model.hpp"
 
-#include "generational_model.hpp"
 
 namespace {
 template <typename AssemblerBuilder>
@@ -190,10 +191,10 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
     } post_process;
 
     // 世代交代処理
-    eax::GenerationalStep generational_step(calc_fitness_lambda, crossover_func);
+    eax::NagataGenerationChangeModel generational_step(calc_fitness_lambda, crossover_func);
     
     // GA実行オブジェクト
-    eax::GenerationalModel genetic_algorithm(generational_step, update_func, logging, post_process);
+    mpi::GenerationalChangeModel genetic_algorithm(generational_step, update_func, logging, post_process);
 
     return genetic_algorithm.execute(population, context, context.current_generation);
 }

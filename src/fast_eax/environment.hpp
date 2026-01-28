@@ -30,6 +30,7 @@ namespace eax {
         EAXType eax_type;
         SelectionType selection_type;
         std::vector<std::vector<size_t>> pop_edge_counts; // 各エッジの個数
+        std::mt19937 random_gen;
 
         void set_initial_edge_counts(const std::vector<Individual>& init_pop) {
             pop_edge_counts.resize(tsp.city_count, std::vector<size_t>(tsp.city_count, 0));
