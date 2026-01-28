@@ -69,18 +69,10 @@ inline PooledVectorPtr create_AB_cycle(std::vector<size_t>& finding_path,
  * @param doubly_linked_list_pool TSPの都市数と同じサイズの双方向リストプール
  * @param LRIS_pool 0 ~ (TSPの都市数 - 1)の整数を管理する集合のプール
  * @return ABサイクルのポインタのベクター
- * @tparam Individual 親個体の型
- * @pre Individualは、 双方向リストとして扱える必要がある。
- * @pre Individualは、`size()`メソッドを持ち、都市数を返す必要がある。
  */
-template <typename Individual>
-    requires requires (const Individual& ind, size_t a) {
-        { ind[a] } -> std::convertible_to<const std::array<size_t, 2>&>;
-        { ind.size() } -> std::convertible_to<size_t>;
-    }
 std::vector<PooledVectorPtr> find_AB_cycles(size_t needs,
-            const Individual& parent1,
-            const Individual& parent2,
+            const doubly_linked_list_readable auto& parent1,
+            const doubly_linked_list_readable auto& parent2,
             std::mt19937& rng,
             mpi::ObjectPool<std::vector<size_t>>& any_size_vector_pool,
             mpi::ObjectPool<std::vector<size_t>>& vector_of_tsp_size_pool,
@@ -131,8 +123,10 @@ std::vector<PooledVectorPtr> find_AB_cycles(size_t needs,
     std::vector<std::array<size_t, 2>>& parent1_copy = *parent1_copy_ptr;
     std::vector<std::array<size_t, 2>>& parent2_copy = *parent2_copy_ptr;
     for (size_t i = 0; i < city_count; ++i) {
-        parent1_copy[i] = parent1[i];
-        parent2_copy[i] = parent2[i];
+        parent1_copy[i][0] = parent1[i][0];
+        parent1_copy[i][1] = parent1[i][1];
+        parent2_copy[i][0] = parent2[i][0];
+        parent2_copy[i][1] = parent2[i][1];
     }
     
     struct parent {

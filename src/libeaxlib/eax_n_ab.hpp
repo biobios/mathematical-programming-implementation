@@ -75,12 +75,11 @@ public:
     N_AB_e_set_assembler_builder(ObjectPools& object_pools) :
         any_size_vector_pool(object_pools.any_size_vector_pool.share()) {}
 
-    template <individual_readable Individual>
-    N_AB_e_set_assembler build(const std::vector<mpi::pooled_unique_ptr<ab_cycle_t>>& AB_cycles, const Individual&, const Individual&, size_t, const tsp::TSP&, std::mt19937& rng, size_t N_parameter) {
+    N_AB_e_set_assembler build(const std::vector<mpi::pooled_unique_ptr<ab_cycle_t>>& AB_cycles, const auto&, const auto&, size_t, const tsp::TSP&, std::mt19937& rng, size_t N_parameter) {
         return N_AB_e_set_assembler(AB_cycles.size(), N_parameter, any_size_vector_pool.share(), rng);
     }
 
-    static size_t calc_AB_cycle_need([[maybe_unused]]const auto& parent1, [[maybe_unused]]const auto& parent2, size_t children_size, [[maybe_unused]]const tsp::TSP& tsp, [[maybe_unused]]std::mt19937& rng, size_t N_parameter) {
+    static size_t calc_AB_cycle_need(const auto&, const auto&, size_t children_size, const tsp::TSP&, std::mt19937&, size_t N_parameter) {
         return N_parameter * children_size;
     }
 

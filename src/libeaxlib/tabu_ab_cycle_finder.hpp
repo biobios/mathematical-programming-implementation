@@ -39,12 +39,10 @@ public:
      * @param rng 乱数生成器
      * @param tabu_edges タブーエッジの集合
      * @return ABサイクルのポインタのベクター
-     * @tparam Individual 親個体の型
      */
-    template <doubly_linked_list_readable Individual>
     std::vector<mpi::pooled_unique_ptr<ab_cycle_t>> operator()(size_t needs,
-            const Individual& parent1,
-            const Individual& parent2,
+            const doubly_linked_list_readable auto& parent1,
+            const doubly_linked_list_readable auto& parent2,
             std::mt19937& rng,
             std::vector<std::pair<size_t, size_t>> const& tabu_edges)
     {

@@ -60,10 +60,8 @@ public:
      * @param parent2 親個体2
      * @param AB_cycles ABサイクルのポインタのベクター
      * @return Block2ESetAssemblerのインスタンス
-     * @tparam Individual 親個体の型
      */
-    template <individual_readable Individual>
-    Block2ESetAssembler create(const Individual& parent1, const Individual& parent2,
+    Block2ESetAssembler create(const individual_readable auto& parent1, const individual_readable auto& parent2,
                                const std::vector<mpi::pooled_unique_ptr<ab_cycle_t>>& AB_cycles) {
         using namespace std;
         
