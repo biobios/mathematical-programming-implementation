@@ -1,5 +1,10 @@
 #pragma once
 
+#include <vector>
+#include <numeric>
+#include <algorithm>
+#include <type_traits>
+#include <random>
 namespace eax {
 
 /**
