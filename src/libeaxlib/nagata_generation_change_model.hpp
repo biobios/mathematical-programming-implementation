@@ -46,6 +46,10 @@ public:
         
         size_t population_size = population.size();
 
+        if (population_size < 2) {
+            return; // 集団サイズが2未満の場合は何もしない
+        }
+
         std::vector<size_t> indices(population_size);
         std::iota(indices.begin(), indices.end(), 0);
         std::shuffle(indices.begin(), indices.end(), context.random_gen);
