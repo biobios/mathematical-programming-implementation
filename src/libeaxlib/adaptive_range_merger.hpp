@@ -151,7 +151,7 @@ private:
     mpi::ObjectPool<std::vector<uint8_t>> in_min_sub_tour_pool;
     SubtourFinder subtour_finder;
     /**
-     * @brief average_unique_edge_count == 2.0 のときに、委譲するマージャー
+     * @brief average_unique_edge_count <= 2.0 のときに、委譲するマージャー
      */
     SubtourMerger default_merger;
 };
