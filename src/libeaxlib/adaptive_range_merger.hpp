@@ -95,6 +95,12 @@ public:
                     size_t unique_connections = edge_counter.get_connected_vertices(current_city).size();
                     double range_multiplier = 1 + (average_neighbor_range - 1) * ((unique_connections - 2) / (average_unique_edge_count - 2.0));
                     
+                    // double to size_t の変換によるオーバーフローを防ぐため、上限を city_count に設定
+                    double max_multiplier = tsp.city_count;
+                    if (range_multiplier > max_multiplier) {
+                        range_multiplier = max_multiplier;
+                    }
+
                     size_t start = start_coefficient * range_multiplier;
                     size_t end = end_coefficient * range_multiplier;
 
