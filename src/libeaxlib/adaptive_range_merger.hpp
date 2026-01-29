@@ -88,7 +88,7 @@ public:
             edge e2 = {0, 0};
             distance_type min_cost = std::numeric_limits<distance_type>::max();
 
-            while (e1 == edge{0, 0} && e2 == edge{0, 0}) {
+            while (e1.first == 0 && e2.first == 0) {
                 for (size_t i = 1; i <= min_sub_tour_size; ++i) {
                     size_t current_city = elem_of_min_sub_tour[i];
 
