@@ -82,8 +82,8 @@ public:
             elem_of_min_sub_tour.push_back(elem_of_min_sub_tour[0]);
             elem_of_min_sub_tour.push_back(elem_of_min_sub_tour[1]);
             
-            size_t range_start_rate = 0;
-            size_t range_end_rate = 1;
+            size_t start_coefficient = 0;
+            size_t end_coefficient = 1;
             edge e1 = {0, 0};
             edge e2 = {0, 0};
             distance_type min_cost = std::numeric_limits<distance_type>::max();
@@ -94,9 +94,9 @@ public:
 
                     size_t unique_connections = edge_counter.get_connected_vertices(current_city).size();
                     double range_multiplier = 1 + (average_neighbor_range - 1) * ((unique_connections - 2) / (average_unique_edge_count - 2.0));
-
-                    size_t start = range_start_rate * range_multiplier;
-                    size_t end = range_end_rate * range_multiplier;
+                    
+                    size_t start = start_coefficient * range_multiplier;
+                    size_t end = end_coefficient * range_multiplier;
 
                     size_t limit = std::min(end, NN_list[current_city].size());
 
@@ -132,8 +132,8 @@ public:
                     }
                 }
                 
-                range_start_rate = range_end_rate;
-                range_end_rate *= 2;
+                start_coefficient = end_coefficient;
+                end_coefficient *= 2;
             }
             
             
