@@ -62,6 +62,16 @@ public:
     const std::vector<size_t>& get_connected_vertices(size_t v1) const {
         return vertex_counters[v1].connected_vertices;
     }
+    
+    /**
+     * @brief 重複を除いた辺の数を取得する
+     * @details
+     *  (a, b) と (b, a) は同一の辺として数える
+     * @return 重複を除いた辺の数
+     */
+    size_t get_unique_edge_count() const {
+        return unique_edge_count / 2;
+    }
 
 private:
     /**
@@ -194,7 +204,13 @@ private:
      * @param v2 終点頂点
      */
     void increment_edge_count(size_t v1, size_t v2) {
+
+        std::size_t prev_size = vertex_counters[v1].connected_vertices.size();
+
         vertex_counters[v1].increment_edge_count(v2);
+
+        std::size_t new_size = vertex_counters[v1].connected_vertices.size();
+        unique_edge_count += new_size - prev_size;
     }
 
     /**
@@ -203,12 +219,28 @@ private:
      * @param v2 終点頂点
      */
     void decrement_edge_count(size_t v1, size_t v2) {
+
+        std::size_t prev_size = vertex_counters[v1].connected_vertices.size();
+
         vertex_counters[v1].decrement_edge_count(v2);
+        
+        std::size_t new_size = vertex_counters[v1].connected_vertices.size();
+        unique_edge_count -= prev_size - new_size;
     }
 
     /**
      * @brief 各頂点の辺の出現回数を管理する配列
      */
     std::vector<VertexEdgeCounter> vertex_counters;
+
+    /**
+     * @brief 重複を除いた有向辺の数を記録する
+     * @details 
+     *  頂点 v1 ごとに接続先 v2 の集合のサイズの総和を表す内部カウンタ。
+     *  具体的には、(a, b) と (a, b) は同じ辺として数えるが、
+     *  (a, b) と (b, a) は別の辺として数える（有向辺として扱う）。
+     *  無向辺数が必要な場合は、get_unique_edge_count() の戻り値を利用すること。
+     */
+    std::size_t unique_edge_count = 0;
 };
 }
