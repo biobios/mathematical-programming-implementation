@@ -234,11 +234,12 @@ private:
     std::vector<VertexEdgeCounter> vertex_counters;
 
     /**
-     * @brief 重複を除いた辺の数を記録する
+     * @brief 重複を除いた有向辺の数を記録する
      * @details 
-     *  重複を除いた辺の数
+     *  頂点 v1 ごとに接続先 v2 の集合のサイズの総和を表す内部カウンタ。
      *  具体的には、(a, b) と (a, b) は同じ辺として数えるが、
-     *  (a, b) と (b, a) は別の辺として数える
+     *  (a, b) と (b, a) は別の辺として数える（有向辺として扱う）。
+     *  無向辺数が必要な場合は、get_unique_edge_count() の戻り値を利用すること。
      */
     std::size_t unique_edge_count = 0;
 };
