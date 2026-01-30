@@ -2,10 +2,11 @@
 #include <vector>
 #include <random>
 #include <algorithm>
+#include <numeric>
 
 #include "tsp_loader.hpp"
 #include "population_initializer.hpp"
-#include "basic_individual.hpp"
+#include "buffered_individual.hpp"
 #include "eax_rand.hpp"
 #include "object_pools.hpp"
 
@@ -28,8 +29,10 @@ int main() {
     mt19937::result_type seed = rng();
     vector<vector<size_t>> initial_paths = population_initializer.initialize_population(seed, "init_pop_cache.txt");
     
-    // BasicIndividualに変換
-    vector<eax::BasicIndividual> population;
+    using Individual = eax::BufferedIndividual;
+
+    // BufferedIndividualに変換
+    vector<Individual> population;
     population.reserve(initial_paths.size());
     for (const auto& path : initial_paths) {
         population.emplace_back(path, tsp.adjacency_matrix);
@@ -51,27 +54,40 @@ int main() {
         // 集団をシャッフル
         shuffle(population.begin(), population.end(), rng);
         
-        // ペアごとに交叉
-        for (size_t i = 0; i < population_size; ++i) {
-            size_t parent1_idx = i;
-            size_t parent2_idx = (i + 1) % population_size;
-            
-            auto& parent1 = population[parent1_idx];
-            auto& parent2 = population[parent2_idx];
-            
+        // ペアごとに交叉 (ERモデル)
+        for (size_t i = 0; i + 1 < population_size; i += 2) {
+            auto& parent1 = population[i];
+            auto& parent2 = population[i + 1];
+
             // 子を生成（30個の子を試す）
             auto children = eax_crossover(parent1, parent2, 30, tsp, rng);
-            
-            if (!children.empty()) {
-                // 最も改善した子を選択
-                auto best_child_it = min_element(children.begin(), children.end(),
-                    [](const auto& a, const auto& b) { return a.get_delta_distance() < b.get_delta_distance(); });
-                
-                // 改善していれば適用
-                if (best_child_it->get_delta_distance() < 0) {
-                    best_child_it->apply_to(parent1);
-                }
+
+            // 親2個体 + 子個体を統一的に扱う
+            vector<Individual::delta_t> candidates;
+            candidates.reserve(children.size() + 2);
+            candidates.emplace_back(parent1);
+            candidates.emplace_back(parent2);
+            for (auto& child : children) {
+                candidates.emplace_back(parent1, std::move(child));
             }
+
+            auto calc_distance = [](const Individual::delta_t& candidate) {
+                return candidate.get_individual().get_distance() + candidate.get_delta().get_delta_distance();
+            };
+
+            // 評価値の良い順に2個体を選択
+            vector<size_t> order(candidates.size());
+            iota(order.begin(), order.end(), 0);
+            partial_sort(order.begin(), order.begin() + 2, order.end(),
+                [&](size_t a, size_t b) { return calc_distance(candidates[a]) < calc_distance(candidates[b]); });
+
+            // 親個体と交換（バッファに適用）
+            population[i] = candidates[order[0]];
+            population[i + 1] = candidates[order[1]];
+
+            // バッファを反映
+            population[i].flush_buffer();
+            population[i + 1].flush_buffer();
         }
         
         // 100世代ごとに進捗を表示
