@@ -3,11 +3,13 @@
 #include <random>
 #include <algorithm>
 #include <numeric>
+#include <cmath>
 
 #include "tsp_loader.hpp"
 #include "population_initializer.hpp"
-#include "buffered_individual.hpp"
-#include "eax_rand.hpp"
+#include "basic_individual.hpp"
+#include "eax_n_ab.hpp"
+#include "entropy_evaluator.hpp"
 #include "object_pools.hpp"
 
 int main() {
@@ -29,9 +31,9 @@ int main() {
     mt19937::result_type seed = rng();
     vector<vector<size_t>> initial_paths = population_initializer.initialize_population(seed, "init_pop_cache.txt");
     
-    using Individual = eax::BufferedIndividual;
+    using Individual = eax::BasicIndividual;
 
-    // BufferedIndividualに変換
+    // BasicIndividualに変換
     vector<Individual> population;
     population.reserve(initial_paths.size());
     for (const auto& path : initial_paths) {
@@ -42,9 +44,20 @@ int main() {
     cout << "Initial best distance: " << min_element(population.begin(), population.end(),
         [](const auto& a, const auto& b) { return a.get_distance() < b.get_distance(); })->get_distance() << endl;
     
+    // エッジ頻度の初期化
+    vector<vector<size_t>> pop_edge_counts(tsp.city_count, vector<size_t>(tsp.city_count, 0));
+    for (const auto& individual : population) {
+        for (size_t i = 0; i < individual.size(); ++i) {
+            size_t v1 = individual[i][0];
+            size_t v2 = individual[i][1];
+            pop_edge_counts[i][v1] += 1;
+            pop_edge_counts[i][v2] += 1;
+        }
+    }
+    
     // EAX交叉の準備
     eax::ObjectPools object_pools(tsp.city_count);
-    eax::EAX_Rand eax_crossover(object_pools);
+    eax::EAX_N_AB eax_crossover(object_pools);
     
     // 世代数
     size_t num_generations = 2000;
@@ -54,40 +67,43 @@ int main() {
         // 集団をシャッフル
         shuffle(population.begin(), population.end(), rng);
         
-        // ペアごとに交叉 (ERモデル)
-        for (size_t i = 0; i + 1 < population_size; i += 2) {
-            auto& parent1 = population[i];
-            auto& parent2 = population[i + 1];
-
+        // ペアごとに交叉
+        for (size_t i = 0; i < population_size; ++i) {
+            size_t parent1_idx = i;
+            size_t parent2_idx = (i + 1) % population_size;
+            
+            auto& parent1 = population[parent1_idx];
+            const auto& parent2 = population[parent2_idx];
+            
             // 子を生成（30個の子を試す）
-            auto children = eax_crossover(parent1, parent2, 30, tsp, rng);
+            auto children = eax_crossover(parent1, parent2, 30, tsp, rng, 5);
+            
+            if (!children.empty()) {
+                // エントロピー評価を一度だけ計算して最良の子を選択
+                const eax::CrossoverDelta* best_child = nullptr;
+                double best_eval = -1.0;
 
-            // 親2個体 + 子個体を統一的に扱う
-            vector<Individual::delta_t> candidates;
-            candidates.reserve(children.size() + 2);
-            candidates.emplace_back(parent1);
-            candidates.emplace_back(parent2);
-            for (auto& child : children) {
-                candidates.emplace_back(parent1, std::move(child));
+                for (const auto& child : children) {
+                    double eval = eax::eval::delta::Entropy(child, pop_edge_counts, population_size);
+                    if (eval > best_eval) {
+                        best_eval = eval;
+                        best_child = &child;
+                    }
+                }
+
+                // 評価値が正（改善している）なら適用
+                if (best_child != nullptr && best_eval > 0.0) {
+                    best_child->apply_to(parent1);
+
+                    // 変更内容に応じてエッジ頻度を更新
+                    for (const auto& modification : best_child->get_modifications()) {
+                        auto [v1, v2] = modification.edge1;
+                        size_t new_v2 = modification.new_v2;
+                        pop_edge_counts[v1][v2] -= 1;
+                        pop_edge_counts[v1][new_v2] += 1;
+                    }
+                }
             }
-
-            auto calc_distance = [](const Individual::delta_t& candidate) {
-                return candidate.get_individual().get_distance() + candidate.get_delta().get_delta_distance();
-            };
-
-            // 評価値の良い順に2個体を選択
-            vector<size_t> order(candidates.size());
-            iota(order.begin(), order.end(), 0);
-            partial_sort(order.begin(), order.begin() + 2, order.end(),
-                [&](size_t a, size_t b) { return calc_distance(candidates[a]) < calc_distance(candidates[b]); });
-
-            // 親個体と交換（バッファに適用）
-            population[i] = candidates[order[0]];
-            population[i + 1] = candidates[order[1]];
-
-            // バッファを反映
-            population[i].flush_buffer();
-            population[i + 1].flush_buffer();
         }
         
         // 100世代ごとに進捗を表示
