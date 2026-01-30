@@ -7,16 +7,17 @@
 
 #include "tsp_loader.hpp"
 #include "population_initializer.hpp"
-#include "basic_individual.hpp"
-#include "eax_n_ab.hpp"
+#include "eax_tabu.hpp"
+#include "parent_reference_merger.hpp"
 #include "entropy_evaluator.hpp"
 #include "object_pools.hpp"
+#include "sample_tabu_individual.hpp"
 
 int main() {
     using namespace std;
     
     // TSPファイルの読み込み
-    tsp::TSP tsp = tsp::TSP_Loader::load_tsp("../../data/sample_eax/att532.tsp");
+    tsp::TSP tsp = tsp::TSP_Loader::load_tsp("att532.tsp");
     cout << "TSP Name: " << tsp.name << endl;
     cout << "City Count: " << tsp.city_count << endl;
     
@@ -31,9 +32,9 @@ int main() {
     mt19937::result_type seed = rng();
     vector<vector<size_t>> initial_paths = population_initializer.initialize_population(seed, "init_pop_cache.txt");
     
-    using Individual = eax::BasicIndividual;
+    using Individual = eax::SampleTabuIndividual;
 
-    // BasicIndividualに変換
+    // SampleTabuIndividualに変換
     vector<Individual> population;
     population.reserve(initial_paths.size());
     for (const auto& path : initial_paths) {
@@ -57,7 +58,12 @@ int main() {
     
     // EAX交叉の準備
     eax::ObjectPools object_pools(tsp.city_count);
-    eax::EAX_N_AB eax_crossover(object_pools);
+    
+    // ParentReferenceMerger を使うカスタムEAX型
+    using EAX_tabu_N_AB_with_ParentRef = eax::EAX_tabu<eax::N_AB_e_set_assembler_builder, eax::ParentReferenceMerger>;
+    EAX_tabu_N_AB_with_ParentRef eax_tabu_n_ab(object_pools);
+    
+    // 参照親の範囲
     
     // 世代数
     size_t num_generations = 2000;
@@ -75,8 +81,23 @@ int main() {
             auto& parent1 = population[parent1_idx];
             const auto& parent2 = population[parent2_idx];
             
-            // 子を生成（30個の子を試す）
-            auto children = eax_crossover(parent1, parent2, 30, tsp, rng, 5);
+            // 参照親を選択（population から20個をランダムに選択）
+            std::vector<std::reference_wrapper<const Individual>> reference_parents;
+            reference_parents.reserve(20);
+            for (size_t j = 0; j < 20; ++j) {
+                size_t idx = (parent1_idx + 2 + j) % population_size;
+                reference_parents.emplace_back(population[idx]);
+            }
+            
+            // タブーエッジを取得
+            const auto& tabu_edges = parent1.get_tabu_edges();
+            
+            // EAX_tabu_N_ABで子を生成
+            auto children = eax_tabu_n_ab(parent1, parent2, 30, tsp, rng,
+                std::make_tuple(5),  // N=5個のABサイクル（BuilderArgsTuple）
+                std::forward_as_tuple(reference_parents),  // MergerArgsTuple に参照親を参照渡し
+                std::forward_as_tuple(tabu_edges)  // FinderArgsTuple にタブーエッジを参照渡し
+            );
             
             if (!children.empty()) {
                 // エントロピー評価を一度だけ計算して最良の子を選択
@@ -95,13 +116,15 @@ int main() {
                 if (best_child != nullptr && best_eval > 0.0) {
                     best_child->apply_to(parent1);
 
-                    // 変更内容に応じてエッジ頻度を更新
                     for (const auto& modification : best_child->get_modifications()) {
                         auto [v1, v2] = modification.edge1;
                         size_t new_v2 = modification.new_v2;
                         pop_edge_counts[v1][v2] -= 1;
                         pop_edge_counts[v1][new_v2] += 1;
                     }
+                    
+                    // タブーリストを更新
+                    parent1.update_tabu(*best_child, rng);
                 }
             }
         }
