@@ -1,1 +1,1 @@
-DEPEND_LIBS :=
+DEPEND_LIBS := mpilib eaxlib
