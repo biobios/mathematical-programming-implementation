@@ -47,6 +47,8 @@ prof-run: prof-build $(DEPEND_DATA)
 	@mkdir -p $(ROOT_DIR)/debug/$(PROJECT_NAME)
 	$(call log_exec,$(PROJECT_NAME),$(subst $(ROOT_DIR)/,,$(PROF_TARGET)))
 	@(cd $(ROOT_DIR)/debug/$(PROJECT_NAME) && $(ROOT_DIR)/bin/prof/$(PROJECT_NAME) $(ARGS))
+	@gprof $(ROOT_DIR)/bin/prof/$(PROJECT_NAME) $(ROOT_DIR)/debug/$(PROJECT_NAME)/gmon.out > $(ROOT_DIR)/debug/$(PROJECT_NAME)/gprof.txt
+	@echo "Profile data saved to $(ROOT_DIR)/debug/$(PROJECT_NAME)/gprof.txt"
 
 $(TARGET): $(OBJS) $(patsubst %, $(ROOT_DIR)/bin/lib%.a, $(DEPEND_LIBS))
 	@mkdir -p $(dir $@)
