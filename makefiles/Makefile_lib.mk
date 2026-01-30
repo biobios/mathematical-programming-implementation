@@ -36,35 +36,35 @@ prof-build: $(PROF_TARGET)
 
 $(TARGET): $(OBJS)
 	@mkdir -p $(dir $@)
-	$(call log,Archiving $@)
+	$(call log,Archiving $(subst $(ROOT_DIR),,$@))
 	@ar rcs $@ $(OBJS)
 	@echo ""
 
 $(DEBUG_TARGET): $(DEBUG_OBJS)
 	@mkdir -p $(dir $@)
-	$(call log,Archiving $@)
+	$(call log,Archiving $(subst $(ROOT_DIR),,$@))
 	@ar rcs $@ $(DEBUG_OBJS)
 	@echo ""
 
 $(PROF_TARGET): $(PROF_OBJS)
 	@mkdir -p $(dir $@)
-	$(call log,Archiving $@)
+	$(call log,Archiving $(subst $(ROOT_DIR),,$@))
 	@ar rcs $@ $(PROF_OBJS)
 	@echo ""
 
 $(OBJS): $(ROOT_DIR)/temp/$(PROJECT_NAME)/%.o: %.cpp
 	@mkdir -p $(dir $@)
-	$(call log,Compiling $< to $@)
+	$(call log,Compiling $< to $(subst $(ROOT_DIR),,$@))
 	@$(CXX) -c $< -o $@ $(CXXFLAGS) $(INCLUDE_DIR_OPTS) -MMD -MP
 
 $(DEBUG_OBJS): $(ROOT_DIR)/temp/debug/$(PROJECT_NAME)/%.o: %.cpp
 	@mkdir -p $(dir $@)
-	$(call log,Compiling $< to $@)
+	$(call log,Compiling $< to $(subst $(ROOT_DIR),,$@))
 	@$(CXX) -c $< -o $@ $(CXXFLAGS) $(INCLUDE_DIR_OPTS) -O0 -g -MMD -MP
 
 $(PROF_OBJS): $(ROOT_DIR)/temp/prof/$(PROJECT_NAME)/%.o: %.cpp
 	@mkdir -p $(dir $@)
-	$(call log,Compiling $< to $@)
+	$(call log,Compiling $< to $(subst $(ROOT_DIR),,$@))
 	@$(CXX) -c $< -o $@ $(CXXFLAGS) $(INCLUDE_DIR_OPTS) -O0 -pg -MMD -MP
 
 .PHONY: clean

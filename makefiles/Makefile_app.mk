@@ -39,18 +39,18 @@ prof-build: $(PROF_TARGET)
 .PHONY: run
 run: build $(DEPEND_DATA)
 	@mkdir -p $(ROOT_DIR)/debug/$(PROJECT_NAME)
-	$(call log,Running $(TARGET))
+	$(call log,Running $(subst $(ROOT_DIR),,$(TARGET)))
 	@(cd $(ROOT_DIR)/debug/$(PROJECT_NAME) && $(ROOT_DIR)/bin/$(PROJECT_NAME) $(ARGS))
 
 .PHONY: prof-run
 prof-run: prof-build $(DEPEND_DATA)
 	@mkdir -p $(ROOT_DIR)/debug/$(PROJECT_NAME)
-	$(call log,Running $(PROF_TARGET))
+	$(call log,Running $(subst $(ROOT_DIR),,$(PROF_TARGET)))
 	@(cd $(ROOT_DIR)/debug/$(PROJECT_NAME) && $(ROOT_DIR)/bin/prof/$(PROJECT_NAME) $(ARGS))
 
 $(TARGET): $(OBJS) $(patsubst %, $(ROOT_DIR)/bin/lib%.a, $(DEPEND_LIBS))
 	@mkdir -p $(dir $@)
-	$(call log,Linking $@)
+	$(call log,Linking $(subst $(ROOT_DIR),,$@))
 	@$(CXX) -o $@ $(OBJS) $(CXXFLAGS) $(LIB_OPTS)
 	@echo ""
 
@@ -68,17 +68,17 @@ $(PROF_TARGET): $(PROF_OBJS) $(patsubst %, $(ROOT_DIR)/bin/prof/lib%.a, $(DEPEND
 
 $(OBJS): $(ROOT_DIR)/temp/$(PROJECT_NAME)/%.o: %.cpp
 	@mkdir -p $(dir $@)
-	$(call log,Compiling $< to $@)
+	$(call log,Compiling $< to $(subst $(ROOT_DIR),,$@))
 	@$(CXX) -c $< -o $@ $(CXXFLAGS) $(INCLUDE_DIR_OPTS) -MMD -MP
 
 $(DEBUG_OBJS): $(ROOT_DIR)/temp/debug/$(PROJECT_NAME)/%.o: %.cpp
 	@mkdir -p $(dir $@)
-	$(call log,Compiling $< to $@)
+	$(call log,Compiling $< to $(subst $(ROOT_DIR),,$@))
 	@$(CXX) -c $< -o $@ $(CXXFLAGS) $(INCLUDE_DIR_OPTS) -O0 -g -MMD -MP
 
 $(PROF_OBJS): $(ROOT_DIR)/temp/prof/$(PROJECT_NAME)/%.o: %.cpp
 	@mkdir -p $(dir $@)
-	$(call log,Compiling $< to $@)
+	$(call log,Compiling $< to $(subst $(ROOT_DIR),,$@))
 	@$(CXX) -c $< -o $@ $(CXXFLAGS) $(INCLUDE_DIR_OPTS) -O0 -pg -MMD -MP
 
 $(patsubst %, $(ROOT_DIR)/bin/lib%.a, $(DEPEND_LIBS)): $(ROOT_DIR)/bin/%.a: FORCE
