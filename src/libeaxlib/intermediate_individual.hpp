@@ -116,6 +116,8 @@ public:
                 edge_swap(cycle[cycle.size() - 3], cycle[cycle.size() - 2], cycle[cycle.size() - 1], cycle[0]);
             }
         }
+
+        num_ab_cycle_modifications = modifications.size();
     }
 
     /**
@@ -155,6 +157,11 @@ private:
      * 偶数番目あるいは奇数番目の要素だけを見れば、交叉に関わったすべての辺を知ることができる
      */
     std::vector<CrossoverDelta::Modification> modifications;
+    
+    /**
+     * @brief ABサイクルによる変化のサイズ
+     */
+    std::size_t num_ab_cycle_modifications = 0;
     std::vector<size_t> path;
     std::vector<size_t> pos;
 };

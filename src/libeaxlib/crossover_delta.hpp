@@ -30,7 +30,8 @@ public:
         :   modifications(),
             base_checksum(individual.get_checksum()),
             delta_checksum(0),
-            delta_distance(0) {}
+            delta_distance(0),
+            num_ab_cycle_modifications(0) {}
     
     /**
      * @param modifications 変更履歴
@@ -38,11 +39,12 @@ public:
      * @param delta_distance 距離の変化
      * @pre modifications.size() % 2 == 0
      */
-    CrossoverDelta(std::vector<Modification>&& modifications, uint64_t base_checksum, int64_t delta_distance)
+    CrossoverDelta(std::vector<Modification>&& modifications, uint64_t base_checksum, int64_t delta_distance, std::size_t num_ab_cycle_modifications)
         :   modifications(std::move(modifications)),
             base_checksum(base_checksum),
             delta_checksum(compute_delta_checksum(this->modifications)),
-            delta_distance(delta_distance) {}
+            delta_distance(delta_distance),
+            num_ab_cycle_modifications(num_ab_cycle_modifications) {}
     
     /**
      * @brief 変更を個体に適用する
@@ -130,6 +132,14 @@ public:
         return modifications;
     }
 
+    /**
+     * @brief ABサイクルによる変更のサイズを取得する
+     * @return ABサイクルによる変更のサイズ
+     */
+    std::size_t get_num_ab_cycle_modifications() const {
+        return num_ab_cycle_modifications;
+    }
+
 private:
     /**
      * @brief 変更履歴
@@ -150,6 +160,11 @@ private:
      * @brief 距離の変化
      */
     int64_t delta_distance;
+
+    /**
+     * @brief ABサイクルによる変更のサイズ
+     */
+    std::size_t num_ab_cycle_modifications;
     
     /**
      * @brief チェックサムの更新値を計算する
