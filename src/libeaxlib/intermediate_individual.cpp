@@ -28,7 +28,7 @@ IntermediateIndividual::IntermediateIndividual(size_t size)
 CrossoverDelta IntermediateIndividual::get_delta_and_revert(const adjacency_matrix_t& adjacency_matrix) {
     revert();
     int64_t delta_distance = calc_delta_distance(adjacency_matrix);
-    CrossoverDelta delta(std::move(modifications), base_checksum, delta_distance);
+    CrossoverDelta delta(std::move(modifications), base_checksum, delta_distance, num_ab_cycle_modifications);
     reset();
     return delta;
 }
