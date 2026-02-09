@@ -428,7 +428,7 @@ namespace {
     
     void apply_neighbor_2opt(
         std::vector<size_t>& path,
-        const tsp::adjacency_matrix_t distance_matrix,
+        const tsp::adjacency_matrix_t& distance_matrix,
         const tsp::NN_list_t& nearest_neighbors,
         const std::vector<std::vector<size_t>>& near_cities,
         size_t near_range,
