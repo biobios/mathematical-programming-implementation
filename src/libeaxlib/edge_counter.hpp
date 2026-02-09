@@ -8,13 +8,147 @@
 #include "crossover_delta.hpp"
 
 namespace eax {
+
+struct NaivePolicy {};
+struct CompactPolicy {};
+
+/**
+ * @tparam Policy エッジカウンタのポリシー
+ */
+template <typename Policy = NaivePolicy>
+class EdgeCounter;
+
+/**
+ * @brief 辺の出現回数を2次元のvectorで管理するクラス
+ * @details
+ *     各頂点について、接続先頂点ごとの辺の出現回数を管理する。
+ *     メモリ使用量は O(n^2) で、n は頂点数。
+ */
+template <>
+class EdgeCounter<NaivePolicy> {
+public:
+    EdgeCounter(size_t num_vertices)
+        : edge_counts(num_vertices, std::vector<size_t>(num_vertices, 0)),
+          unique_edge_count(0) {}
+
+    EdgeCounter(size_t num_vertices, size_t /*population_size*/)
+        : EdgeCounter(num_vertices) {}
+    
+    template <doubly_linked_list_readable Individual>
+    EdgeCounter(const std::vector<Individual>& population)
+        : EdgeCounter(population[0].size(), population.size()) {
+        for (const auto& individual : population) {
+            for (size_t v1 = 0; v1 < individual.size(); ++v1) {
+                increment_edge_count(v1, individual[v1][0]);
+                increment_edge_count(v1, individual[v1][1]);
+            }
+        }
+    }
+
+    /**
+     * @brief CrossoverDeltaで表される変更を適用して辺の出現回数を更新する
+     * @param delta 適用する変更
+     */
+    void apply_crossover_delta(const CrossoverDelta& delta) {
+        for (const auto& modification : delta.get_modifications()) {
+            auto [v1, v2] = modification.edge1;
+            size_t new_v2 = modification.new_v2;
+            decrement_edge_count(v1, v2);
+            increment_edge_count(v1, new_v2);
+        }
+    }
+
+    /**
+     * @brief 頂点v1から頂点v2への辺の出現回数を取得する
+     * @param v1 始点頂点
+     * @param v2 終点頂点
+     * @return 出現回数
+     */
+    size_t get_edge_count(size_t v1, size_t v2) const {
+        return edge_counts[v1][v2];
+    }
+
+    /**
+     * @brief 重複を除いた辺の数を取得する
+     * @details
+     *  (a, b) と (b, a) は同一の辺として数える
+     * @return 重複を除いた辺の数
+     */
+    size_t get_unique_edge_count() const {
+        return unique_edge_count / 2;
+    }
+
+    /**
+     * @brief 頂点v1から頂点v2への辺の出現回数をインクリメントする
+     * @param v1 始点頂点
+     * @param v2 終点頂点
+     */
+    void increment_edge_count(size_t v1, size_t v2) {
+        if (edge_counts[v1][v2] == 0) {
+            unique_edge_count++;
+        }
+        edge_counts[v1][v2]++;
+    }
+    
+    /**
+     * @brief 頂点v1から頂点v2への辺の出現回数をデクリメントする
+     * @param v1 始点頂点
+     * @param v2 終点頂点
+     */
+    void decrement_edge_count(size_t v1, size_t v2) {
+        if (edge_counts[v1][v2] == 0) {
+            throw std::runtime_error("EdgeCounter::decrement_edge_count: Edge count is already zero.");
+        }
+        edge_counts[v1][v2]--;
+        if (edge_counts[v1][v2] == 0) {
+            unique_edge_count--;
+        }
+    }
+    
+    /**
+     * @brief 頂点v1から接続されている頂点の接続数で降順ソートされたvectorを取得する
+     * @param v1 始点頂点
+     * @return 接続されている頂点のvector
+     * @warning この関数の計算量は O(N + M log M) : N = 総頂点数, M = 接続されている頂点数 であるため、頻繁に呼び出すとパフォーマンスに悪影響を与える可能性がある。
+     */
+    std::vector<size_t> get_connected_vertices_slow_ON(size_t v1) const {
+        std::vector<size_t> connected_vertices;
+        for (size_t v2 = 0; v2 < edge_counts[v1].size(); ++v2) {
+            if (edge_counts[v1][v2] > 0) {
+                connected_vertices.push_back(v2);
+            }
+        }
+        std::sort(connected_vertices.begin(), connected_vertices.end(),
+                  [this, v1](size_t a, size_t b) {
+                      return edge_counts[v1][a] > edge_counts[v1][b];
+                  });
+        return connected_vertices;
+    }
+    
+    /**
+     * @brief 頂点v1から接続されている頂点の接続数で降順ソートされたvectorを取得する
+     * @param v1 始点頂点
+     * @return 接続されている頂点のvector
+     * @warning この関数の計算量は O(N + M log M) : N = 総頂点数, M = 接続されている頂点数 であるため、頻繁に呼び出すとパフォーマンスに悪影響を与える可能性がある。
+     */
+    [[deprecated("This function has O(n log n) time complexity. Use CompactPolicy EdgeCounter for better performance.")]]
+    std::vector<size_t> get_connected_vertices(size_t v1) const {
+        return get_connected_vertices_slow_ON(v1);
+    }
+    
+private:
+    std::vector<std::vector<size_t>> edge_counts;
+    size_t unique_edge_count = 0;
+};
+
 /**
  * @brief 辺の出現回数を出現回数で降順ソートして管理するクラス
  * @details
  *     各頂点について、接続先頂点ごとの辺の出現回数を管理する。
  *     メモリ使用量は O(n * m) で、n は頂点数、m は個体数。
  */
-class EdgeCounter {
+template <>
+class EdgeCounter<CompactPolicy> {
 public:
     EdgeCounter(size_t num_vertices, size_t population_size)
         : vertex_counters(num_vertices, VertexEdgeCounter{population_size}) {}
@@ -71,6 +205,36 @@ public:
      */
     size_t get_unique_edge_count() const {
         return unique_edge_count / 2;
+    }
+
+    /**
+     * @brief 頂点v1から頂点v2への辺の出現回数をインクリメントする
+     * @param v1 始点頂点
+     * @param v2 終点頂点
+     */
+    void increment_edge_count(size_t v1, size_t v2) {
+
+        std::size_t prev_size = vertex_counters[v1].connected_vertices.size();
+
+        vertex_counters[v1].increment_edge_count(v2);
+
+        std::size_t new_size = vertex_counters[v1].connected_vertices.size();
+        unique_edge_count += new_size - prev_size;
+    }
+
+    /**
+     * @brief 頂点v1から頂点v2への辺の出現回数をデクリメントする
+     * @param v1 始点頂点
+     * @param v2 終点頂点
+     */
+    void decrement_edge_count(size_t v1, size_t v2) {
+
+        std::size_t prev_size = vertex_counters[v1].connected_vertices.size();
+
+        vertex_counters[v1].decrement_edge_count(v2);
+        
+        std::size_t new_size = vertex_counters[v1].connected_vertices.size();
+        unique_edge_count -= prev_size - new_size;
     }
 
 private:
@@ -197,36 +361,6 @@ private:
 
         friend class EdgeCounter;
     };
-
-    /**
-     * @brief 頂点v1から頂点v2への辺の出現回数をインクリメントする
-     * @param v1 始点頂点
-     * @param v2 終点頂点
-     */
-    void increment_edge_count(size_t v1, size_t v2) {
-
-        std::size_t prev_size = vertex_counters[v1].connected_vertices.size();
-
-        vertex_counters[v1].increment_edge_count(v2);
-
-        std::size_t new_size = vertex_counters[v1].connected_vertices.size();
-        unique_edge_count += new_size - prev_size;
-    }
-
-    /**
-     * @brief 頂点v1から頂点v2への辺の出現回数をデクリメントする
-     * @param v1 始点頂点
-     * @param v2 終点頂点
-     */
-    void decrement_edge_count(size_t v1, size_t v2) {
-
-        std::size_t prev_size = vertex_counters[v1].connected_vertices.size();
-
-        vertex_counters[v1].decrement_edge_count(v2);
-        
-        std::size_t new_size = vertex_counters[v1].connected_vertices.size();
-        unique_edge_count -= prev_size - new_size;
-    }
 
     /**
      * @brief 各頂点の辺の出現回数を管理する配列
