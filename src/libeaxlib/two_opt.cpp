@@ -428,8 +428,8 @@ namespace {
     
     void apply_neighbor_2opt(
         std::vector<size_t>& path,
-        const std::vector<std::vector<int64_t>>& distance_matrix,
-        const std::vector<std::vector<std::pair<int64_t, size_t>>>& nearest_neighbors,
+        const tsp::adjacency_matrix_t& distance_matrix,
+        const tsp::NN_list_t& nearest_neighbors,
         const std::vector<std::vector<size_t>>& near_cities,
         size_t near_range,
         std::mt19937::result_type seed
@@ -457,7 +457,7 @@ namespace {
                 }
 
                 for (size_t i = 0; i < near_range; ++i) {
-                    size_t neighbor_city = nearest_neighbors[current_city][i].second;
+                    size_t neighbor_city = nearest_neighbors[current_city][i];
                     size_t neighbor_prev_city = tree.get_prev(neighbor_city);
                     
                     int64_t length_diff = distance_matrix[current_city][prev_city] - distance_matrix[current_city][neighbor_city];
@@ -482,7 +482,7 @@ namespace {
                 if (improved) break;
 
                 for (size_t i = 0; i < near_range; ++i) {
-                    size_t neighbor_city = nearest_neighbors[current_city][i].second;
+                    size_t neighbor_city = nearest_neighbors[current_city][i];
                     size_t neighbor_next_city = tree.get_next(neighbor_city);
                     
                     int64_t length_diff = distance_matrix[current_city][next_city] - distance_matrix[current_city][neighbor_city];
@@ -523,8 +523,8 @@ namespace {
     
     void apply_global_2opt(
         std::vector<size_t>& path,
-        const std::vector<std::vector<int64_t>>& distance_matrix,
-        const std::vector<std::vector<std::pair<int64_t, size_t>>>& nearest_neighbors,
+        const tsp::adjacency_matrix_t& distance_matrix,
+        const tsp::NN_list_t& nearest_neighbors,
         std::mt19937::result_type seed
     ) {
         std::mt19937 rng(seed);
@@ -542,7 +542,7 @@ namespace {
             size_t current_city = start;
             do {
                 for (size_t i = 0; i < NN_list_size; ++i) {
-                    size_t neighbor_city = nearest_neighbors[current_city][i].second;
+                    size_t neighbor_city = nearest_neighbors[current_city][i];
                     size_t neighbor_prev_city = tree.get_prev(neighbor_city);
                     
                     int64_t length_diff = distance_matrix[current_city][prev_city] - distance_matrix[current_city][neighbor_city];
@@ -562,7 +562,7 @@ namespace {
                 size_t next_city = tree.get_next(current_city);
 
                 for (size_t i = 0; i < NN_list_size; ++i) {
-                    size_t neighbor_city = nearest_neighbors[current_city][i].second;
+                    size_t neighbor_city = nearest_neighbors[current_city][i];
                     size_t neighbor_next_city = tree.get_next(neighbor_city);
                     
                     int64_t length_diff = distance_matrix[current_city][next_city] - distance_matrix[current_city][neighbor_city];
@@ -602,7 +602,7 @@ void print_2opt_time() {
     std::cout << "Time: " << time_a << " seconds" << std::endl;
 }
 
-TwoOpt::TwoOpt(const std::vector<std::vector<int64_t>> &distance_matrix, const std::vector<std::vector<std::pair<int64_t, size_t>>> &nearest_neighbors, size_t near_range)
+TwoOpt::TwoOpt(const tsp::adjacency_matrix_t &distance_matrix, const tsp::NN_list_t &nearest_neighbors, size_t near_range)
     : distance_matrix(distance_matrix), nearest_neighbors(nearest_neighbors), near_range(std::min(near_range, nearest_neighbors[0].size()))
 {
     size_t n = distance_matrix.size();
@@ -613,7 +613,7 @@ TwoOpt::TwoOpt(const std::vector<std::vector<int64_t>> &distance_matrix, const s
     near_cities.resize(n);
     for (size_t i = 0; i < n; ++i) {
         for (size_t j = 0; j < near_range; ++j) {
-            auto& [distance, neighbor_index] = nearest_neighbors[i][j];
+            auto& neighbor_index = nearest_neighbors[i][j];
             near_cities[neighbor_index].push_back(i);
         }
     }
