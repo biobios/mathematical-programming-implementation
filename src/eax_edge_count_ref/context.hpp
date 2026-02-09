@@ -39,7 +39,7 @@ namespace eax {
         Environment env;
 
         std::vector<std::vector<size_t>> pop_edge_counts = {}; // 各エッジの個数
-        EdgeCounter edge_counter;
+        EdgeCounter<CompactPolicy> edge_counter;
         std::mt19937 random_gen = {};
 
         // 最良解の長さ
