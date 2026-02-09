@@ -27,12 +27,11 @@ class EdgeCounter;
 template <>
 class EdgeCounter<NaivePolicy> {
 public:
-    EdgeCounter(size_t num_vertices)
-        : edge_counts(num_vertices, std::vector<size_t>(num_vertices, 0)),
-          unique_edge_count(0) {}
 
-    EdgeCounter(size_t num_vertices, size_t /*population_size*/)
-        : EdgeCounter(num_vertices) {}
+    EdgeCounter(size_t num_vertices, size_t population_size)
+        : edge_counts(num_vertices, std::vector<size_t>(num_vertices, 0)),
+          population_size(population_size),
+          unique_edge_count(0) {}
     
     template <doubly_linked_list_readable Individual>
     EdgeCounter(const std::vector<Individual>& population)
@@ -135,9 +134,29 @@ public:
     std::vector<size_t> get_connected_vertices(size_t v1) const {
         return get_connected_vertices_slow_ON(v1);
     }
+
+    /**
+     * @brief エントロピーを計算する
+     * @return エントロピー値
+     * @details
+     *     計算量は O(n^2) である。
+     */
+    double calc_entropy() const {
+        double entropy = 0.0;
+        for (const auto& row : edge_counts) {
+            for (const auto& count : row) {
+                if (count > 0) {
+                    double p = static_cast<double>(count) / static_cast<double>(population_size);
+                    entropy -= p * std::log2(p);
+                }
+            }
+        }
+        return entropy;
+    }
     
 private:
     std::vector<std::vector<size_t>> edge_counts;
+    size_t population_size;
     size_t unique_edge_count = 0;
 };
 
@@ -151,7 +170,9 @@ template <>
 class EdgeCounter<CompactPolicy> {
 public:
     EdgeCounter(size_t num_vertices, size_t population_size)
-        : vertex_counters(num_vertices, VertexEdgeCounter{population_size}) {}
+        : vertex_counters(num_vertices, VertexEdgeCounter{population_size}),
+            unique_edge_count(0),
+            population_size(population_size) {}
     
     template <doubly_linked_list_readable Individual>
     EdgeCounter(const std::vector<Individual>& population)
@@ -183,6 +204,8 @@ public:
      * @param v1 始点頂点
      * @param v2 終点頂点
      * @return 出現回数
+     * @details
+     *    計算量は O(m) で、m は個体数。
      */
     size_t get_edge_count(size_t v1, size_t v2) const {
         return vertex_counters[v1].get_edge_count(v2);
@@ -235,6 +258,26 @@ public:
         
         std::size_t new_size = vertex_counters[v1].connected_vertices.size();
         unique_edge_count -= prev_size - new_size;
+    }
+    
+    /**
+     * @brief エントロピーを計算する
+     * @return エントロピー値
+     * @details
+     *     計算量は O(n * m) である。
+     */
+    double calc_entropy() const {
+        double entropy = 0.0;
+        for (const auto& vertex_counter : vertex_counters) {
+            size_t range_end = vertex_counter.connected_vertices.size();
+            for (size_t edge_count = 1; edge_count <= vertex_counter.count_range_begins.size(); ++edge_count) {
+                size_t range_begin = vertex_counter.count_range_begins[edge_count - 1];
+                double p = static_cast<double>(edge_count) / static_cast<double>(population_size);
+                double entropy_contribution = -p * std::log2(p);
+                entropy += entropy_contribution * (range_end - range_begin);
+            }
+        }
+        return entropy;
     }
 
 private:
@@ -376,5 +419,10 @@ private:
      *  無向辺数が必要な場合は、get_unique_edge_count() の戻り値を利用すること。
      */
     std::size_t unique_edge_count = 0;
+    
+    /**
+     * @brief 個体数
+     */
+    size_t population_size;
 };
 }
