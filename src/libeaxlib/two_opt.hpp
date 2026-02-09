@@ -1,5 +1,7 @@
 #pragma once
 
+#include "tsp_loader.hpp"
+
 #include <vector>
 #include <cstdint>
 #include <random>
@@ -16,8 +18,8 @@ namespace eax {
          * @param nearest_neighbors 近傍リスト
          * @param near_range 近傍範囲
          */
-        TwoOpt(const std::vector<std::vector<int64_t>>& distance_matrix,
-               const std::vector<std::vector<std::pair<int64_t, size_t>>>& nearest_neighbors,
+        TwoOpt(const tsp::adjacency_matrix_t& distance_matrix,
+               const tsp::NN_list_t& nearest_neighbors,
                size_t near_range = 50);
         
         /**
@@ -28,8 +30,8 @@ namespace eax {
         void apply(std::vector<size_t>& path, std::mt19937::result_type seed = std::mt19937::default_seed);
 
     private:
-        std::vector<std::vector<int64_t>> distance_matrix;
-        std::vector<std::vector<std::pair<int64_t, size_t>>> nearest_neighbors;
+        tsp::adjacency_matrix_t distance_matrix;
+        tsp::NN_list_t nearest_neighbors;
         std::vector<std::vector<size_t>> near_cities;
         const size_t near_range;
     };
