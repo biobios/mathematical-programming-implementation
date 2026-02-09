@@ -22,8 +22,8 @@ namespace {
 
     void apply_soft_2opt(
         std::vector<size_t>& path,
-        const std::vector<std::vector<int64_t>>& distance_matrix,
-        const std::vector<std::vector<std::pair<int64_t, size_t>>>& nearest_neighbors,
+        const tsp::adjacency_matrix_t& distance_matrix,
+        const tsp::NN_list_t& nearest_neighbors,
         size_t near_range
     ) {
         const size_t n = path.size();
@@ -41,11 +41,11 @@ namespace {
                 size_t u1 = tour[i];
                 size_t v1 = tour[(i + 1) % n];
                 for(size_t d = 0; d < near_range; ++d) {
-                    size_t u2 = tour[pos[nearest_neighbors[u1][d].second]];
-                    size_t v2 = tour[(pos[nearest_neighbors[u1][d].second] + 1) % n];
+                    size_t u2 = tour[pos[nearest_neighbors[u1][d]]];
+                    size_t v2 = tour[(pos[nearest_neighbors[u1][d]] + 1) % n];
                     if((distance_matrix[u1][v1] + distance_matrix[u2][v2]) - (distance_matrix[u1][u2] + distance_matrix[v1][v2]) > improve) {
                         improve = (distance_matrix[u1][v1] + distance_matrix[u2][v2]) - (distance_matrix[u1][u2] + distance_matrix[v1][v2]);
-                        swap_pos = std::make_pair((i + 1) % n, pos[nearest_neighbors[u1][d].second]);
+                        swap_pos = std::make_pair((i + 1) % n, pos[nearest_neighbors[u1][d]]);
                     }
                 }
                 if(swap_pos != std::pair<size_t, size_t>()) {
@@ -67,7 +67,7 @@ void print_soft_2opt_time() {
 }
 
 //TODO: SoftTwoOptの実装
-SoftTwoOpt::SoftTwoOpt(const std::vector<std::vector<int64_t>>& distance_matrix, const std::vector<std::vector<std::pair<int64_t, size_t>>>& nearest_neighbors, size_t near_range)
+SoftTwoOpt::SoftTwoOpt(const tsp::adjacency_matrix_t& distance_matrix, const tsp::NN_list_t& nearest_neighbors, size_t near_range)
     : distance_matrix(distance_matrix), nearest_neighbors(nearest_neighbors), near_range(near_range)
 {}
 

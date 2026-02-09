@@ -61,11 +61,9 @@ namespace tsp {
             throw std::runtime_error("Number of cities does not match the specified dimension.");
         }
         
-        tsp.NN_list.resize(tsp.city_count);
         
         // Fill the adjacency matrix based on the coordinates
         for (size_t i = 0; i < tsp.city_count; ++i) {
-            tsp.NN_list[i].reserve(tsp.city_count - 1); // Reserve space for neighbors
             for (size_t j = 0; j < tsp.city_count; ++j) {
                 if (i == j) {
                     tsp.adjacency_matrix[i][j] = 0; // Distance to itself is 0
@@ -81,12 +79,29 @@ namespace tsp {
                     } else {
                         throw std::runtime_error("Unsupported distance type: " + tsp.distance_type);
                     }
-                    tsp.NN_list[i].emplace_back(tsp.adjacency_matrix[i][j], j);
                 }
             }
-            std::sort(tsp.NN_list[i].begin(), tsp.NN_list[i].end());
         }
-        
+
+        // Construct the nearest neighbor list
+        tsp.NN_list.resize(tsp.city_count);
+        for (size_t i = 0; i < tsp.city_count; ++i) {
+            tsp.NN_list[i].resize(tsp.city_count - 1);
+
+            for (size_t j = 0; j < i; ++j) {
+                tsp.NN_list[i][j] = j;
+            }
+            for (size_t j = i + 1; j < tsp.city_count; ++j) {
+                tsp.NN_list[i][j - 1] = j;
+            }
+        }
+
+        for (size_t i = 0; i < tsp.city_count; ++i) {
+            std::sort(tsp.NN_list[i].begin(), tsp.NN_list[i].end(),
+                      [&tsp, i](size_t a, size_t b) {
+                          return tsp.adjacency_matrix[i][a] < tsp.adjacency_matrix[i][b];
+                      });
+        }
 
         file.close();
         return tsp;

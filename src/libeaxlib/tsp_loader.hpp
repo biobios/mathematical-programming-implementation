@@ -19,13 +19,16 @@ namespace tsp {
             else return tij;
         }
     }
+    
+    using adjacency_matrix_t = std::vector<std::vector<int64_t>>;
+    using NN_list_t = std::vector<std::vector<size_t>>;
 
     struct TSP {
         std::string name;
         std::string distance_type;
         size_t city_count;
-        std::vector<std::vector<int64_t>> adjacency_matrix;
-        std::vector<std::vector<std::pair<int64_t, size_t>>> NN_list;
+        adjacency_matrix_t adjacency_matrix;
+        NN_list_t NN_list;
     };
 
     class TSP_Loader {
