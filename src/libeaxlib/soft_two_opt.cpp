@@ -33,6 +33,8 @@ namespace {
             pos[tour[i]] = i;
         }
 
+        near_range = std::min(near_range, nearest_neighbors[0].size());
+
         double improve = 1.;
         while (improve > 0.) {
             improve = 0.;
