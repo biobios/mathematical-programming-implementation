@@ -14,6 +14,4 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
     std::vector<Individual>& population,
     Context& context,
     const std::string& log_file_name);
-
-Context create_context(const std::vector<Individual>& initial_population, Environment const& env);
 }

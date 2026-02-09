@@ -5,6 +5,7 @@
 #include <chrono>
 #include <random>
 
+#include "edge_counter.hpp"
 #include "tsp_loader.hpp"
 #include "object_pool.hpp"
 #include "limited_range_integer_set.hpp"
@@ -38,7 +39,7 @@ namespace eax {
     struct Context {
         Environment env;
 
-        std::vector<std::vector<size_t>> pop_edge_counts; // 各エッジの個数
+        EdgeCounter<> pop_edge_counts; // 各エッジの個数
         std::mt19937 random_gen;
 
         // 最良解の長さ
@@ -57,29 +58,13 @@ namespace eax {
         // 経過時間
         double elapsed_time = 0.0;
         // エントロピー
-        double entropy = 0.0;
+        double entropy;
 
-        void set_initial_edge_counts(const std::vector<Individual>& init_pop) {
-            pop_edge_counts.assign(env.tsp.city_count, std::vector<size_t>(env.tsp.city_count, 0));
-            
-            for (const auto& individual : init_pop) {
-                for (size_t i = 0; i < individual.size(); ++i) {
-                    size_t v1 = individual[i][0];
-                    size_t v2 = individual[i][1];
-                    pop_edge_counts[i][v1] += 1;
-                    pop_edge_counts[i][v2] += 1;
-                }
-            }
-
-            entropy = 0.0;
-            for (auto& row : pop_edge_counts) {
-                for (auto& count : row) {
-                    if (count > 0) {
-                        double p = static_cast<double>(count) / static_cast<double>(env.population_size);
-                        entropy -= p * std::log2(p);
-                    }
-                }
-            }
-        };
+        Context(const Environment& env, std::vector<Individual>& population)
+            : env(env),
+                pop_edge_counts(population),
+                random_gen(env.random_seed),
+                entropy(pop_edge_counts.calc_entropy())
+        {}
     };
 }

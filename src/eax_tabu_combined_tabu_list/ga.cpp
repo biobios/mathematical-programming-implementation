@@ -94,13 +94,7 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
                 auto delta = individual.update_graph_and_tabu(context.random_gen);
                 auto delta_H = eax::calc_delta_entropy(delta, context.pop_edge_counts, context.env.population_size);
                 context.entropy += delta_H;
-                for (const auto& mod : delta.get_modifications()) {
-                    size_t v1 = mod.edge1.first;
-                    size_t v2 = mod.edge1.second;
-                    size_t new_v2 = mod.new_v2;
-                    context.pop_edge_counts[v1][v2] -= 1;
-                    context.pop_edge_counts[v1][new_v2] += 1;
-                }
+                context.pop_edge_counts.apply_crossover_delta(delta);
             }
         }
 
@@ -178,15 +172,6 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
     mpi::GenerationalChangeModel genetic_algorithm(generational_step, update_func, logging, post_process);
 
     return genetic_algorithm.execute(population, context, context.current_generation);
-}
-
-Context create_context(const std::vector<Individual>& initial_population, Environment const& env) {
-    Context context;
-    context.env = env;
-
-    context.set_initial_edge_counts(initial_population);
-    context.random_gen = std::mt19937(env.random_seed);
-    return context;
 }
 
 }

@@ -168,7 +168,7 @@ void execute_normal(const Arguments& args)
 
         // 環境
         eax::Environment ga_env{tsp, args.population_size, args.num_children, selection_type, local_seed, eax_type};
-        eax::Context ga_context = eax::create_context(population, ga_env);
+        eax::Context ga_context{ga_env, population};
         
         cout << "Starting genetic algorithm..." << endl;
         // 計測開始
