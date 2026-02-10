@@ -100,7 +100,7 @@ int main(int argc, char* argv[])
             cache_file = args.cache_directory + "/" + cache_file;
         }
 
-        vector<vector<size_t>> initial_paths = population_initializer.initialize_population(local_seed, cache_file, [&two_opt, local_seed](vector<size_t>& path) {
+        population_initializer.initialize_population(local_seed, cache_file, [&two_opt, local_seed](vector<size_t>& path) {
             // 2-optを適用
             two_opt.apply(path, local_seed);
         });
