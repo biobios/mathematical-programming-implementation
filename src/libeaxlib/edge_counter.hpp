@@ -31,6 +31,7 @@ public:
 
     EdgeCounter(size_t num_vertices, size_t population_size)
         : edge_counts(num_vertices, std::vector<size_t>(num_vertices, 0)),
+          connected_vertices_counts(num_vertices, 0),
           population_size(population_size),
           unique_edge_count(0) {}
     
@@ -86,6 +87,7 @@ public:
     void increment_edge_count(size_t v1, size_t v2) {
         if (edge_counts[v1][v2] == 0) {
             unique_edge_count++;
+            connected_vertices_counts[v1]++;
         }
         edge_counts[v1][v2]++;
     }
@@ -102,6 +104,7 @@ public:
         edge_counts[v1][v2]--;
         if (edge_counts[v1][v2] == 0) {
             unique_edge_count--;
+            connected_vertices_counts[v1]--;
         }
     }
     
@@ -137,6 +140,15 @@ public:
     }
 
     /**
+     * @brief 頂点v1から接続されている頂点の数を取得する
+     * @param v1 始点頂点
+     * @return 接続されている頂点の数
+     */
+    size_t get_connected_vertices_count(size_t v1) const {
+        return connected_vertices_counts[v1];
+    }
+
+    /**
      * @brief エントロピーを計算する
      * @return エントロピー値
      * @details
@@ -157,6 +169,7 @@ public:
     
 private:
     std::vector<std::vector<size_t>> edge_counts;
+    std::vector<size_t> connected_vertices_counts;
     size_t population_size;
     size_t unique_edge_count = 0;
 };

@@ -22,12 +22,12 @@ public:
           subtour_finder(object_pools),
           default_merger(object_pools) {}
 
-    template <std::ranges::range ABCycles>
+    template <std::ranges::range ABCycles, typename Policy>
         requires std::convertible_to<std::ranges::range_value_t<ABCycles>, const ab_cycle_t&>
     void operator()(IntermediateIndividual& working_individual,
                     const tsp::TSP& tsp,
                     const ABCycles& applied_ab_cycles,
-                    const EdgeCounter& edge_counter,
+                    const EdgeCounter<Policy>& edge_counter,
                     const std::size_t average_neighbor_range) {
         
         if (average_neighbor_range == 0) {
@@ -92,7 +92,7 @@ public:
                 for (size_t i = 1; i <= min_sub_tour_size; ++i) {
                     size_t current_city = elem_of_min_sub_tour[i];
 
-                    size_t unique_connections = edge_counter.get_connected_vertices(current_city).size();
+                    size_t unique_connections = edge_counter.get_connected_vertices_count(current_city);
                     double range_multiplier = 1 + (average_neighbor_range - 1) * ((unique_connections - 2) / (average_unique_edge_count - 2.0));
                     
                     // double to size_t の変換によるオーバーフローを防ぐため、上限を city_count に設定

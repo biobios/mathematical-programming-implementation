@@ -75,9 +75,9 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
             case eax::SelectionType::Greedy:
                 return eax::eval::delta::Greedy(child);
             case eax::SelectionType::Ent:
-                return eax::eval::delta::Entropy(child, context.pop_edge_counts, env.population_size);
+                return eax::eval::delta::Entropy(child, context.edge_counter, env.population_size);
             case eax::SelectionType::DistancePreserving:
-                return eax::eval::delta::DistancePreserving(child, context.pop_edge_counts);
+                return eax::eval::delta::DistancePreserving(child, context.edge_counter);
             default:
                 throw std::runtime_error("Unknown selection type");
         }
@@ -99,15 +99,9 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
                 
                 context.edge_counter.apply_crossover_delta(delta);
 
-                auto delta_H = eax::calc_delta_entropy(delta, context.pop_edge_counts, context.env.population_size);
+                auto delta_H = eax::calc_delta_entropy(delta, context.edge_counter, context.env.population_size);
                 context.entropy += delta_H;
-                for (const auto& mod : delta.get_modifications()) {
-                    size_t v1 = mod.edge1.first;
-                    size_t v2 = mod.edge1.second;
-                    size_t new_v2 = mod.new_v2;
-                    context.pop_edge_counts[v1][v2] -= 1;
-                    context.pop_edge_counts[v1][new_v2] += 1;
-                }
+                context.edge_counter.apply_crossover_delta(delta);
             }
         }
 
@@ -178,7 +172,7 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
 
             // edge_countの計算（適当な頂点から接続されている頂点の数を取得）
             // Note: 単純にgeneration % city_countを使うと、city_count > max_generationの場合にすべての頂点をカバーできないため、乱数的に頂点を選択する
-            size_t edge_count = context.edge_counter.get_connected_vertices(((generation + context.env.random_seed) * 0x9E3779B9) % context.env.tsp.city_count).size();
+            size_t edge_count = context.edge_counter.get_connected_vertices_count(((generation + context.env.random_seed) * 0x9E3779B9) % context.env.tsp.city_count);
             
             log_file_stream << generation << "," << best_length << "," << average_length << "," << worst_length << "," << context.entropy << "," << time_per_generation << "," << edge_count << std::endl;
         }
@@ -197,14 +191,6 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
     mpi::GenerationalChangeModel genetic_algorithm(generational_step, update_func, logging, post_process);
 
     return genetic_algorithm.execute(population, context, context.current_generation);
-}
-
-Context create_context(const std::vector<Individual>& initial_population, Environment const& env) {
-    Context context{.env = env, .edge_counter = EdgeCounter(initial_population)};
-
-    context.set_initial_edge_counts(initial_population);
-    context.random_gen = std::mt19937(env.random_seed);
-    return context;
 }
     
 }

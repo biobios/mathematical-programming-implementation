@@ -179,7 +179,7 @@ void execute_normal(const Arguments& args)
             .merge_range = args.merge_range
         };
 
-        eax::Context ga_context = eax::create_context(population, ga_env);
+        eax::Context ga_context{ga_env, population};
         
         cout << "Starting genetic algorithm..." << endl;
         // 計測開始
