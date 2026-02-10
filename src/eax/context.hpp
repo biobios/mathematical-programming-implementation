@@ -76,6 +76,7 @@ namespace eax {
         Context(const Environment& environment, const std::vector<Individual>& initial_population)
             : env(environment),
               pop_edge_counts(initial_population),
-              random_gen(environment.random_seed) {}
+              random_gen(environment.random_seed),
+              entropy(pop_edge_counts.calc_entropy()) {}
     };
 }
