@@ -3,6 +3,7 @@
 #include <vector>
 #include <algorithm>
 #include <ranges>
+#include <cmath>
 
 #include "eaxdef.hpp"
 #include "crossover_delta.hpp"
