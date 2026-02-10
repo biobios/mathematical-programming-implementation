@@ -270,13 +270,26 @@ public:
     double calc_entropy() const {
         double entropy = 0.0;
         for (const auto& vertex_counter : vertex_counters) {
-            size_t range_end = vertex_counter.connected_vertices.size();
-            for (size_t edge_count = 1; edge_count <= vertex_counter.count_range_begins.size(); ++edge_count) {
-                size_t range_begin = vertex_counter.count_range_begins[edge_count - 1];
+            for (size_t i = 1; i < vertex_counter.count_range_begins.size(); ++i) {
+                size_t edge_count = i + 1;
+                size_t range_begin = vertex_counter.count_range_begins[i];
+                size_t range_end = vertex_counter.count_range_begins[i - 1];
+
                 double p = static_cast<double>(edge_count) / static_cast<double>(population_size);
                 double entropy_contribution = -p * std::log2(p);
+
                 entropy += entropy_contribution * (range_end - range_begin);
             }
+
+            // 出現回数1回の辺の寄与を追加
+            size_t edge_count = 1;
+            size_t range_begin = vertex_counter.count_range_begins[0];
+            size_t range_end = vertex_counter.connected_vertices.size();
+
+            double p = static_cast<double>(edge_count) / static_cast<double>(population_size);
+            double entropy_contribution = -p * std::log2(p);
+
+            entropy += entropy_contribution * (range_end - range_begin);
         }
         return entropy;
     }
