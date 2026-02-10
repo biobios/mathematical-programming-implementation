@@ -60,7 +60,7 @@ namespace eax {
         // エントロピー
         double entropy;
 
-        Context(const Environment& env, std::vector<Individual>& population)
+        Context(const Environment& env, const std::vector<Individual>& population)
             : env(env),
                 pop_edge_counts(population),
                 random_gen(env.random_seed),
