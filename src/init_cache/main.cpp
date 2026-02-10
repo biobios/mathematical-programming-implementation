@@ -53,7 +53,18 @@ int main(int argc, char* argv[])
     cache_dir_spec.set_description("--cache-dir <directory> \t:Cache directory path.");
     parser.add_argument(cache_dir_spec);
 
+    bool help_requested = false;
+    mpi::ArgumentSpec help_spec(help_requested);
+    help_spec.add_set_argument_name("--help");
+    help_spec.set_description("--help \t\t:Display this help message.");
+    parser.add_argument(help_spec);
+
     parser.parse(argc, argv);
+
+    if (help_requested) {
+        parser.print_help();
+        return 0;
+    }
 
     // 引数の表示
     cout << "TSP File: " << args.file_name << endl;
