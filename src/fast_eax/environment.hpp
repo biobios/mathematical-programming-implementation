@@ -3,6 +3,7 @@
 #include <vector>
 #include <functional>
 #include <chrono>
+#include <random>
 
 #include "edge_counter.hpp"
 #include "tsp_loader.hpp"
