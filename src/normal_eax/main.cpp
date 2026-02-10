@@ -49,6 +49,8 @@ struct Arguments {
     std::string output_file_name = "result.md";
     // logファイル名
     std::string log_file_name = "";
+    // キャッシュディレクトリ
+    std::string cache_directory = ".";
 };
 
 void print_result(const eax::Context& context, std::ostream& os)
@@ -121,6 +123,13 @@ void execute_normal(const Arguments& args)
         // グローバルで初期化
         mt19937::result_type local_seed = rng();
         string cache_file = "init_pop_cache_" + to_string(local_seed) + "_for_" + tsp.name + "_" + to_string(args.population_size) + ".txt";
+
+        if (args.cache_directory.ends_with('/')) {
+            cache_file = args.cache_directory + cache_file;
+        } else {
+            cache_file = args.cache_directory + "/" + cache_file;
+        }
+
         vector<vector<size_t>> initial_paths = population_initializer.initialize_population(local_seed, cache_file, [&two_opt, local_seed](vector<size_t>& path) {
             // 2-optを適用
             two_opt.apply(path, local_seed);
@@ -203,6 +212,11 @@ int main(int argc, char* argv[])
     log_spec.add_argument_name("--log");
     log_spec.set_description("--log <filename> \t:Log file name.");
     parser.add_argument(log_spec);
+    
+    mpi::ArgumentSpec cache_dir_spec(args.cache_directory);
+    cache_dir_spec.add_argument_name("--cache-dir");
+    cache_dir_spec.set_description("--cache-dir <directory> \t:Cache directory for initial population files (default: current directory).");
+    parser.add_argument(cache_dir_spec);
     
     bool help_requested = false;
     mpi::ArgumentSpec help_spec(help_requested);
