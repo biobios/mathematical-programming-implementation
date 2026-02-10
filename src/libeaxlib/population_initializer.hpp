@@ -5,6 +5,8 @@
 #include <random>
 #include <format>
 #include <fstream>
+#include <algorithm>
+#include <numeric>
 
 #include "utils.hpp"
 
