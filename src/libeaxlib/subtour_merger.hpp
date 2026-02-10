@@ -88,7 +88,7 @@ public:
                     size_t current_city = elem_of_min_sub_tour[i];
                     size_t limit = std::min(start + search_range, NN_list[current_city].size());
                     for (size_t j = start; j < limit; ++j) {
-                        size_t neighbor_city = NN_list[current_city][j].second;
+                        size_t neighbor_city = NN_list[current_city][j];
                         if (in_min_sub_tour[neighbor_city])
                             continue;
 

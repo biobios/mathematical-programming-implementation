@@ -4,12 +4,15 @@
 #include <vector>
 #include <array>
 
+#include "tsp_loader.hpp"
+
 namespace eax {
-using adjacency_matrix_t = std::vector<std::vector<int64_t>>;
-using NN_list_t = std::vector<std::vector<size_t>>;
+using adjacency_matrix_t = tsp::adjacency_matrix_t;
+using NN_list_t = tsp::NN_list_t;
+
 using ab_cycle_t = std::vector<size_t>;
 using doubly_linked_list_t = std::vector<std::array<size_t, 2>>;
-using edge_counts_t = std::vector<std::vector<size_t>>;
+using edge_counts_t [[deprecated("Use EdgeCounter class instead")]] = std::vector<std::vector<size_t>>;
 
 /**
  * @brief 双方向連結リストの読み取りが可能なコンセプト

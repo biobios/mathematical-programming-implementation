@@ -221,13 +221,7 @@ int main(int argc, char* argv[])
                 for (auto& individual : population) {
                     eax::CrossoverDelta delta = individual.apply_pending_delta();
                     
-                    for (const auto& modification : delta.get_modifications()) {
-                        auto [v1, v2] = modification.edge1;
-                        size_t new_v2 = modification.new_v2;
-                        // エッジの個数を更新
-                        env.pop_edge_counts[v1][v2] -= 1;
-                        env.pop_edge_counts[v1][new_v2] += 1;
-                    }
+                    env.pop_edge_counts.apply_crossover_delta(delta);
                 }
             }
             
@@ -319,23 +313,15 @@ int main(int argc, char* argv[])
         };
         
         // 環境
-        Env tsp_env;
-        tsp_env.tsp = tsp;
-        tsp_env.population_size = population_size;
-        tsp_env.N_parameter = 1;
-        tsp_env.random_gen = mt19937(local_seed);
-
-        if (use_local_eax) {
-            tsp_env.eax_type = eax::EAXType::N_AB;
-        } else {
-            tsp_env.eax_type = eax::EAXType::Rand;
-        }
-        if (use_greedy_selection) {
-            tsp_env.selection_type = eax::SelectionType::Greedy;
-        } else {
-            tsp_env.selection_type = eax::SelectionType::Ent;
-        }
-        tsp_env.set_initial_edge_counts(population);
+        Env tsp_env{
+            .tsp = tsp,
+            .N_parameter = 1,
+            .population_size = population_size,
+            .eax_type = use_local_eax ? eax::EAXType::N_AB : eax::EAXType::Rand,
+            .selection_type = use_greedy_selection ? eax::SelectionType::Greedy : eax::SelectionType::Ent,
+            .pop_edge_counts{population},
+            .random_gen = mt19937(local_seed)
+        };
         
         cout << "Starting genetic algorithm..." << endl;
         // 計測開始
