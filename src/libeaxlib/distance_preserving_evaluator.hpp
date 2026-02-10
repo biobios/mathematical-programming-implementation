@@ -84,7 +84,7 @@ struct DistancePreserving {
 
         // 多様性が増すならば
         if (delta_H >= 0) {
-            return -1.0 * delta_L / epsilon;;
+            return -1.0 * delta_L / epsilon;
         }
         // 多様性が減るならば
         // 減少多様性当たりの距離の減少量を評価値とする
