@@ -65,6 +65,10 @@ int main(int argc, char* argv[])
         parser.print_help();
         return 0;
     }
+    
+    if (args.population_size == 0) {
+        throw std::runtime_error("Population size must be greater than 0. Specify with --ps <size>.");
+    }
 
     // 引数の表示
     cout << "TSP File: " << args.file_name << endl;
