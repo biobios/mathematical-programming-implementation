@@ -97,10 +97,9 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
             for (auto& individual : population) {
                 auto delta = individual.apply_pending_delta();
                 
-                context.edge_counter.apply_crossover_delta(delta);
-
                 auto delta_H = eax::calc_delta_entropy(delta, context.edge_counter, context.env.population_size);
                 context.entropy += delta_H;
+                context.edge_counter.apply_crossover_delta(delta);
             }
         }
 
