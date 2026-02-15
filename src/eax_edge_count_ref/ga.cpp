@@ -167,10 +167,9 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
             double best_length = *best_length_ptr;
             double worst_length = *worst_length_ptr;
             double average_length = std::accumulate(lengths.begin(), lengths.end(), 0.0) / lengths.size();
-
-            // edge_countの計算（適当な頂点から接続されている頂点の数を取得）
-            // Note: 単純にgeneration % city_countを使うと、city_count > max_generationの場合にすべての頂点をカバーできないため、乱数的に頂点を選択する
-            size_t edge_count = context.edge_counter.get_connected_vertices(((generation + context.env.random_seed) * 0x9E3779B9) % context.env.tsp.city_count).size();
+            
+            // 母集団上のある頂点の隣接頂点の数の平均をedge_countとする
+            size_t edge_count = 2 * context.edge_counter.get_unique_edge_count() / context.env.tsp.city_count;
             
             log_file_stream << generation << "," << best_length << "," << average_length << "," << worst_length << "," << context.entropy << "," << time_per_generation << "," << edge_count << std::endl;
         }
