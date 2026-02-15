@@ -13,25 +13,42 @@ namespace tsp {
             throw std::runtime_error("Could not open the file: " + file_name);
         }
 
+        auto trim = [](std::string& s) {
+            s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) { return !std::isspace(ch); }));
+            s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) { return !std::isspace(ch); }).base(), s.end());
+        };
+
         std::string line;
         while (std::getline(file, line)) {
             if (line.find("NAME") != std::string::npos) {
-                std::istringstream iss(line);
-                std::string name_label;
-                std::string colon;
-                iss >> name_label >> colon >> tsp.name;
+                size_t colon_pos = line.find(':');
+                if (colon_pos == std::string::npos) {
+                    throw std::runtime_error("Invalid line format for NAME: " + line);
+                }
+                auto name_part = line.substr(colon_pos + 1);
+                // 前後の空白をトリム
+                trim(name_part);
+                tsp.name = name_part;
+                
             } else if (line.find("DIMENSION") != std::string::npos) {
-                std::istringstream iss(line);
-                std::string dimension_label;
-                std::string colon;
-                iss >> dimension_label >> colon >> tsp.city_count;
-
-                tsp.adjacency_matrix.resize(tsp.city_count, std::vector<int64_t>(tsp.city_count, 0.0));
+                size_t colon_pos = line.find(':');
+                if (colon_pos == std::string::npos) {
+                    throw std::runtime_error("Invalid line format for DIMENSION: " + line);
+                }
+                auto dimension_part = line.substr(colon_pos + 1);
+                // 前後の空白をトリム
+                trim(dimension_part);
+                tsp.city_count = std::stoul(dimension_part);
+                tsp.adjacency_matrix.resize(tsp.city_count, std::vector<int64_t>(tsp.city_count, 0));
             } else if (line.find("EDGE_WEIGHT_TYPE") != std::string::npos) {
-                std::istringstream iss(line);
-                std::string edge_weight_type_label;
-                std::string colon;
-                iss >> edge_weight_type_label >> colon >> tsp.distance_type;
+                size_t colon_pos = line.find(':');
+                if (colon_pos == std::string::npos) {
+                    throw std::runtime_error("Invalid line format for EDGE_WEIGHT_TYPE: " + line);
+                }
+                auto type_part = line.substr(colon_pos + 1);
+                // 前後の空白をトリム
+                trim(type_part);
+                tsp.distance_type = type_part;
             } else if (line.find("NODE_COORD_SECTION") != std::string::npos) {
                 break; // Start reading the adjacency matrix
             }
