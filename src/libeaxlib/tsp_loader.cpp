@@ -76,6 +76,8 @@ namespace tsp {
                         tsp.adjacency_matrix[i][j] = distance::EUC_2D(x1, y1, x2, y2);
                     } else if (tsp.distance_type == "ATT") {
                         tsp.adjacency_matrix[i][j] = distance::ATT(x1, y1, x2, y2);
+                    } else if (tsp.distance_type == "CEIL_2D") {
+                        tsp.adjacency_matrix[i][j] = distance::CEIL_2D(x1, y1, x2, y2);
                     } else {
                         throw std::runtime_error("Unsupported distance type: " + tsp.distance_type);
                     }

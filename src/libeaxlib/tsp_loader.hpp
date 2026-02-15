@@ -18,6 +18,12 @@ namespace tsp {
             if (tij < rij) return tij + 1;
             else return tij;
         }
+
+        inline int64_t CEIL_2D(double x1, double y1, double x2, double y2) {
+            double dx = x1 - x2;
+            double dy = y1 - y2;
+            return int64_t(std::ceil(std::sqrt(dx * dx + dy * dy)));
+        }
     }
     
     using adjacency_matrix_t = std::vector<std::vector<int64_t>>;
