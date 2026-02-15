@@ -32,6 +32,7 @@ public:
 
     EdgeCounter(size_t num_vertices, size_t population_size)
         : edge_counts(num_vertices, std::vector<size_t>(num_vertices, 0)),
+          unique_edge_counts_per_vertex(num_vertices, 0),
           population_size(population_size),
           unique_edge_count(0) {}
     
@@ -87,6 +88,7 @@ public:
     void increment_edge_count(size_t v1, size_t v2) {
         if (edge_counts[v1][v2] == 0) {
             unique_edge_count++;
+            unique_edge_counts_per_vertex[v1]++;
         }
         edge_counts[v1][v2]++;
     }
@@ -103,6 +105,7 @@ public:
         edge_counts[v1][v2]--;
         if (edge_counts[v1][v2] == 0) {
             unique_edge_count--;
+            unique_edge_counts_per_vertex[v1]--;
         }
     }
     
@@ -138,6 +141,15 @@ public:
     }
 
     /**
+     * @brief 頂点v1と隣接する頂点の数を取得する
+     * @param v1 始点頂点
+     * @return 隣接する頂点の数
+     */
+    size_t get_unique_edge_count_for_vertex(size_t v1) const {
+        return unique_edge_counts_per_vertex[v1];
+    }
+
+    /**
      * @brief エントロピーを計算する
      * @return エントロピー値
      * @details
@@ -158,6 +170,7 @@ public:
     
 private:
     std::vector<std::vector<size_t>> edge_counts;
+    std::vector<size_t> unique_edge_counts_per_vertex;
     size_t population_size;
     size_t unique_edge_count = 0;
 };
@@ -220,6 +233,15 @@ public:
      */
     const std::vector<size_t>& get_connected_vertices(size_t v1) const {
         return vertex_counters[v1].connected_vertices;
+    }
+    
+    /**
+     * @brief 頂点v1と隣接する頂点の数を取得する
+     * @param v1 始点頂点
+     * @return 隣接する頂点の数
+     */
+    size_t get_unique_edge_count_for_vertex(size_t v1) const {
+        return vertex_counters[v1].connected_vertices.size();
     }
     
     /**
@@ -498,6 +520,15 @@ public:
      */
     const std::vector<size_t>& get_connected_vertices(size_t v1) const {
         return vertex_counters[v1].connected_vertices;
+    }
+
+    /**
+     * @brief 頂点v1と隣接する頂点の数を取得する
+     * @param v1 始点頂点
+     * @return 隣接する頂点の数
+     */
+    size_t get_unique_edge_count_for_vertex(size_t v1) const {
+        return vertex_counters[v1].connected_vertices.size();
     }
     
     /**
