@@ -12,6 +12,7 @@ namespace eax {
 
 struct NaivePolicy {};
 struct CompactPolicy {};
+struct OrderedCompactPolicy {};
 
 /**
  * @tparam Policy エッジカウンタのポリシー
@@ -168,7 +169,7 @@ private:
  *     メモリ使用量は O(n * m) で、n は頂点数、m は個体数。
  */
 template <>
-class EdgeCounter<CompactPolicy> {
+class EdgeCounter<OrderedCompactPolicy> {
 public:
     EdgeCounter(size_t num_vertices, size_t population_size)
         : vertex_counters(num_vertices, VertexEdgeCounter{population_size}),
@@ -438,5 +439,242 @@ private:
      * @brief 個体数
      */
     size_t population_size;
+};
+
+/**
+ * @brief 辺の出現回数を管理するクラス
+ * @details
+ *    メモリ使用量は O(n * m) で、n は頂点数、m は個体数。
+ */
+template <>
+class EdgeCounter<CompactPolicy> {
+public:
+    EdgeCounter(size_t num_vertices, size_t population_size)
+        : vertex_counters(num_vertices, VertexEdgeCounter{population_size}),
+            unique_edge_count(0),
+            population_size(population_size) {}
+    
+    template <doubly_linked_list_readable Individual>
+    EdgeCounter(const std::vector<Individual>& population)
+        : EdgeCounter(population[0].size(), population.size()) {
+        
+        for (const auto& individual : population) {
+            for (size_t v1 = 0; v1 < individual.size(); ++v1) {
+                increment_edge_count(v1, individual[v1][0]);
+                increment_edge_count(v1, individual[v1][1]);
+            }
+        }
+    }
+
+    /**
+     * @brief CrossoverDeltaで表される変更を適用して辺の出現回数を更新する
+     * @param delta 適用する変更
+     */
+    void apply_crossover_delta(const CrossoverDelta& delta) {
+        for (const auto& modification : delta.get_modifications()) {
+            auto [v1, v2] = modification.edge1;
+            size_t new_v2 = modification.new_v2;
+            decrement_edge_count(v1, v2);
+            increment_edge_count(v1, new_v2);
+        }
+    }
+
+    /**
+     * @brief 頂点v1から頂点v2への辺の出現回数を取得する
+     * @param v1 始点頂点
+     * @param v2 終点頂点
+     * @return 出現回数
+     * @details
+     *    計算量は O(m) で、m は個体数。
+     */
+    size_t get_edge_count(size_t v1, size_t v2) const {
+        return vertex_counters[v1].get_edge_count(v2);
+    }
+
+    /**
+     * @brief 頂点v1から接続されている頂点のvectorを取得する
+     * @param v1 始点頂点
+     * @return 接続されている頂点のvector
+     */
+    const std::vector<size_t>& get_connected_vertices(size_t v1) const {
+        return vertex_counters[v1].connected_vertices;
+    }
+    
+    /**
+     * @brief 重複を除いた辺の数を取得する
+     * @details
+     *  (a, b) と (b, a) は同一の辺として数える
+     * @return 重複を除いた辺の数
+     */
+    size_t get_unique_edge_count() const {
+        return unique_edge_count / 2;
+    }
+
+    /**
+     * @brief 頂点v1から頂点v2への辺の出現回数をインクリメントする
+     * @param v1 始点頂点
+     * @param v2 終点頂点
+     */
+    void increment_edge_count(size_t v1, size_t v2) {
+
+        std::size_t prev_size = vertex_counters[v1].connected_vertices.size();
+
+        vertex_counters[v1].increment_edge_count(v2);
+
+        std::size_t new_size = vertex_counters[v1].connected_vertices.size();
+        unique_edge_count += new_size - prev_size;
+    }
+
+    /**
+     * @brief 頂点v1から頂点v2への辺の出現回数をデクリメントする
+     * @param v1 始点頂点
+     * @param v2 終点頂点
+     */
+    void decrement_edge_count(size_t v1, size_t v2) {
+
+        std::size_t prev_size = vertex_counters[v1].connected_vertices.size();
+
+        vertex_counters[v1].decrement_edge_count(v2);
+        
+        std::size_t new_size = vertex_counters[v1].connected_vertices.size();
+        unique_edge_count -= prev_size - new_size;
+    }
+    
+    /**
+     * @brief エントロピーを計算する
+     * @return エントロピー値
+     * @details
+     *     計算量は O(n * m) である。
+     */
+    double calc_entropy() const {
+        double entropy = 0.0;
+        for (const auto& vertex_counter : vertex_counters) {
+            for (auto edge_count : vertex_counter.edge_counts) {
+                // edge_count > 0 である
+                double p = static_cast<double>(edge_count) / static_cast<double>(population_size);
+                double entropy_contribution = -p * std::log2(p);
+                entropy += entropy_contribution;
+            }
+        }
+        return entropy;
+    }
+
+private:
+    /**
+     * @brief 頂点１つについて管理するクラス
+     */
+    class VertexEdgeCounter {
+    public:
+        VertexEdgeCounter(size_t population_size)
+            : connected_vertices(), edge_counts() {
+            connected_vertices.reserve(population_size * 2);
+            edge_counts.reserve(population_size * 2);
+        }
+
+        /**
+         * @brief 頂点v2への辺の出現回数をインクリメントする
+         * @param v2 接続先頂点
+         * @details
+         *      最悪計算量: O(m), m = population_size
+         */
+        void increment_edge_count(size_t v2) {
+            auto it = std::find(connected_vertices.begin(), connected_vertices.end(), v2);
+
+            if (it == connected_vertices.end()) {
+                connected_vertices.push_back(v2);
+                edge_counts.push_back(1);
+                return;
+            }
+
+            size_t v2_index = std::distance(connected_vertices.begin(), it);
+            
+            ++edge_counts[v2_index];
+        }
+        
+        /**
+         * @brief 頂点v2への辺の出現回数をデクリメントする
+         * @param v2 接続先頂点
+         * @details
+         *      最悪計算量: O(m), m = population_size
+         */
+        void decrement_edge_count(size_t v2) {
+            auto it = std::find(connected_vertices.begin(), connected_vertices.end(), v2);
+            if (it == connected_vertices.end()) {
+                return;
+            }
+
+            size_t v2_index = std::distance(connected_vertices.begin(), it);
+            
+            --edge_counts[v2_index];
+
+            if (edge_counts[v2_index] != 0) {
+                return;
+            }
+            
+            // 出現回数が0になった頂点を削除
+            if (v2_index != connected_vertices.size() - 1) {
+                // 削除する頂点と最後の頂点を入れ替える
+                std::swap(connected_vertices[v2_index], connected_vertices.back());
+                std::swap(edge_counts[v2_index], edge_counts.back());
+            }
+
+            // 最後の要素を削除
+            connected_vertices.pop_back();
+            edge_counts.pop_back();
+        }
+
+        /**
+         * @brief 頂点v2への辺の出現回数を取得する
+         * @param v2 接続先頂点
+         * @return 出現回数
+         * @details
+         *      計算量: O(m), m = population_size
+         */
+        size_t get_edge_count(size_t v2) const {
+            auto it = std::find(connected_vertices.begin(), connected_vertices.end(), v2);
+            if (it == connected_vertices.end()) {
+                return 0;
+            }
+
+            size_t v2_index = std::distance(connected_vertices.begin(), it);
+
+            return edge_counts[v2_index];
+        }
+
+    private:
+        /**
+         * @brief 1回以上出現する辺の接続先
+         */
+        std::vector<size_t> connected_vertices;
+        
+        /**
+         * @brief connected_verticesに対応する辺の出現回数
+         * @invariant connected_vertices.size() == edge_counts.size()
+         */
+        std::vector<size_t> edge_counts;
+
+        friend class EdgeCounter;
+    };
+
+    /**
+     * @brief 各頂点の辺の出現回数を管理する配列
+     */
+    std::vector<VertexEdgeCounter> vertex_counters;
+
+    /**
+     * @brief 重複を除いた有向辺の数を記録する
+     * @details 
+     *  頂点 v1 ごとに接続先 v2 の集合のサイズの総和を表す内部カウンタ。
+     *  具体的には、(a, b) と (a, b) は同じ辺として数えるが、
+     *  (a, b) と (b, a) は別の辺として数える（有向辺として扱う）。
+     *  無向辺数が必要な場合は、get_unique_edge_count() の戻り値を利用すること。
+     */
+    std::size_t unique_edge_count = 0;
+    
+    /**
+     * @brief 個体数
+     */
+    size_t population_size;
+
 };
 }
