@@ -11,6 +11,7 @@
 #include "entropy_evaluator.hpp"
 #include "distance_preserving_evaluator.hpp"
 #include "nagata_generation_change_model.hpp"
+#include "eaxutils.hpp"
 
 
 namespace eax {
@@ -171,7 +172,14 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
     // GA実行オブジェクト
     mpi::GenerationalChangeModel genetic_algorithm(generational_step, update_func, logging, post_process);
 
-    return genetic_algorithm.execute(population, context, context.current_generation);
+    auto result = genetic_algorithm.execute(population, context, context.current_generation);
+    
+    if (log_ofs.is_open()) {
+        auto& [reason, final_population] = result;
+        print_best_solution(final_population, log_ofs);
+    }
+    
+    return result;
 }
 
 }
