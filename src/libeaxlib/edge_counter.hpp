@@ -613,10 +613,12 @@ private:
             
             // 出現回数が0になった頂点を削除
             if (v2_index != connected_vertices.size() - 1) {
+                // 削除する頂点と最後の頂点を入れ替える
                 std::swap(connected_vertices[v2_index], connected_vertices.back());
                 std::swap(edge_counts[v2_index], edge_counts.back());
             }
 
+            // 最後の要素を削除
             connected_vertices.pop_back();
             edge_counts.pop_back();
         }
