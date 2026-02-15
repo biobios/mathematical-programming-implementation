@@ -647,7 +647,7 @@ private:
         
         /**
          * @brief connected_verticesに対応する辺の出現回数
-         * @cond connected_vertices.size() == edge_counts.size()
+         * @invariant connected_vertices.size() == edge_counts.size()
          */
         std::vector<size_t> edge_counts;
 
