@@ -37,7 +37,11 @@ namespace tsp {
                 auto dimension_part = line.substr(colon_pos + 1);
                 // 前後の空白をトリム
                 trim(dimension_part);
-                tsp.city_count = std::stoul(dimension_part);
+                try {
+                    tsp.city_count = std::stoul(dimension_part);
+                } catch (const std::exception& e) {
+                    throw std::runtime_error("Invalid number format for DIMENSION: " + dimension_part);
+                }
                 tsp.adjacency_matrix.resize(tsp.city_count, std::vector<int64_t>(tsp.city_count, 0));
             } else if (line.starts_with("EDGE_WEIGHT_TYPE") != std::string::npos) {
                 size_t colon_pos = line.find(':');
