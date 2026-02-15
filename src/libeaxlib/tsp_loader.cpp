@@ -20,7 +20,7 @@ namespace tsp {
 
         std::string line;
         while (std::getline(file, line)) {
-            if (line.starts_with("NAME") != std::string::npos) {
+            if (line.starts_with("NAME")) {
                 size_t colon_pos = line.find(':');
                 if (colon_pos == std::string::npos) {
                     throw std::runtime_error("Invalid line format for NAME: " + line);
@@ -29,7 +29,7 @@ namespace tsp {
                 // 前後の空白をトリム
                 trim(name_part);
                 tsp.name = name_part;
-            } else if (line.starts_with("DIMENSION") != std::string::npos) {
+            } else if (line.starts_with("DIMENSION")) {
                 size_t colon_pos = line.find(':');
                 if (colon_pos == std::string::npos) {
                     throw std::runtime_error("Invalid line format for DIMENSION: " + line);
@@ -43,7 +43,7 @@ namespace tsp {
                     throw std::runtime_error("Invalid number format for DIMENSION: " + dimension_part);
                 }
                 tsp.adjacency_matrix.resize(tsp.city_count, std::vector<int64_t>(tsp.city_count, 0));
-            } else if (line.starts_with("EDGE_WEIGHT_TYPE") != std::string::npos) {
+            } else if (line.starts_with("EDGE_WEIGHT_TYPE")) {
                 size_t colon_pos = line.find(':');
                 if (colon_pos == std::string::npos) {
                     throw std::runtime_error("Invalid line format for EDGE_WEIGHT_TYPE: " + line);
@@ -52,7 +52,7 @@ namespace tsp {
                 // 前後の空白をトリム
                 trim(type_part);
                 tsp.distance_type = type_part;
-            } else if (line.starts_with("NODE_COORD_SECTION") != std::string::npos) {
+            } else if (line.starts_with("NODE_COORD_SECTION")) {
                 break; // Start reading the adjacency matrix
             }
         }
