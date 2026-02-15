@@ -11,6 +11,7 @@
 #include "entropy_evaluator.hpp"
 #include "distance_preserving_evaluator.hpp"
 #include "nagata_generation_change_model.hpp"
+#include "eaxutils.hpp"
 
 
 namespace eax {
@@ -172,39 +173,10 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
     mpi::GenerationalChangeModel genetic_algorithm(generational_step, update_func, logging, post_process);
 
     auto result = genetic_algorithm.execute(population, context, context.current_generation);
-    if (!log_file_name.empty()) {
-        // ログを出力するなら、最良解を出力
+    
+    if (log_ofs.is_open()) {
         auto& [reason, final_population] = result;
-        size_t best_index = 0;
-        int64_t best_length = final_population[0].get_distance();
-        for (size_t i = 1; i < final_population.size(); ++i) {
-            int64_t length = final_population[i].get_distance();
-            if (length < best_length) {
-                best_length = length;
-                best_index = i;
-            }
-        }
-        
-        auto& best_ind = final_population[best_index];
-
-        std::vector<size_t> best_path;
-        size_t prev = 0;
-        size_t current = 0;
-        for (size_t i = 0; i < best_ind.size(); ++i) {
-            best_path.push_back(current);
-            size_t next = best_ind[current][0];
-            if (next == prev) {
-                next = best_ind[current][1];
-            }
-            prev = current;
-            current = next;
-        }
-        log_ofs << "Best Solution: " << best_length << std::endl;
-        log_ofs << "Best Path: ";
-        for (size_t city : best_path) {
-            log_ofs << city << " ";
-        }
-        log_ofs << std::endl;
+        print_best_solution(final_population, log_ofs);
     }
     
     return result;
