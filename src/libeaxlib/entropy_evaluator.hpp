@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cmath>
+#include <ranges>
 
 #include "eaxdef.hpp"
 #include "crossover_delta.hpp"
@@ -78,8 +79,9 @@ double calc_delta_entropy(const CrossoverDelta& child, EdgeCounter<Policy>& edge
         edge_counter.increment_edge_count(v1, new_v2);
     }
 
-    // もとに戻す
-    for (const auto& modification : child.get_modifications()) {
+    // 逆順にもとに戻す
+    for (auto it = child.get_modifications().rbegin(); it != child.get_modifications().rend(); ++it) {
+        const auto& modification = *it;
         auto [v1, v2] = modification.edge1;
         size_t new_v2 = modification.new_v2;
         edge_counter.increment_edge_count(v1, v2);
