@@ -133,7 +133,7 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
     std::ofstream log_file_stream;
     if (!log_file_name.empty()) {
         log_file_stream.open(log_file_name);
-        log_file_stream << "Generation,BestLength,AverageLength,WorstLength,Entropy" << std::endl;
+        log_file_stream << "Generation,BestLength,AverageLength,WorstLength,Entropy,TimePerGeneration" << std::endl;
     }
 
     struct {

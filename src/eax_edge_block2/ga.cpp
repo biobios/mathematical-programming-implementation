@@ -129,16 +129,19 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
         if (!log_file.is_open()) {
             throw std::runtime_error("Failed to open log file: " + log_file_name);
         }
+        log_file << "Generation,BestLength,AverageLength,WorstLength,Entropy,TimePerGeneration,distinct_neighbor_count" << std::endl;
     }
     struct {
         std::ofstream& out;
         void operator()([[maybe_unused]]const vector<Individual>& population, Context& context, size_t generation) {
+            double time_per_generation = 0.0;
             if (context.start_time.time_since_epoch().count() == 0) {
                 // 計測開始時刻が未設定なら、現在時刻を設定
                 context.start_time = std::chrono::system_clock::now();
             } else {
                 auto now = std::chrono::system_clock::now();
-                context.elapsed_time += std::chrono::duration<double>(now - context.start_time).count();
+                time_per_generation += std::chrono::duration<double>(now - context.start_time).count();
+                context.elapsed_time += time_per_generation;
                 context.start_time = now;
             }
             if (!out.is_open()) return;
@@ -150,11 +153,17 @@ std::pair<mpi::genetic_algorithm::TerminationReason, std::vector<Individual>> ex
             double best_length = *std::min_element(lengths.begin(), lengths.end());
             double average_length = std::accumulate(lengths.begin(), lengths.end(), 0.0) / lengths.size();
             double worst_length = *std::max_element(lengths.begin(), lengths.end());
+
+            // 母集団上のある頂点の隣接頂点の数の平均をedge_countとする
+            size_t edge_count = 2 * context.pop_edge_counts.get_unique_edge_count() / context.env.tsp.city_count;
+
             out << generation << ","
                 << best_length << ","
                 << average_length << ","
                 << worst_length << ","
-                << context.entropy
+                << context.entropy << ","
+                << time_per_generation << ","
+                << edge_count
                 << std::endl;
         }
     } logging {log_file};
