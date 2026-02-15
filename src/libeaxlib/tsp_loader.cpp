@@ -29,7 +29,6 @@ namespace tsp {
                 // 前後の空白をトリム
                 trim(name_part);
                 tsp.name = name_part;
-                
             } else if (line.find("DIMENSION") != std::string::npos) {
                 size_t colon_pos = line.find(':');
                 if (colon_pos == std::string::npos) {
